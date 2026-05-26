@@ -22,6 +22,9 @@ go build -o girl ./cmd/girl/
 # Analyze a file or directory
 ./girl analyze examples/messy-react-form --output text
 
+# Analyze Go code explicitly, or use --lang auto to detect Go/TS
+./girl analyze . --lang go --output text
+
 # Generate a refactor plan
 ./girl plan examples/messy-react-form --output markdown
 
@@ -37,6 +40,8 @@ go build -o girl ./cmd/girl/
 | Command | Description |
 |---------|-------------|
 | `girl analyze <path>` | Scan code for refactoring opportunities |
+| `girl nodes <path>` | List semantic nodes from TS/TSX files |
+| `girl refs <path>` | List reference nodes, optionally filtered by symbol |
 | `girl plan <path>` | Generate structured GRP refactor plan |
 | `girl pack <path>` | Create token-budgeted agent context pack |
 | `girl verify <path>` | Detect available verification commands |
@@ -45,9 +50,21 @@ go build -o girl ./cmd/girl/
 
 Detects: large components, repeated JSX, too many hooks, too many state
 variables, mixed responsibilities, complex conditionals, hardcoded data,
-missing prop types.
+missing prop types, Go long functions, high complexity, deep nesting, large
+files, ignored errors, and large parameter lists.
 
-Output: JSON, text, or markdown.
+Output: JSON, text, or markdown. Use `--lang auto|ts|go` to choose the analyzer.
+
+### `girl nodes`
+
+Parses TS/TSX files into the semantic node graph and lists nodes. Use
+`--kind component`, `--kind hook`, `--kind state`, `--kind jsx`, or
+`--kind reference` to focus output.
+
+### `girl refs`
+
+Lists reference nodes from the semantic graph. Use `--symbol <name>` to focus on
+one identifier.
 
 ### `girl plan`
 
@@ -71,6 +88,19 @@ Recipes are the unit of refactoring knowledge:
 - `react.consolidate-effects` — Merge related useEffect calls
 - `react.add-prop-types` — Add TypeScript interfaces for component props
 - `react.extract-constants` — Move hardcoded data to external files
+- `go.extract-function` — Split long Go functions into focused helpers
+- `go.simplify-branches` — Reduce branching with guard clauses or smaller units
+- `go.flatten-nesting` — Reduce deep nesting in Go functions
+- `go.split-file` — Split large Go files by responsibility
+- `go.handle-error` — Replace ignored errors with explicit handling
+- `go.extract-options-struct` — Group large parameter lists
+
+## Roadmap
+
+See `docs/roadmap/high-impact-plan.md` for the next high-impact implementation
+plan: structured diagnostics, stable GRP step IDs, recipe registry, Go context
+packing, lower-noise diagnostics, safer language detection, and docs/spec
+alignment.
 
 ## GRP Plan Format
 

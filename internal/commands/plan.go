@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/canadian-ai/girl/internal/analyzer"
+	"github.com/canadian-ai/girl/internal/goanalysis"
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/planner"
 	"github.com/urfave/cli/v2"
@@ -33,6 +34,11 @@ func PlanCommand() *cli.Command {
 				Usage:   "Output format: json (default), markdown",
 				Value:   "json",
 			},
+			&cli.StringFlag{
+				Name:  "lang",
+				Usage: "Language mode: auto (default), go, ts",
+				Value: "auto",
+			},
 			&cli.IntFlag{
 				Name:  "budget",
 				Usage: "Token budget for the plan",
@@ -45,8 +51,17 @@ func PlanCommand() *cli.Command {
 				path = "."
 			}
 
-			a := analyzer.NewAnalyzer(nil)
-			result, err := a.Analyze(path)
+			lang := resolveLang(path, c.String("lang"))
+
+			var result *ir.AnalyzerResult
+			var err error
+
+			if lang == "go" {
+				result, err = goanalysis.AnalyzePath(path, nil)
+			} else {
+				a := analyzer.NewAnalyzer(nil)
+				result, err = a.Analyze(path)
+			}
 			if err != nil {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
@@ -58,6 +73,7 @@ func PlanCommand() *cli.Command {
 				Recipe:      c.String("recipe"),
 				Diagnostics: result.Diagnostics,
 				Files:       result.Files,
+				Lang:        lang,
 			})
 
 			switch stringFlag(c, "output", "o") {

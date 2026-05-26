@@ -2,13 +2,14 @@ package commands
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/canadian-ai/girl/internal/goanalysis"
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/urfave/cli/v2"
 )
 
-// Re-export package types at command level for convenience
 type AnalyzerResult = ir.AnalyzerResult
 type GrpPlan = ir.GrpPlan
 type GrpStep = ir.GrpStep
@@ -33,4 +34,42 @@ func stringFlag(c *cli.Context, name string, aliases ...string) string {
 		}
 	}
 	return c.String(name)
+}
+
+func resolveLang(path string, lang string) string {
+	if lang != "auto" {
+		return lang
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return "ts"
+	}
+	if info.IsDir() {
+		if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
+			return "go"
+		}
+		hasGo := false
+		hasTS := false
+		filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
+			if err != nil || fi.IsDir() {
+				return nil
+			}
+			if goanalysis.IsGoFile(p) {
+				hasGo = true
+			}
+			ext := filepath.Ext(p)
+			if ext == ".ts" || ext == ".tsx" || ext == ".js" || ext == ".jsx" {
+				hasTS = true
+			}
+			return nil
+		})
+		if hasGo && !hasTS {
+			return "go"
+		}
+		return "ts"
+	}
+	if goanalysis.IsGoFile(path) {
+		return "go"
+	}
+	return "ts"
 }

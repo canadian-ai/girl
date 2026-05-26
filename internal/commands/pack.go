@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/canadian-ai/girl/internal/analyzer"
+	"github.com/canadian-ai/girl/internal/goanalysis"
+	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/packer"
 	"github.com/canadian-ai/girl/internal/planner"
 	"github.com/urfave/cli/v2"
@@ -36,6 +38,11 @@ func PackCommand() *cli.Command {
 				Usage:   "Output format: json (default), markdown",
 				Value:   "json",
 			},
+			&cli.StringFlag{
+				Name:  "lang",
+				Usage: "Language mode: auto (default), go, ts",
+				Value: "auto",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			path := c.Args().First()
@@ -43,8 +50,17 @@ func PackCommand() *cli.Command {
 				path = "."
 			}
 
-			a := analyzer.NewAnalyzer(nil)
-			result, err := a.Analyze(path)
+			lang := resolveLang(path, c.String("lang"))
+
+			var result *ir.AnalyzerResult
+			var err error
+
+			if lang == "go" {
+				result, err = goanalysis.AnalyzePath(path, nil)
+			} else {
+				a := analyzer.NewAnalyzer(nil)
+				result, err = a.Analyze(path)
+			}
 			if err != nil {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
@@ -55,6 +71,7 @@ func PackCommand() *cli.Command {
 				Goal:        c.String("goal"),
 				Diagnostics: result.Diagnostics,
 				Files:       result.Files,
+				Lang:        lang,
 			})
 
 			pkr := packer.NewPacker(c.Int("budget"))

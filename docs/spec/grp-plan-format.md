@@ -54,7 +54,8 @@ Steps should be executed in order. Each step builds on the previous.
 
 ### Recipe Identifiers
 
-Format: `<language>.<domain>.<pattern>`
+Recommended format: `<language>.<domain>.<pattern>` for framework/domain
+recipes, or `<language>.<pattern>` for language-level refactors.
 
 Examples:
 - `react.split-large-component`
@@ -64,6 +65,9 @@ Examples:
 - `react.consolidate-effects`
 - `react.add-prop-types`
 - `react.extract-constants`
+- `go.extract-function`
+- `go.simplify-branches`
+- `go.handle-error`
 
 ### Verification Commands
 

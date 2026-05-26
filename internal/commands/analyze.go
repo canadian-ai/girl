@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/canadian-ai/girl/internal/analyzer"
+	"github.com/canadian-ai/girl/internal/goanalysis"
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/urfave/cli/v2"
 )
@@ -21,6 +22,11 @@ func AnalyzeCommand() *cli.Command {
 				Aliases: []string{"o"},
 				Usage:   "Output format: json (default), text, markdown",
 				Value:   "json",
+			},
+			&cli.StringFlag{
+				Name:  "lang",
+				Usage: "Language mode: auto (default), go, ts",
+				Value: "auto",
 			},
 			&cli.IntFlag{
 				Name:  "max-lines",
@@ -38,12 +44,21 @@ func AnalyzeCommand() *cli.Command {
 				path = "."
 			}
 
-			cfg := analyzer.DefaultConfig()
-			cfg.MaxComponentLines = c.Int("max-lines")
-			cfg.ExcludeDirs = c.StringSlice("exclude")
+			lang := resolveLang(path, c.String("lang"))
 
-			a := analyzer.NewAnalyzer(cfg)
-			result, err := a.Analyze(path)
+			var result *ir.AnalyzerResult
+			var err error
+
+			if lang == "go" {
+				cfg := goanalysis.DefaultConfig()
+				result, err = goanalysis.AnalyzePath(path, cfg)
+			} else {
+				cfg := analyzer.DefaultConfig()
+				cfg.MaxComponentLines = c.Int("max-lines")
+				cfg.ExcludeDirs = c.StringSlice("exclude")
+				a := analyzer.NewAnalyzer(cfg)
+				result, err = a.Analyze(path)
+			}
 			if err != nil {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
