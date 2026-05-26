@@ -81,6 +81,9 @@ func (a *Analyzer) Analyze(path string) (*ir.AnalyzerResult, error) {
 	}
 
 	diags := a.detectSmells(files)
+	if diags == nil {
+		diags = []ir.Diagnostic{}
+	}
 
 	return &ir.AnalyzerResult{
 		Files:       files,
@@ -89,7 +92,7 @@ func (a *Analyzer) Analyze(path string) (*ir.AnalyzerResult, error) {
 }
 
 func (a *Analyzer) detectSmells(files []*ir.FileIR) []ir.Diagnostic {
-	var diags []ir.Diagnostic
+	diags := []ir.Diagnostic{}
 
 	for _, f := range files {
 		diags = append(diags, a.detectLargeComponents(f)...)

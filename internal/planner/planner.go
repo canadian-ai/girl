@@ -28,11 +28,15 @@ type PlanRequest struct {
 }
 
 func (p *Planner) GeneratePlan(req PlanRequest) *ir.GrpPlan {
+	diags := req.Diagnostics
+	if diags == nil {
+		diags = []ir.Diagnostic{}
+	}
 	plan := &ir.GrpPlan{
 		PlanID:       fmt.Sprintf("grp_%d", time.Now().Unix()),
 		Goal:         req.Goal,
 		Target:       req.Target,
-		Diagnostics:  req.Diagnostics,
+		Diagnostics:  diags,
 		Steps:        []ir.GrpStep{},
 		Verification: p.detectVerification(req.Target),
 	}
