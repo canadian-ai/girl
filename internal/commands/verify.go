@@ -14,9 +14,10 @@ func VerifyCommand() *cli.Command {
 		ArgsUsage: "<path>",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:  "output, o",
-				Usage: "Output format: json (default), text",
-				Value: "json",
+				Name:    "output",
+				Aliases: []string{"o"},
+				Usage:   "Output format: json (default), text",
+				Value:   "json",
 			},
 		},
 		Action: func(c *cli.Context) error {
@@ -31,7 +32,7 @@ func VerifyCommand() *cli.Command {
 				return fmt.Errorf("verification failed: %w", err)
 			}
 
-			switch c.String("output") {
+			switch stringFlag(c, "output", "o") {
 			case "text":
 				fmt.Printf("Package manager: %s\n", result.PackageManager)
 				fmt.Printf("Work directory: %s\n\n", result.WorkDir)
@@ -46,7 +47,10 @@ func VerifyCommand() *cli.Command {
 				}
 
 				fmt.Println()
-				checks := []struct{ name string; val bool }{
+				checks := []struct {
+					name string
+					val  bool
+				}{
 					{"TypeScript config", result.HasConfig},
 					{"Convex project", result.HasConvex},
 					{"Dockerfile", result.HasDocker},

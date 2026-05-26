@@ -28,9 +28,10 @@ func PlanCommand() *cli.Command {
 				Usage: "Specific recipe to apply",
 			},
 			&cli.StringFlag{
-				Name:  "output, o",
-				Usage: "Output format: json (default), markdown",
-				Value: "json",
+				Name:    "output",
+				Aliases: []string{"o"},
+				Usage:   "Output format: json (default), markdown",
+				Value:   "json",
 			},
 			&cli.IntFlag{
 				Name:  "budget",
@@ -59,7 +60,7 @@ func PlanCommand() *cli.Command {
 				Files:       result.Files,
 			})
 
-			switch c.String("output") {
+			switch stringFlag(c, "output", "o") {
 			case "markdown":
 				printPlanMarkdown(plan)
 			default:

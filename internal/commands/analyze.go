@@ -17,9 +17,10 @@ func AnalyzeCommand() *cli.Command {
 		ArgsUsage: "<path>",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:  "output, o",
-				Usage: "Output format: json (default), text, markdown",
-				Value: "json",
+				Name:    "output",
+				Aliases: []string{"o"},
+				Usage:   "Output format: json (default), text, markdown",
+				Value:   "json",
 			},
 			&cli.IntFlag{
 				Name:  "max-lines",
@@ -47,7 +48,7 @@ func AnalyzeCommand() *cli.Command {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
 
-			switch c.String("output") {
+			switch stringFlag(c, "output", "o") {
 			case "text":
 				printText(result)
 			case "markdown":

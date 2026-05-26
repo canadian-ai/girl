@@ -31,9 +31,10 @@ func PackCommand() *cli.Command {
 				Value: "private",
 			},
 			&cli.StringFlag{
-				Name:  "output, o",
-				Usage: "Output format: json (default), markdown",
-				Value: "json",
+				Name:    "output",
+				Aliases: []string{"o"},
+				Usage:   "Output format: json (default), markdown",
+				Value:   "json",
 			},
 		},
 		Action: func(c *cli.Context) error {
@@ -68,7 +69,7 @@ func PackCommand() *cli.Command {
 				return fmt.Errorf("packing failed: %w", err)
 			}
 
-			switch c.String("output") {
+			switch stringFlag(c, "output", "o") {
 			case "markdown":
 				fmt.Printf("# GIRL Context Pack\n\n")
 				fmt.Printf("**Goal:** %s\n\n", pack.Goal)
