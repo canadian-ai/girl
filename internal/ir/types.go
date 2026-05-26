@@ -107,13 +107,62 @@ const (
 )
 
 type Diagnostic struct {
-	Code       string   `json:"code"`
-	Severity   Severity `json:"severity"`
-	Message    string   `json:"message"`
-	File       string   `json:"file"`
-	Line       int      `json:"line"`
-	Component  string   `json:"component,omitempty"`
-	Suggestion string   `json:"suggestion,omitempty"`
+	Code       string            `json:"code"`
+	Severity   Severity          `json:"severity"`
+	Message    string            `json:"message"`
+	File       string            `json:"file"`
+	Line       int               `json:"line"`
+	Component  string            `json:"component,omitempty"`
+	Suggestion string            `json:"suggestion,omitempty"`
+	Kind       NodeKind          `json:"kind,omitempty"`
+	Symbol     string            `json:"symbol,omitempty"`
+	EndLine    int               `json:"endLine,omitempty"`
+	Package    string            `json:"package,omitempty"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
+	Tags       []string          `json:"tags,omitempty"`
+	Span       *Span             `json:"span,omitempty"`
+	Related    []RelatedInfo     `json:"related,omitempty"`
+	Fixes      []Fix             `json:"fixes,omitempty"`
+}
+
+type NodeKind string
+
+const (
+	NodeKindFunction  NodeKind = "function"
+	NodeKindFile      NodeKind = "file"
+	NodeKindComponent NodeKind = "component"
+	NodeKindHook      NodeKind = "hook"
+	NodeKindReference NodeKind = "reference"
+	NodeKindState     NodeKind = "state"
+)
+
+type Span struct {
+	StartLine int `json:"startLine"`
+	EndLine   int `json:"endLine"`
+	StartCol  int `json:"startCol,omitempty"`
+	EndCol    int `json:"endCol,omitempty"`
+}
+
+type RelatedInfo struct {
+	Message string `json:"message"`
+	Span    Span   `json:"span"`
+}
+
+type Fix struct {
+	Title string `json:"title"`
+	Kind  string `json:"kind"`
+	Span  Span   `json:"span"`
+	Text  string `json:"text,omitempty"`
+}
+
+func (d Diagnostic) DiagnosticTarget() string {
+	if d.Symbol != "" {
+		return d.Symbol
+	}
+	if d.Component != "" {
+		return d.Component
+	}
+	return d.File
 }
 
 type GrpStep struct {

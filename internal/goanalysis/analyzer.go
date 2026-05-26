@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/shared"
 )
 
 func AnalyzePath(path string, cfg *Config) (*ir.AnalyzerResult, error) {
@@ -28,10 +28,7 @@ func AnalyzePath(path string, cfg *Config) (*ir.AnalyzerResult, error) {
 			}
 			if fi.IsDir() {
 				base := filepath.Base(p)
-				if base != "." && strings.HasPrefix(base, ".") {
-					return filepath.SkipDir
-				}
-				if base == "vendor" || base == "node_modules" {
+				if base != "." && shared.ShouldSkipDir(base) {
 					return filepath.SkipDir
 				}
 				return nil
@@ -131,6 +128,9 @@ func detectLargeFile(f *GoFile, cfg *Config) []ir.Diagnostic {
 		Message:    fmt.Sprintf("File %q is %d lines (limit: %d)", relPath(f.Path), f.Lines, cfg.MaxFileLines),
 		File:       relPath(f.Path),
 		Suggestion: "Split this file by responsibility into smaller packages or files.",
+		Kind:       ir.NodeKindFile,
+		Symbol:     relPath(f.Path),
+		EndLine:    f.Lines,
 	}}
 }
 
@@ -151,6 +151,10 @@ func detectLongFunction(f *GoFile, fn GoFunction, cfg *Config) []ir.Diagnostic {
 		File:       relPath(f.Path),
 		Line:       fn.StartLine,
 		Suggestion: "Extract smaller helper functions or simplify the logic. Aim for functions under 50 lines.",
+		Kind:       ir.NodeKindFunction,
+		Symbol:     fnName(fn),
+		EndLine:    fn.EndLine,
+		Span:       &ir.Span{StartLine: fn.StartLine, EndLine: fn.EndLine},
 	}}
 }
 
@@ -171,6 +175,8 @@ func detectHighComplexity(f *GoFile, fn GoFunction, cfg *Config) []ir.Diagnostic
 		File:       relPath(f.Path),
 		Line:       fn.StartLine,
 		Suggestion: "Reduce branching with early returns, guard clauses, or table-driven tests.",
+		Kind:       ir.NodeKindFunction,
+		Symbol:     fnName(fn),
 	}}
 }
 
@@ -191,6 +197,8 @@ func detectDeepNesting(f *GoFile, fn GoFunction, cfg *Config) []ir.Diagnostic {
 		File:       relPath(f.Path),
 		Line:       fn.StartLine,
 		Suggestion: "Extract inner logic into helper functions or use guard clauses to flatten.",
+		Kind:       ir.NodeKindFunction,
+		Symbol:     fnName(fn),
 	}}
 }
 
@@ -205,6 +213,8 @@ func detectTooManyParams(f *GoFile, fn GoFunction, cfg *Config) []ir.Diagnostic 
 		File:       relPath(f.Path),
 		Line:       fn.StartLine,
 		Suggestion: "Group related parameters into a config/options struct.",
+		Kind:       ir.NodeKindFunction,
+		Symbol:     fnName(fn),
 	}}
 }
 
@@ -219,5 +229,7 @@ func detectIgnoredErrors(f *GoFile, fn GoFunction) []ir.Diagnostic {
 		File:       relPath(f.Path),
 		Line:       fn.StartLine,
 		Suggestion: "Check each error explicitly or use a helper like `must` for expected failures.",
+		Kind:       ir.NodeKindFunction,
+		Symbol:     fnName(fn),
 	}}
 }

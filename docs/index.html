@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="GIRL is a local-first Grammar-Informed Refactoring Language for turning code structure into safe, token-efficient refactoring plans for AI agents."
+    />
+    <title>GIRL: Grammar-Informed Refactoring Language</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+    <header class="site-header">
+      <a class="wordmark" href="#top" aria-label="GIRL home">
+        <span class="mark">G</span>
+        <span>GIRL</span>
+      </a>
+      <nav aria-label="Page navigation">
+        <a href="#why">Why</a>
+        <a href="#protocol">Protocol</a>
+        <a href="#roadmap">Roadmap</a>
+        <a href="https://github.com/canadian-ai/girl">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Local analysis for agent refactoring</p>
+          <h1 id="hero-title">Agents should refactor from structure, not vibes.</h1>
+          <p class="lede">
+            GIRL is the Grammar-Informed Refactoring Language: a local-first CLI
+            that reads code, detects refactoring pressure, and emits compact GRP
+            plans that AI coding agents can execute safely.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="https://github.com/canadian-ai/girl">View repository</a>
+            <a class="button" href="spec/grp-plan-format.md">Read the GRP spec</a>
+          </div>
+        </div>
+        <aside class="signal-card" aria-label="GIRL signal summary">
+          <div class="meter-row">
+            <span>Prompt entropy</span>
+            <strong>down</strong>
+          </div>
+          <div class="meter entropy" aria-hidden="true"><span></span></div>
+          <div class="meter-row">
+            <span>Context precision</span>
+            <strong>up</strong>
+          </div>
+          <div class="meter precision" aria-hidden="true"><span></span></div>
+          <pre><code>girl analyze . --lang auto
+girl plan . --goal "reduce risk"
+girl pack . --budget 12000</code></pre>
+        </aside>
+      </section>
+
+      <section id="why" class="section split">
+        <div>
+          <p class="section-kicker">The problem</p>
+          <h2>Prompt-only refactoring is under-specified.</h2>
+        </div>
+        <div class="body-copy">
+          <p>
+            “Clean this up” is not a plan. It hides the important details: which
+            functions are risky, which components own state, what verification is
+            required, and how much context an agent should actually read.
+          </p>
+          <p>
+            Traditional AST tools know syntax but not the agent workflow. GIRL
+            sits between them: local enough to be private and deterministic,
+            structured enough to guide refactors, and compact enough to keep AI
+            context focused.
+          </p>
+        </div>
+      </section>
+
+      <section class="section pipeline" aria-labelledby="pipeline-title">
+        <p class="section-kicker">The model</p>
+        <h2 id="pipeline-title">Turn source code into an executable refactoring protocol.</h2>
+        <pre class="mermaid">
+flowchart LR
+    A["Source Code"] --> B["Analyze"]
+    B --> C["Diagnostics"]
+    C --> D["Plan"]
+    D --> E["GRP Plan"]
+    E --> F["Pack"]
+    F --> G["Context Pack"]
+    G --> H["AI Agent"]
+    H --> I["Verified Refactor"]
+
+    style A fill:#2d261b,stroke:#d7a84a,color:#f5efe2
+    style B fill:#2d261b,stroke:#d7a84a,color:#f5efe2
+    style C fill:#2d261b,stroke:#b9ff66,color:#f5efe2
+    style D fill:#2d261b,stroke:#d7a84a,color:#f5efe2
+    style E fill:#2d261b,stroke:#b9ff66,color:#f5efe2
+    style F fill:#2d261b,stroke:#d7a84a,color:#f5efe2
+    style G fill:#2d261b,stroke:#b9ff66,color:#f5efe2
+    style H fill:#2d261b,stroke:#ff765f,color:#f5efe2
+    style I fill:#2d261b,stroke:#b9ff66,color:#f5efe2
+        </pre>
+      </section>
+
+      <section id="protocol" class="section protocol">
+        <div class="protocol-copy">
+          <p class="section-kicker">GRP</p>
+          <h2>A refactor plan should be machine-readable before it is persuasive.</h2>
+          <p>
+            GRP, the Grammar Refactoring Protocol, is the contract between local
+            analysis and agent implementation. A useful plan names the goal,
+            files, diagnostics, ordered steps, risk, and verification commands.
+          </p>
+        </div>
+        <pre class="mermaid">
+sequenceDiagram
+    box "Local Machine"
+        participant Dev as Developer
+        participant CLI as girl CLI
+        participant Ana as Analyzer
+        participant Plan as Planner
+    end
+    box "Agent Runtime"
+        participant Agent as AI Agent
+    end
+
+    Dev->>CLI: girl analyze .
+    CLI->>Ana: parse source code
+    Ana-->>CLI: diagnostics
+    CLI-->>Dev: text report
+
+    Dev->>CLI: girl plan . --goal "refactor"
+    CLI->>Plan: diagnostics + recipes
+    Plan-->>CLI: GRP plan
+    CLI-->>Dev: structured plan
+
+    Dev->>Agent: apply GRP plan
+    Agent->>CLI: girl verify .
+    CLI-->>Agent: verification commands
+    Agent-->>Dev: verified refactor
+        </pre>
+      </section>
+
+      <section class="section principles" aria-labelledby="principles-title">
+        <p class="section-kicker">Design constraints</p>
+        <h2 id="principles-title">The repo is built around four constraints.</h2>
+        <div class="principle-list">
+          <article>
+            <h3>Local first</h3>
+            <p>No source code upload is required for analysis. The CLI preprocesses code on the developer machine.</p>
+          </article>
+          <article>
+            <h3>Token efficient</h3>
+            <p>The agent gets a plan and selected snippets, not a blind dump of every file in the repository.</p>
+          </article>
+          <article>
+            <h3>Verification bound</h3>
+            <p>Every meaningful refactor should carry the checks needed to prove it did not break behavior.</p>
+          </article>
+          <article>
+            <h3>Recipe driven</h3>
+            <p>Repeated code smells map to reusable refactoring recipes instead of one-off prompt improvisation.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="roadmap" class="section roadmap">
+        <div>
+          <p class="section-kicker">What comes next</p>
+          <h2>Make GIRL precise enough to dogfood hard refactors.</h2>
+        </div>
+        <ol class="roadmap-list">
+          <li><strong>Structured diagnostics</strong><span>Stop parsing human messages; carry symbols, ranges, packages, and metadata explicitly.</span></li>
+          <li><strong>Stable step IDs</strong><span>Make generated GRP plans deterministic and safe for multi-step agent execution.</span></li>
+          <li><strong>Recipe registry</strong><span>Move diagnostic-to-recipe mapping out of planner switches and into a reusable registry.</span></li>
+          <li><strong>Better context packs</strong><span>Select Go and TypeScript snippets by diagnostic range, symbol importance, and token budget.</span></li>
+          <li><strong>Lower-noise analysis</strong><span>Improve heuristics so findings are actionable enough to drive autonomous refactoring.</span></li>
+        </ol>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>GIRL is a research-grade engineering tool for safer AI-assisted refactoring.</p>
+      <div>
+        <a href="roadmap/high-impact-plan.md">Roadmap</a>
+        <a href="opencode/setup.md">OpenCode setup</a>
+        <a href="https://github.com/canadian-ai/girl">GitHub</a>
+      </div>
+    </footer>
+    <script>
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "base",
+        themeVariables: {
+          background: "#17140f",
+          primaryColor: "#2d261b",
+          primaryBorderColor: "#d7a84a",
+          primaryTextColor: "#f5efe2",
+          secondaryColor: "#211d16",
+          secondaryBorderColor: "#5a4a31",
+          secondaryTextColor: "#b7ab96",
+          tertiaryColor: "#0c0a07",
+          lineColor: "#5a4a31",
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          fontSize: "13px",
+          edgeLabelBackground: "#2d261b",
+          nodeBorder: "#d7a84a",
+          clusterBkg: "#17140f",
+          clusterBorder: "#5a4a31",
+          signalColor: "#b9ff66",
+          signalTextColor: "#f5efe2",
+          actorLineColor: "#d7a84a",
+          actorBkg: "#2d261b",
+          actorBorder: "#d7a84a",
+          actorTextColor: "#f5efe2",
+          labelBoxBkgColor: "#2d261b",
+          labelBoxBorderColor: "#d7a84a",
+          labelTextColor: "#b7ab96",
+          loopTextColor: "#b7ab96",
+          activationBorderColor: "#d7a84a",
+          activationBkgColor: "#211d16",
+          sequenceNumberColor: "#d7a84a",
+        },
+      });
+    </script>
+  </body>
+</html>

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/shared"
 )
 
 type Parser interface {
@@ -27,6 +28,9 @@ func NewSimpleParser() *SimpleParser {
 }
 
 func (p *SimpleParser) isExcludedDir(name string) bool {
+	if shared.ShouldSkipDir(name) {
+		return true
+	}
 	for _, d := range p.ExcludeDirs {
 		if name == d {
 			return true

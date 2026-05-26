@@ -139,6 +139,10 @@ func (a *Analyzer) detectLargeComponents(f *ir.FileIR) []ir.Diagnostic {
 				Line:       c.StartLine,
 				Component:  c.Name,
 				Suggestion: "Split this component into smaller focused components or extract logic into custom hooks.",
+				Kind:       ir.NodeKindComponent,
+				Symbol:     c.Name,
+				EndLine:    c.EndLine,
+				Span:       &ir.Span{StartLine: c.StartLine, EndLine: c.EndLine},
 			})
 		}
 	}
@@ -161,6 +165,8 @@ func (a *Analyzer) detectRepeatedJSX(f *ir.FileIR) []ir.Diagnostic {
 					File:       relPath(f.Path),
 					Component:  c.Name,
 					Suggestion: fmt.Sprintf("Extract repeated <%s> into a reusable sub-component.", elem),
+					Kind:       ir.NodeKindComponent,
+					Symbol:     c.Name,
 				})
 			}
 		}
@@ -179,6 +185,8 @@ func (a *Analyzer) detectTooManyHooks(f *ir.FileIR) []ir.Diagnostic {
 				File:       relPath(f.Path),
 				Component:  c.Name,
 				Suggestion: "Extract related hooks into custom hooks using the Extract Custom Hook recipe.",
+				Kind:       ir.NodeKindComponent,
+				Symbol:     c.Name,
 			})
 		}
 	}
@@ -196,6 +204,8 @@ func (a *Analyzer) detectTooManyStateVars(f *ir.FileIR) []ir.Diagnostic {
 				File:       relPath(f.Path),
 				Component:  c.Name,
 				Suggestion: "Consider using useReducer or extracting related state into a custom hook.",
+				Kind:       ir.NodeKindComponent,
+				Symbol:     c.Name,
 			})
 		}
 	}
@@ -213,6 +223,8 @@ func (a *Analyzer) detectTooManyEffects(f *ir.FileIR) []ir.Diagnostic {
 				File:       relPath(f.Path),
 				Component:  c.Name,
 				Suggestion: "Consider consolidating effects or moving side-effect logic into custom hooks.",
+				Kind:       ir.NodeKindComponent,
+				Symbol:     c.Name,
 			})
 		}
 	}
@@ -230,6 +242,8 @@ func (a *Analyzer) detectComplexConditionals(f *ir.FileIR) []ir.Diagnostic {
 				File:       relPath(f.Path),
 				Component:  c.Name,
 				Suggestion: "Extract conditional rendering into smaller components or use early returns.",
+				Kind:       ir.NodeKindComponent,
+				Symbol:     c.Name,
 			})
 		}
 	}
@@ -263,6 +277,8 @@ func (a *Analyzer) detectMixedResponsibilities(f *ir.FileIR) []ir.Diagnostic {
 				File:       relPath(f.Path),
 				Component:  c.Name,
 				Suggestion: "Separate concerns by splitting this component. Responsibilities: state management, side effects, event handling, analytics.",
+				Kind:       ir.NodeKindComponent,
+				Symbol:     c.Name,
 			})
 		}
 	}
@@ -284,6 +300,8 @@ func (a *Analyzer) detectHardcodedData(f *ir.FileIR) []ir.Diagnostic {
 				File:       relPath(f.Path),
 				Component:  c.Name,
 				Suggestion: "Move hardcoded data outside the component or into a separate data file.",
+				Kind:       ir.NodeKindComponent,
+				Symbol:     c.Name,
 			})
 		}
 	}
@@ -310,6 +328,8 @@ func (a *Analyzer) detectMissingPropTypes(f *ir.FileIR) []ir.Diagnostic {
 				File:       relPath(f.Path),
 				Component:  c.Name,
 				Suggestion: "Add TypeScript interfaces for props to improve type safety.",
+				Kind:       ir.NodeKindComponent,
+				Symbol:     c.Name,
 			})
 		}
 	}
