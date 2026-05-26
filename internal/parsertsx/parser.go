@@ -209,16 +209,15 @@ func (t *tokenizer) readString(quote rune) string {
 
 func (t *tokenizer) readNumber() string {
 	start := t.pos
-	for t.pos < len(t.src) {
-		ch := t.src[t.pos]
-		if (ch >= '0' && ch <= '9') || ch == '.' || ch == 'x' || ch == 'X' ||
-			(ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F') {
-			t.pos++
-		} else {
-			break
-		}
+	for t.pos < len(t.src) && isNumberRune(t.src[t.pos]) {
+		t.pos++
 	}
 	return string(t.src[start:t.pos])
+}
+
+func isNumberRune(ch rune) bool {
+	return (ch >= '0' && ch <= '9') || ch == '.' || ch == 'x' || ch == 'X' ||
+		(ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')
 }
 
 func (t *tokenizer) skipToNewline() {
@@ -230,88 +229,111 @@ func (t *tokenizer) skipToNewline() {
 func parseFileContent(g *node.NodeGraph, root *node.RootNode, content string, path string) {
 	lines := strings.Split(content, "\n")
 	tz := newTokenizer(content)
-
+	ctx := parseContext{g: g, root: root, content: content, lines: lines, path: path}
 	var imports []string
 
 	for tz.pos < len(tz.src) {
-		tz.skipWhitespace()
-		tz.skipComment()
-		if tz.pos >= len(tz.src) {
-			break
-		}
-
-		if tz.peek() == '\n' {
-			tz.pos++
-			tz.line++
-			tz.col = 1
+		if consumeTrivia(tz) {
 			continue
 		}
-
-		if tz.peekN(2) == "//" || tz.peekN(2) == "/*" {
-			tz.skipComment()
+		if parseTopLevelStatement(&ctx, tz, &imports) {
 			continue
 		}
-
-		if tz.peek() == 'i' && tz.peekN(6) == "import" {
-			imp := parseImport(tz)
-			if imp != "" {
-				imports = append(imports, imp)
-			}
-			continue
-		}
-
-		if tz.peek() == 'e' && tz.peekN(6) == "export" {
-			parseExportStmt(g, root, tz, content, lines, path)
-			continue
-		}
-
-		if isIdentStart(tz.peek()) || tz.peek() == 'a' {
-			name := tz.peekN(5)
-			if name == "async" {
-				tz.pos += 5
-				tz.skipWhitespace()
-				if tz.peekN(8) == "function" {
-					fn := parseFunctionDecl(tz)
-					if fn != "" && isComponentName(fn) {
-						comp := buildComponentFromBody(g, path, content, lines, fn)
-						if comp != "" {
-							root.AddChild(node.NodeID(comp))
-						}
-					}
-				}
-				continue
-			}
-		}
-
-		if tz.peekN(8) == "function" {
-			savePos := tz.pos
-			tz.pos += 8
-			tz.skipWhitespace()
-			fnName := tz.readIdent()
-			if fnName != "" && isComponentName(fnName) {
-				compID := buildComponentFromBody(g, path, content, lines, fnName)
-				if compID != "" {
-					root.AddChild(node.NodeID(compID))
-				}
-			} else {
-				tz.pos = savePos
-				tz.pos++
-			}
-			continue
-		}
-
-		if tz.peekN(5) == "const" || tz.peekN(3) == "let" || tz.peekN(3) == "var" {
-			decl := parseDeclaration(tz)
-			if decl != "" && isComponentName(decl) {
-				compID := buildComponentFromBody(g, path, content, lines, decl)
-				if compID != "" {
-					root.AddChild(node.NodeID(compID))
-				}
-			}
-			continue
-		}
-
 		tz.pos++
+	}
+}
+
+type parseContext struct {
+	g       *node.NodeGraph
+	root    *node.RootNode
+	content string
+	lines   []string
+	path    string
+}
+
+func consumeTrivia(tz *tokenizer) bool {
+	tz.skipWhitespace()
+	if tz.pos >= len(tz.src) {
+		return false
+	}
+	if tz.peek() == '\n' {
+		tz.pos++
+		tz.line++
+		tz.col = 1
+		return true
+	}
+	if tz.peekN(2) == "//" || tz.peekN(2) == "/*" {
+		tz.skipComment()
+		return true
+	}
+	return false
+}
+
+func parseTopLevelStatement(ctx *parseContext, tz *tokenizer, imports *[]string) bool {
+	if tz.peek() == 'i' && tz.peekN(6) == "import" {
+		if imp := parseImport(tz); imp != "" {
+			*imports = append(*imports, imp)
+		}
+		return true
+	}
+	if tz.peek() == 'e' && tz.peekN(6) == "export" {
+		parseExportStmt(ctx, tz)
+		return true
+	}
+	if tz.peekN(5) == "async" {
+		parseAsyncFunction(ctx, tz)
+		return true
+	}
+	if tz.peekN(8) == "function" {
+		parseTopLevelFunction(ctx, tz)
+		return true
+	}
+	if isDeclarationStart(tz) {
+		parseTopLevelDeclaration(ctx, tz)
+		return true
+	}
+	return false
+}
+
+func isDeclarationStart(tz *tokenizer) bool {
+	return tz.peekN(5) == "const" || tz.peekN(3) == "let" || tz.peekN(3) == "var"
+}
+
+func addComponentByName(ctx *parseContext, name string) {
+	if name == "" || !isComponentName(name) {
+		return
+	}
+	compID := buildComponentFromBody(ctx.g, ctx.path, ctx.content, ctx.lines, name)
+	if compID != "" {
+		ctx.root.AddChild(node.NodeID(compID))
+	}
+}
+
+func parseAsyncFunction(ctx *parseContext, tz *tokenizer) {
+	tz.pos += 5
+	tz.skipWhitespace()
+	if tz.peekN(8) == "function" {
+		addComponentByName(ctx, parseFunctionDecl(tz))
+	}
+}
+
+func parseTopLevelFunction(ctx *parseContext, tz *tokenizer) {
+	savePos := tz.pos
+	tz.pos += 8
+	tz.skipWhitespace()
+	fnName := tz.readIdent()
+	if fnName != "" && isComponentName(fnName) {
+		addComponentByName(ctx, fnName)
+		return
+	}
+	tz.pos = savePos
+	tz.pos++
+}
+
+func parseTopLevelDeclaration(ctx *parseContext, tz *tokenizer) {
+	decl := parseDeclaration(tz)
+	if decl != "" && isComponentName(decl) {
+		addComponentByName(ctx, decl)
 	}
 }
 
@@ -325,92 +347,94 @@ func parseImport(tz *tokenizer) string {
 	}
 
 	if tz.peek() == '{' {
-		tz.pos++
-		for tz.pos < len(tz.src) && tz.peek() != '}' {
-			if tz.peek() == '\n' {
-				tz.line++
-				tz.col = 1
-			}
-			tz.pos++
-		}
-		if tz.peek() == '}' {
-			tz.pos++
-		}
+		skipImportSpecifiers(tz)
 	}
 
 	tz.skipWhitespace()
 
 	if tz.peekN(4) == "from" {
-		tz.pos += 4
-		tz.skipWhitespace()
-		if tz.peek() == '"' || tz.peek() == '\'' {
-			return tz.readString(tz.peek())
-		}
-	} else {
-		if isIdentStart(tz.peek()) {
-			module := tz.readIdent()
-			return module
-		}
+		return parseImportSource(tz)
+	}
+	if isIdentStart(tz.peek()) {
+		return tz.readIdent()
 	}
 	return ""
 }
 
-func parseExportStmt(g *node.NodeGraph, root *node.RootNode, tz *tokenizer, content string, lines []string, path string) {
+func skipImportSpecifiers(tz *tokenizer) {
+	tz.pos++
+	for tz.pos < len(tz.src) && tz.peek() != '}' {
+		if tz.peek() == '\n' {
+			tz.line++
+			tz.col = 1
+		}
+		tz.pos++
+	}
+	if tz.peek() == '}' {
+		tz.pos++
+	}
+}
+
+func parseImportSource(tz *tokenizer) string {
+	tz.pos += 4
+	tz.skipWhitespace()
+	if tz.peek() == '"' || tz.peek() == '\'' {
+		return tz.readString(tz.peek())
+	}
+	return ""
+}
+
+func parseExportStmt(ctx *parseContext, tz *tokenizer) {
 	tz.pos += 6
 	tz.skipWhitespace()
 
 	if tz.peekN(7) == "default" {
-		tz.pos += 7
-		tz.skipWhitespace()
-		if tz.peekN(8) == "function" {
-			tz.pos += 8
-			tz.skipWhitespace()
-			name := tz.readIdent()
-			if name != "" && isComponentName(name) {
-				compID := buildComponentFromBody(g, path, content, lines, name)
-				if compID != "" {
-					root.AddChild(node.NodeID(compID))
-				}
-			}
-		}
+		parseDefaultExport(ctx, tz)
 		return
 	}
 
 	if tz.peekN(8) == "function" {
-		tz.pos += 8
-		tz.skipWhitespace()
-		name := tz.readIdent()
-		if name != "" && isComponentName(name) {
-			compID := buildComponentFromBody(g, path, content, lines, name)
-			if compID != "" {
-				root.AddChild(node.NodeID(compID))
-			}
-		}
+		addExportedFunction(ctx, tz)
 		return
 	}
 
 	if tz.peekN(5) == "const" {
-		tz.pos += 5
-		tz.skipWhitespace()
-		if tz.peek() == '{' {
-			tz.skipToNewline()
-			return
-		}
-		name := tz.readIdent()
-		tz.skipWhitespace()
-		if tz.peek() == ':' {
-			tz.pos++
-			tz.skipWhitespace()
-			skipTypeAnnotation(tz)
-			tz.skipWhitespace()
-		}
-		if name != "" && isComponentName(name) && looksLikeComponentInitializer(tz) {
-			compID := buildComponentFromBody(g, path, content, lines, name)
-			if compID != "" {
-				root.AddChild(node.NodeID(compID))
-			}
-		}
+		addExportedConst(ctx, tz)
 		return
+	}
+}
+
+func parseDefaultExport(ctx *parseContext, tz *tokenizer) {
+	tz.pos += 7
+	tz.skipWhitespace()
+	if tz.peekN(8) == "function" {
+		addExportedFunction(ctx, tz)
+	}
+}
+
+func addExportedFunction(ctx *parseContext, tz *tokenizer) {
+	tz.pos += 8
+	tz.skipWhitespace()
+	addComponentByName(ctx, tz.readIdent())
+}
+
+func addExportedConst(ctx *parseContext, tz *tokenizer) {
+	tz.pos += 5
+	tz.skipWhitespace()
+	if tz.peek() == '{' {
+		tz.skipToNewline()
+		return
+	}
+	name := tz.readIdent()
+	tz.skipWhitespace()
+	if tz.peek() == ':' {
+		tz.pos++
+		tz.skipWhitespace()
+		skipTypeAnnotation(tz)
+		tz.skipWhitespace()
+	}
+	if name != "" && isComponentName(name) && looksLikeComponentInitializer(tz) {
+		addComponentByName(ctx, name)
 	}
 }
 

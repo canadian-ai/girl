@@ -33,12 +33,12 @@ type driver struct {
 }
 
 type rule struct {
-	ID                   string              `json:"id"`
-	Name                 string              `json:"name"`
-	ShortDescription     description         `json:"shortDescription"`
-	FullDescription      description         `json:"fullDescription"`
-	DefaultConfiguration defaultConfig       `json:"defaultConfiguration"`
-	Properties           ruleProperties      `json:"properties"`
+	ID                   string         `json:"id"`
+	Name                 string         `json:"name"`
+	ShortDescription     description    `json:"shortDescription"`
+	FullDescription      description    `json:"fullDescription"`
+	DefaultConfiguration defaultConfig  `json:"defaultConfiguration"`
+	Properties           ruleProperties `json:"properties"`
 }
 
 type description struct {
@@ -54,11 +54,11 @@ type ruleProperties struct {
 }
 
 type result struct {
-	RuleID    string     `json:"ruleId"`
-	RuleIndex int        `json:"ruleIndex"`
+	RuleID    string      `json:"ruleId"`
+	RuleIndex int         `json:"ruleIndex"`
 	Message   description `json:"message"`
-	Level     string     `json:"level"`
-	Locations []location `json:"locations"`
+	Level     string      `json:"level"`
+	Locations []location  `json:"locations"`
 }
 
 type location struct {
@@ -166,77 +166,99 @@ func ruleName(d ir.Diagnostic) string {
 }
 
 func ExportDiagnostics(diags []ir.Diagnostic, toolName, toolVersion string) (string, error) {
-	ruleSeen := make(map[string]int)
-	rules := make([]rule, 0)
-	ruleIndex := make(map[string]int)
+	rules, ruleSeen, counts := buildRules(diags)
+	results := buildResults(diags, ruleSeen)
+	log := buildLog(toolName, toolVersion, rules, results, counts)
 
-	high, med, low := 0, 0, 0
+	data, err := json.MarshalIndent(log, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("marshal sarif: %w", err)
+	}
+
+	return string(data), nil
+}
+
+func buildRules(diags []ir.Diagnostic) ([]rule, map[string]int, properties) {
+	ruleSeen := make(map[string]int)
+	rules := []rule{}
+	counts := properties{DiagnosticCount: len(diags)}
 
 	for _, d := range diags {
-		switch d.Severity {
-		case ir.SeverityHigh:
-			high++
-		case ir.SeverityMedium:
-			med++
-		default:
-			low++
+		addSeverityCount(&counts, d.Severity)
+		if _, ok := ruleSeen[d.Code]; ok {
+			continue
 		}
-
-		if _, ok := ruleSeen[d.Code]; !ok {
-			ruleSeen[d.Code] = len(rules)
-			ruleIndex[d.Code] = len(rules)
-			rules = append(rules, rule{
-				ID:   d.Code,
-				Name: ruleName(d),
-				ShortDescription: description{
-					Text: firstSentence(d.Message),
-				},
-				FullDescription: description{
-					Text: fullDescription(d),
-				},
-				DefaultConfiguration: defaultConfig{
-					Level: levelFromSeverity(d.Severity),
-				},
-				Properties: ruleProperties{
-					Severity: string(d.Severity),
-				},
-			})
-		}
+		ruleSeen[d.Code] = len(rules)
+		rules = append(rules, newRule(d))
 	}
 
+	return rules, ruleSeen, counts
+}
+
+func addSeverityCount(counts *properties, sev ir.Severity) {
+	switch sev {
+	case ir.SeverityHigh:
+		counts.ErrorCount++
+	case ir.SeverityMedium:
+		counts.WarningCount++
+	default:
+		counts.NoteCount++
+	}
+}
+
+func newRule(d ir.Diagnostic) rule {
+	return rule{
+		ID:   d.Code,
+		Name: ruleName(d),
+		ShortDescription: description{
+			Text: firstSentence(d.Message),
+		},
+		FullDescription: description{
+			Text: fullDescription(d),
+		},
+		DefaultConfiguration: defaultConfig{
+			Level: levelFromSeverity(d.Severity),
+		},
+		Properties: ruleProperties{
+			Severity: string(d.Severity),
+		},
+	}
+}
+
+func buildResults(diags []ir.Diagnostic, ruleSeen map[string]int) []result {
 	results := make([]result, len(diags))
 	for i, d := range diags {
-		r := region{
-			StartLine: getStartLine(d),
-			EndLine:   getEndLine(d),
-		}
-		if includeCols(d) {
-			r.StartColumn = getStartCol(d)
-			r.EndColumn = getEndCol(d)
-		}
-
-		results[i] = result{
-			RuleID:    d.Code,
-			RuleIndex: ruleSeen[d.Code],
-			Message: description{
-				Text: d.Message,
-			},
-			Level: levelFromSeverity(d.Severity),
-			Locations: []location{
-				{
-					PhysicalLocation: physicalLocation{
-						ArtifactLocation: artifactLocation{
-							URI:       d.File,
-							URIBaseID: "%SRCROOT%",
-						},
-						Region: r,
-					},
-				},
-			},
-		}
+		results[i] = newResult(d, ruleSeen[d.Code])
 	}
+	return results
+}
 
-	log := sarifLog{
+func newResult(d ir.Diagnostic, ruleIndex int) result {
+	return result{
+		RuleID:    d.Code,
+		RuleIndex: ruleIndex,
+		Message:   description{Text: d.Message},
+		Level:     levelFromSeverity(d.Severity),
+		Locations: []location{{
+			PhysicalLocation: physicalLocation{
+				ArtifactLocation: artifactLocation{URI: d.File, URIBaseID: "%SRCROOT%"},
+				Region:           diagnosticRegion(d),
+			},
+		}},
+	}
+}
+
+func diagnosticRegion(d ir.Diagnostic) region {
+	r := region{StartLine: getStartLine(d), EndLine: getEndLine(d)}
+	if includeCols(d) {
+		r.StartColumn = getStartCol(d)
+		r.EndColumn = getEndCol(d)
+	}
+	return r
+}
+
+func buildLog(toolName, toolVersion string, rules []rule, results []result, counts properties) sarifLog {
+	return sarifLog{
 		Schema:  "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
 		Version: "2.1.0",
 		Runs: []run{
@@ -251,20 +273,8 @@ func ExportDiagnostics(diags []ir.Diagnostic, toolName, toolVersion string) (str
 				},
 				Results:    results,
 				ColumnKind: "utf16CodeUnits",
-				Properties: properties{
-					DiagnosticCount: len(diags),
-					ErrorCount:      high,
-					WarningCount:    med,
-					NoteCount:       low,
-				},
+				Properties: counts,
 			},
 		},
 	}
-
-	data, err := json.MarshalIndent(log, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("marshal sarif: %w", err)
-	}
-
-	return string(data), nil
 }

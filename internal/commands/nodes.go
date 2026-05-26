@@ -155,27 +155,40 @@ func walkTSX(path string, visit func(file string) error) error {
 		return err
 	}
 	if !info.IsDir() {
-		if isTSXFile(path) {
-			return visit(path)
-		}
-		return nil
+		return visitTSXFile(path, visit)
 	}
 	return filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			base := filepath.Base(p)
-			if base == "node_modules" || base == ".git" || base == "dist" || base == "build" || base == ".next" || base == "coverage" {
-				return filepath.SkipDir
-			}
-			return nil
+			return skipTSXDir(p)
 		}
-		if isTSXFile(p) {
-			return visit(p)
-		}
-		return nil
+		return visitTSXFile(p, visit)
 	})
+}
+
+func visitTSXFile(path string, visit func(file string) error) error {
+	if !isTSXFile(path) {
+		return nil
+	}
+	return visit(path)
+}
+
+func skipTSXDir(path string) error {
+	if skippedTSXDirs[filepath.Base(path)] {
+		return filepath.SkipDir
+	}
+	return nil
+}
+
+var skippedTSXDirs = map[string]bool{
+	"node_modules": true,
+	".git":         true,
+	"dist":         true,
+	"build":        true,
+	".next":        true,
+	"coverage":     true,
 }
 
 func isTSXFile(path string) bool {

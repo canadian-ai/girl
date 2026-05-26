@@ -56,71 +56,89 @@ func findFunctionBody(content string, start int) int {
 	foundBrace := false
 	for i := start; i < len(content); i++ {
 		ch := content[i]
-		if ch == '\'' || ch == '"' {
-			quote := ch
-			i++
-			for i < len(content) && content[i] != quote {
-				if content[i] == '\\' {
-					i++
-				}
-				i++
-			}
+		if ch == '\'' || ch == '"' || ch == '`' {
+			i = skipQuotedContent(content, i, ch)
 			continue
 		}
-		if ch == '`' {
-			i++
-			for i < len(content) && content[i] != '`' {
-				if content[i] == '\\' {
-					i++
-				}
-				i++
-			}
+		if next, ok := skipCommentContent(content, i); ok {
+			i = next
 			continue
 		}
-		if ch == '/' && i+1 < len(content) {
-			if content[i+1] == '/' {
-				for i < len(content) && content[i] != '\n' {
-					i++
-				}
-				continue
-			}
-			if content[i+1] == '*' {
-				i += 2
-				for i+1 < len(content) && !(content[i] == '*' && content[i+1] == '/') {
-					i++
-				}
-				continue
-			}
+		inJSX, jsxExprDepth = updateJSXScanState(content, i, inJSX, jsxExprDepth)
+		if ch != '{' && ch != '}' {
+			continue
 		}
-		if ch == '<' {
-			if !inJSX && i+1 < len(content) && isIdentStart(rune(content[i+1])) {
-				inJSX = true
-				jsxExprDepth = 0
-			}
-		}
-		if ch == '>' && inJSX && jsxExprDepth == 0 {
-			if content[i-1] != '?' && content[i-1] != ':' {
-				inJSX = false
-			}
-		}
-		if ch == '{' {
-			if inJSX {
-				jsxExprDepth++
-			}
-			depth++
-			foundBrace = true
-		}
-		if ch == '}' {
-			depth--
-			if inJSX && jsxExprDepth > 0 {
-				jsxExprDepth--
-			}
-			if foundBrace && depth == 0 {
-				return i + 1
-			}
+		depth, jsxExprDepth, foundBrace = updateFunctionBraceDepth(ch, depth, jsxExprDepth, inJSX, foundBrace)
+		if foundBrace && depth == 0 {
+			return i + 1
 		}
 	}
 	return len(content)
+}
+
+func skipQuotedContent(content string, start int, quote byte) int {
+	for i := start + 1; i < len(content); i++ {
+		if content[i] == '\\' {
+			i++
+			continue
+		}
+		if content[i] == quote {
+			return i
+		}
+	}
+	return len(content) - 1
+}
+
+func skipCommentContent(content string, start int) (int, bool) {
+	if start+1 >= len(content) || content[start] != '/' {
+		return start, false
+	}
+	if content[start+1] == '/' {
+		for start < len(content) && content[start] != '\n' {
+			start++
+		}
+		return start, true
+	}
+	if content[start+1] == '*' {
+		start += 2
+		for start+1 < len(content) && !(content[start] == '*' && content[start+1] == '/') {
+			start++
+		}
+		return start, true
+	}
+	return start, false
+}
+
+func updateJSXScanState(content string, pos int, inJSX bool, exprDepth int) (bool, int) {
+	if startsJSXScan(content, pos, inJSX) {
+		return true, 0
+	}
+	if endsJSXScan(content, pos, inJSX, exprDepth) {
+		return false, exprDepth
+	}
+	return inJSX, exprDepth
+}
+
+func startsJSXScan(content string, pos int, inJSX bool) bool {
+	return content[pos] == '<' && !inJSX && pos+1 < len(content) && isIdentStart(rune(content[pos+1]))
+}
+
+func endsJSXScan(content string, pos int, inJSX bool, exprDepth int) bool {
+	return content[pos] == '>' && inJSX && exprDepth == 0 && pos > 0 && content[pos-1] != '?' && content[pos-1] != ':'
+}
+
+func updateFunctionBraceDepth(ch byte, depth, jsxExprDepth int, inJSX, foundBrace bool) (int, int, bool) {
+	if ch == '{' {
+		if inJSX {
+			jsxExprDepth++
+		}
+		return depth + 1, jsxExprDepth, true
+	}
+	depth--
+	if inJSX && jsxExprDepth > 0 {
+		jsxExprDepth--
+	}
+	return depth, jsxExprDepth, foundBrace
 }
 
 func looksLikeComponentInitializer(tz *tokenizer) bool {
@@ -141,11 +159,17 @@ func looksLikeComponentInitializer(tz *tokenizer) bool {
 	if trimmed == "" {
 		return false
 	}
-	if strings.HasPrefix(trimmed, "function") || strings.HasPrefix(trimmed, "async") || strings.HasPrefix(trimmed, "memo(") || strings.HasPrefix(trimmed, "React.memo(") || strings.HasPrefix(trimmed, "forwardRef(") || strings.HasPrefix(trimmed, "React.forwardRef(") {
+	if hasAnyPrefix(trimmed, []string{"function", "async", "memo(", "React.memo(", "forwardRef(", "React.forwardRef("}) {
 		return true
 	}
-	if strings.Contains(firstLine, "=>") {
-		return true
+	return strings.Contains(firstLine, "=>")
+}
+
+func hasAnyPrefix(s string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(s, prefix) {
+			return true
+		}
 	}
 	return false
 }
@@ -169,28 +193,13 @@ func skipTypeAnnotation(tz *tokenizer) {
 	depth := 0
 	for tz.pos < len(tz.src) {
 		ch := tz.peek()
-		if ch == '=' || ch == '\n' {
-			if depth == 0 {
-				return
-			}
+		if (ch == '=' || ch == '\n') && depth == 0 {
+			return
 		}
-		if ch == '<' {
-			depth++
-		}
-		if ch == '>' {
-			if depth > 0 {
-				depth--
-			} else {
-				return
-			}
-		}
-		if ch == '{' {
-			depth += 10
-		}
-		if ch == '}' {
-			if depth >= 10 {
-				depth -= 10
-			}
+		var ok bool
+		depth, ok = updateTypeAnnotationDepth(ch, depth)
+		if !ok {
+			return
 		}
 		tz.pos++
 		if ch == '\n' {
@@ -200,7 +209,54 @@ func skipTypeAnnotation(tz *tokenizer) {
 	}
 }
 
+func updateTypeAnnotationDepth(ch rune, depth int) (int, bool) {
+	switch ch {
+	case '<':
+		return depth + 1, true
+	case '>':
+		if depth == 0 {
+			return depth, false
+		}
+		return depth - 1, true
+	case '{':
+		return depth + 10, true
+	case '}':
+		if depth >= 10 {
+			return depth - 10, true
+		}
+	}
+	return depth, true
+}
+
 func buildComponentFromBody(g *node.NodeGraph, path, content string, lines []string, name string) string {
+	idx, bodyEnd, ok := findComponentBodyRange(content, name)
+	if !ok {
+		return ""
+	}
+	body := content[idx:bodyEnd]
+
+	compNode := newComponentGraphNode(g, path, content, name, idx, bodyEnd)
+	g.AddNode(compNode)
+	g.AddSymbol(name, compNode.ID())
+
+	children := collectComponentChildren(g, path, body, name, compNode)
+	g.SetChildren(compNode.ID(), children)
+	return string(compNode.ID())
+}
+
+func findComponentBodyRange(content, name string) (int, int, bool) {
+	idx, ok := findComponentSearchIndex(content, name)
+	if !ok {
+		return 0, 0, false
+	}
+	bodyStart := findComponentBodyStart(content, idx)
+	if bodyStart < 0 || bodyStart >= len(content) {
+		return 0, 0, false
+	}
+	return idx, findFunctionBody(content, bodyStart), true
+}
+
+func findComponentSearchIndex(content, name string) (int, bool) {
 	patterns := []string{
 		"export default function " + name,
 		"export function " + name,
@@ -210,88 +266,92 @@ func buildComponentFromBody(g *node.NodeGraph, path, content string, lines []str
 		"var " + name,
 		"let " + name,
 	}
-
-	var idx int
-	found := false
 	for _, pat := range patterns {
-		idx = strings.Index(content, pat)
+		idx := strings.Index(content, pat)
 		if idx >= 0 {
-			found = true
-			idx += len(pat)
-			break
+			return idx + len(pat), true
 		}
 	}
-	if !found {
-		idx = strings.Index(content, name)
-		if idx < 0 || !isComponentName(name) {
-			return ""
-		}
-		idx += len(name)
+	idx := strings.Index(content, name)
+	if idx < 0 || !isComponentName(name) {
+		return 0, false
 	}
+	return idx + len(name), true
+}
 
-	fnStart := idx
+func findComponentBodyStart(content string, fnStart int) int {
 	bodyStart := strings.Index(content[fnStart:], "=>")
 	if bodyStart >= 0 {
-		bodyStart += fnStart + 2
-	} else {
-		parenIdx := strings.Index(content[fnStart:], "(")
-		if parenIdx < 0 {
-			return ""
-		}
-		depth := 1
-		j := fnStart + parenIdx + 1
-		for j < len(content) && depth > 0 {
-			switch content[j] {
-			case '(':
-				depth++
-			case ')':
-				depth--
-				if depth == 0 {
-					for j < len(content) && content[j] != '{' {
-						j++
-					}
-					bodyStart = j
-				}
-			case '\'':
-				j++
-				for j < len(content) && content[j] != '\'' {
-					j++
-				}
-			case '"':
-				j++
-				for j < len(content) && content[j] != '"' {
-					j++
-				}
-			case '/':
-				if j+1 < len(content) && content[j+1] == '/' {
-					for j < len(content) && content[j] != '\n' {
-						j++
-					}
-				}
+		return bodyStart + fnStart + 2
+	}
+	parenIdx := strings.Index(content[fnStart:], "(")
+	if parenIdx < 0 {
+		return -1
+	}
+	return findBodyStartAfterParams(content, fnStart+parenIdx+1)
+}
+
+func findBodyStartAfterParams(content string, start int) int {
+	depth := 1
+	for j := start; j < len(content) && depth > 0; j++ {
+		switch content[j] {
+		case '(', ')':
+			depth = updateParenDepth(content[j], depth)
+			if depth == 0 {
+				return findNextByte(content, j, '{')
 			}
-			j++
+		case '\'', '"':
+			j = skipQuotedContent(content, j, content[j])
+		case '/':
+			if next, ok := skipCommentContent(content, j); ok {
+				j = next
+			}
 		}
 	}
-	if bodyStart < 0 || bodyStart >= len(content) {
-		return ""
+	return -1
+}
+
+func findNextByte(content string, start int, target byte) int {
+	idx := strings.IndexByte(content[start:], target)
+	if idx < 0 {
+		return len(content)
 	}
+	return start + idx
+}
 
-	bodyEnd := findFunctionBody(content, bodyStart)
-	body := content[idx:bodyEnd]
+func updateParenDepth(ch byte, depth int) int {
+	if ch == '(' {
+		return depth + 1
+	}
+	return depth - 1
+}
 
+func newComponentGraphNode(g *node.NodeGraph, path, content, name string, idx, bodyEnd int) *node.ComponentNode {
 	startLine := countLinesBefore(content, idx)
 	endLine := startLine + countLines(content, idx, bodyEnd)
-	compLines := endLine - startLine + 1
-
 	compNode := node.NewComponentNode(g.NextID("comp"), name)
-	compNode.Lines = compLines
+	compNode.Lines = endLine - startLine + 1
 	compNode.SetFile(path)
 	compNode.IsExport = true
-	g.AddNode(compNode)
-	g.AddSymbol(name, compNode.ID())
+	return compNode
 
+}
+
+func collectComponentChildren(g *node.NodeGraph, path, body, name string, compNode *node.ComponentNode) []node.NodeID {
 	var children []node.NodeID
+	children = append(children, addHookNodes(g, path, body, compNode)...)
+	children = append(children, addStateNodes(g, path, body, compNode)...)
+	children = append(children, addEffectNodes(g, path, body, compNode)...)
+	children = append(children, addJSXNodes(g, path, body, name)...)
+	children = append(children, addEventNodes(g, path, body, compNode)...)
+	children = append(children, addReferenceNodes(g, path, body, name)...)
+	children = append(children, addConditionalNodes(g, path, body)...)
+	children = append(children, addLoopNodes(g, path, body)...)
+	return children
+}
 
+func addHookNodes(g *node.NodeGraph, path, body string, compNode *node.ComponentNode) []node.NodeID {
+	var children []node.NodeID
 	hookMatches := hookCallRe.FindAllStringSubmatch(body, -1)
 	seenHooks := map[string]int{}
 	for _, m := range hookMatches {
@@ -307,7 +367,11 @@ func buildComponentFromBody(g *node.NodeGraph, path, content string, lines []str
 		children = append(children, hookNode.ID())
 
 	}
+	return children
+}
 
+func addStateNodes(g *node.NodeGraph, path, body string, compNode *node.ComponentNode) []node.NodeID {
+	var children []node.NodeID
 	stateMatches := stateRe.FindAllStringSubmatch(body, -1)
 	seenStates := map[string]bool{}
 	for _, m := range stateMatches {
@@ -321,7 +385,11 @@ func buildComponentFromBody(g *node.NodeGraph, path, content string, lines []str
 		compNode.StateVars = append(compNode.StateVars, stateNode.ID())
 		children = append(children, stateNode.ID())
 	}
+	return children
+}
 
+func addEffectNodes(g *node.NodeGraph, path, body string, compNode *node.ComponentNode) []node.NodeID {
+	var children []node.NodeID
 	effectMatches := effectRe.FindAllString(body, -1)
 	for range effectMatches {
 		effectNode := node.NewEffectNode(g.NextID("effect"))
@@ -330,7 +398,11 @@ func buildComponentFromBody(g *node.NodeGraph, path, content string, lines []str
 		compNode.Effects = append(compNode.Effects, effectNode.ID())
 		children = append(children, effectNode.ID())
 	}
+	return children
+}
 
+func addJSXNodes(g *node.NodeGraph, path, body, name string) []node.NodeID {
+	var children []node.NodeID
 	jsxMatches := jsxElementRe.FindAllStringSubmatch(body, -1)
 	seenJSX := map[string]int{}
 	for _, m := range jsxMatches {
@@ -351,7 +423,11 @@ func buildComponentFromBody(g *node.NodeGraph, path, content string, lines []str
 		g.AddNode(jsxNode)
 		children = append(children, jsxNode.ID())
 	}
+	return children
+}
 
+func addEventNodes(g *node.NodeGraph, path, body string, compNode *node.ComponentNode) []node.NodeID {
+	var children []node.NodeID
 	handlerMatches := eventHandlerRe.FindAllStringSubmatch(body, -1)
 	for _, m := range handlerMatches {
 		eventNode := node.NewEventNode(g.NextID("event"), m[1])
@@ -360,7 +436,11 @@ func buildComponentFromBody(g *node.NodeGraph, path, content string, lines []str
 		compNode.Events = append(compNode.Events, eventNode.ID())
 		children = append(children, eventNode.ID())
 	}
+	return children
+}
 
+func addReferenceNodes(g *node.NodeGraph, path, body, name string) []node.NodeID {
+	var children []node.NodeID
 	idents := identRefRe.FindAllStringSubmatch(body, -1)
 	seenRefs := map[string]int{}
 	for _, m := range idents {
@@ -377,7 +457,10 @@ func buildComponentFromBody(g *node.NodeGraph, path, content string, lines []str
 		g.AddNode(refNode)
 		children = append(children, refNode.ID())
 	}
+	return children
+}
 
+func addConditionalNodes(g *node.NodeGraph, path, body string) []node.NodeID {
 	ifCount := len(ifRe.FindAllString(body, -1))
 	ternaryCount := len(ternaryRe.FindAllString(body, -1))
 	condCount := ifCount + ternaryCount
@@ -385,9 +468,13 @@ func buildComponentFromBody(g *node.NodeGraph, path, content string, lines []str
 		condNode := node.NewConditionalNode(g.NextID("cond"))
 		condNode.SetFile(path)
 		g.AddNode(condNode)
-		children = append(children, condNode.ID())
+		return []node.NodeID{condNode.ID()}
 	}
+	return nil
+}
 
+func addLoopNodes(g *node.NodeGraph, path, body string) []node.NodeID {
+	var children []node.NodeID
 	loopMatches := loopRe.FindAllString(body, -1)
 	for range loopMatches {
 		loopNode := node.NewLoopNode(g.NextID("loop"), "map")
@@ -395,7 +482,5 @@ func buildComponentFromBody(g *node.NodeGraph, path, content string, lines []str
 		g.AddNode(loopNode)
 		children = append(children, loopNode.ID())
 	}
-
-	g.SetChildren(compNode.ID(), children)
-	return string(compNode.ID())
+	return children
 }

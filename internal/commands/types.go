@@ -1,10 +1,12 @@
 package commands
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/canadian-ai/girl/internal/analyzer"
 	"github.com/canadian-ai/girl/internal/goanalysis"
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/urfave/cli/v2"
@@ -14,6 +16,21 @@ type AnalyzerResult = ir.AnalyzerResult
 type GrpPlan = ir.GrpPlan
 type GrpStep = ir.GrpStep
 type ContextPack = ir.ContextPack
+
+func commandPath(c *cli.Context) string {
+	path := c.Args().First()
+	if path == "" {
+		return "."
+	}
+	return path
+}
+
+func analyzePath(path, lang string) (*ir.AnalyzerResult, error) {
+	if lang == "go" {
+		return goanalysis.AnalyzePath(path, nil)
+	}
+	return analyzer.NewAnalyzer(nil).Analyze(path)
+}
 
 func stringFlag(c *cli.Context, name string, aliases ...string) string {
 	if c.IsSet(name) {
@@ -45,24 +62,11 @@ func resolveLang(path string, lang string) string {
 		return "ts"
 	}
 	if info.IsDir() {
-		if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
+		goModInfo, err := os.Stat(filepath.Join(path, "go.mod"))
+		if err == nil && !goModInfo.IsDir() {
 			return "go"
 		}
-		hasGo := false
-		hasTS := false
-		filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
-			if err != nil || fi.IsDir() {
-				return nil
-			}
-			if goanalysis.IsGoFile(p) {
-				hasGo = true
-			}
-			ext := filepath.Ext(p)
-			if ext == ".ts" || ext == ".tsx" || ext == ".js" || ext == ".jsx" {
-				hasTS = true
-			}
-			return nil
-		})
+		hasGo, hasTS := detectLangFiles(path)
 		if hasGo && !hasTS {
 			return "go"
 		}
@@ -72,4 +76,34 @@ func resolveLang(path string, lang string) string {
 		return "go"
 	}
 	return "ts"
+}
+
+func detectLangFiles(path string) (bool, bool) {
+	hasGo := false
+	hasTS := false
+	err := filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
+		if err != nil || fi.IsDir() {
+			return nil
+		}
+		if goanalysis.IsGoFile(p) {
+			hasGo = true
+		}
+		if isScriptFile(p) {
+			hasTS = true
+		}
+		return nil
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "warning: language auto-detection incomplete:", err)
+	}
+	return hasGo, hasTS
+}
+
+func isScriptFile(path string) bool {
+	switch filepath.Ext(path) {
+	case ".ts", ".tsx", ".js", ".jsx":
+		return true
+	default:
+		return false
+	}
 }

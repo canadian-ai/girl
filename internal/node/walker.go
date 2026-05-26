@@ -3,11 +3,11 @@ package node
 import "reflect"
 
 type VisitContext struct {
-	Graph     *NodeGraph
-	Current   Node
-	Parent    Node
-	Depth     int
-	Path      []NodeID
+	Graph   *NodeGraph
+	Current Node
+	Parent  Node
+	Depth   int
+	Path    []NodeID
 }
 
 type EnterExitVisitor interface {
@@ -37,23 +37,23 @@ type TypedVisitor interface {
 
 type BaseTypedVisitor struct{}
 
-func (b *BaseTypedVisitor) VisitVariable(*VisitContext, *VariableNode) error { return nil }
-func (b *BaseTypedVisitor) VisitArray(*VisitContext, *ArrayNode) error { return nil }
-func (b *BaseTypedVisitor) VisitObject(*VisitContext, *ObjectNode) error { return nil }
-func (b *BaseTypedVisitor) VisitFunction(*VisitContext, *FunctionNode) error { return nil }
-func (b *BaseTypedVisitor) VisitComponent(*VisitContext, *ComponentNode) error { return nil }
-func (b *BaseTypedVisitor) VisitHook(*VisitContext, *HookNode) error { return nil }
-func (b *BaseTypedVisitor) VisitState(*VisitContext, *StateNode) error { return nil }
-func (b *BaseTypedVisitor) VisitEffect(*VisitContext, *EffectNode) error { return nil }
-func (b *BaseTypedVisitor) VisitJSX(*VisitContext, *JSXNode) error { return nil }
-func (b *BaseTypedVisitor) VisitReference(*VisitContext, *ReferenceNode) error { return nil }
-func (b *BaseTypedVisitor) VisitCall(*VisitContext, *CallNode) error { return nil }
-func (b *BaseTypedVisitor) VisitImport(*VisitContext, *ImportNode) error { return nil }
-func (b *BaseTypedVisitor) VisitExport(*VisitContext, *ExportNode) error { return nil }
+func (b *BaseTypedVisitor) VisitVariable(*VisitContext, *VariableNode) error       { return nil }
+func (b *BaseTypedVisitor) VisitArray(*VisitContext, *ArrayNode) error             { return nil }
+func (b *BaseTypedVisitor) VisitObject(*VisitContext, *ObjectNode) error           { return nil }
+func (b *BaseTypedVisitor) VisitFunction(*VisitContext, *FunctionNode) error       { return nil }
+func (b *BaseTypedVisitor) VisitComponent(*VisitContext, *ComponentNode) error     { return nil }
+func (b *BaseTypedVisitor) VisitHook(*VisitContext, *HookNode) error               { return nil }
+func (b *BaseTypedVisitor) VisitState(*VisitContext, *StateNode) error             { return nil }
+func (b *BaseTypedVisitor) VisitEffect(*VisitContext, *EffectNode) error           { return nil }
+func (b *BaseTypedVisitor) VisitJSX(*VisitContext, *JSXNode) error                 { return nil }
+func (b *BaseTypedVisitor) VisitReference(*VisitContext, *ReferenceNode) error     { return nil }
+func (b *BaseTypedVisitor) VisitCall(*VisitContext, *CallNode) error               { return nil }
+func (b *BaseTypedVisitor) VisitImport(*VisitContext, *ImportNode) error           { return nil }
+func (b *BaseTypedVisitor) VisitExport(*VisitContext, *ExportNode) error           { return nil }
 func (b *BaseTypedVisitor) VisitConditional(*VisitContext, *ConditionalNode) error { return nil }
-func (b *BaseTypedVisitor) VisitLoop(*VisitContext, *LoopNode) error { return nil }
-func (b *BaseTypedVisitor) VisitEvent(*VisitContext, *EventNode) error { return nil }
-func (b *BaseTypedVisitor) VisitProp(*VisitContext, *PropNode) error { return nil }
+func (b *BaseTypedVisitor) VisitLoop(*VisitContext, *LoopNode) error               { return nil }
+func (b *BaseTypedVisitor) VisitEvent(*VisitContext, *EventNode) error             { return nil }
+func (b *BaseTypedVisitor) VisitProp(*VisitContext, *PropNode) error               { return nil }
 
 type visitorEntry struct {
 	enterExit EnterExitVisitor
@@ -151,13 +151,26 @@ func (w *Walker) walkNode(n Node, parent Node, depth int) error {
 	if n == nil {
 		return nil
 	}
-	ctx := &VisitContext{
-		Graph:   w.graph,
+	ctx := newVisitContext(w.graph, n, parent, depth)
+	if err := w.visitEnter(ctx, n); err != nil {
+		return err
+	}
+	if err := w.walkChildren(n, depth); err != nil {
+		return err
+	}
+	return w.visitExit(ctx, n)
+}
+
+func newVisitContext(g *NodeGraph, n Node, parent Node, depth int) *VisitContext {
+	return &VisitContext{
+		Graph:   g,
 		Current: n,
 		Parent:  parent,
 		Depth:   depth,
 	}
+}
 
+func (w *Walker) visitEnter(ctx *VisitContext, n Node) error {
 	for _, v := range w.visitors {
 		if v.enterExit != nil {
 			if err := v.enterExit.EnterNode(ctx, n); err != nil {
@@ -168,16 +181,23 @@ func (w *Walker) walkNode(n Node, parent Node, depth int) error {
 			return err
 		}
 	}
+	return nil
+}
 
+func (w *Walker) walkChildren(n Node, depth int) error {
 	for _, cid := range n.Children() {
 		child := w.graph.Node(cid)
-		if child != nil {
-			if err := w.walkNode(child, n, depth+1); err != nil {
-				return err
-			}
+		if child == nil {
+			continue
+		}
+		if err := w.walkNode(child, n, depth+1); err != nil {
+			return err
 		}
 	}
+	return nil
+}
 
+func (w *Walker) visitExit(ctx *VisitContext, n Node) error {
 	for _, v := range w.visitors {
 		if v.enterExit != nil {
 			if err := v.enterExit.ExitNode(ctx, n); err != nil {
@@ -185,7 +205,6 @@ func (w *Walker) walkNode(n Node, parent Node, depth int) error {
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -212,42 +231,25 @@ func dispatchTyped(v interface{}, ctx *VisitContext, n Node) error {
 }
 
 func visitMethodName(kind NodeKind) string {
-	switch kind {
-	case KindVariable:
-		return "VisitVariable"
-	case KindArray:
-		return "VisitArray"
-	case KindObject:
-		return "VisitObject"
-	case KindFunction:
-		return "VisitFunction"
-	case KindComponent:
-		return "VisitComponent"
-	case KindHook:
-		return "VisitHook"
-	case KindState:
-		return "VisitState"
-	case KindEffect:
-		return "VisitEffect"
-	case KindJSX:
-		return "VisitJSX"
-	case KindReference:
-		return "VisitReference"
-	case KindCall:
-		return "VisitCall"
-	case KindImport:
-		return "VisitImport"
-	case KindExport:
-		return "VisitExport"
-	case KindConditional:
-		return "VisitConditional"
-	case KindLoop:
-		return "VisitLoop"
-	case KindEvent:
-		return "VisitEvent"
-	case KindProp:
-		return "VisitProp"
-	default:
-		return ""
-	}
+	return visitMethods[kind]
+}
+
+var visitMethods = map[NodeKind]string{
+	KindVariable:    "VisitVariable",
+	KindArray:       "VisitArray",
+	KindObject:      "VisitObject",
+	KindFunction:    "VisitFunction",
+	KindComponent:   "VisitComponent",
+	KindHook:        "VisitHook",
+	KindState:       "VisitState",
+	KindEffect:      "VisitEffect",
+	KindJSX:         "VisitJSX",
+	KindReference:   "VisitReference",
+	KindCall:        "VisitCall",
+	KindImport:      "VisitImport",
+	KindExport:      "VisitExport",
+	KindConditional: "VisitConditional",
+	KindLoop:        "VisitLoop",
+	KindEvent:       "VisitEvent",
+	KindProp:        "VisitProp",
 }

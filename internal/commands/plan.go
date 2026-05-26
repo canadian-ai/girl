@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/canadian-ai/girl/internal/analyzer"
-	"github.com/canadian-ai/girl/internal/goanalysis"
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/planner"
 	"github.com/urfave/cli/v2"
@@ -46,22 +44,9 @@ func PlanCommand() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			path := c.Args().First()
-			if path == "" {
-				path = "."
-			}
-
+			path := commandPath(c)
 			lang := resolveLang(path, c.String("lang"))
-
-			var result *ir.AnalyzerResult
-			var err error
-
-			if lang == "go" {
-				result, err = goanalysis.AnalyzePath(path, nil)
-			} else {
-				a := analyzer.NewAnalyzer(nil)
-				result, err = a.Analyze(path)
-			}
+			result, err := analyzePath(path, lang)
 			if err != nil {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
@@ -83,18 +68,26 @@ func PlanCommand() *cli.Command {
 				printJSON(plan)
 			}
 
-			planDir := filepath.Join(path, ".grp")
-			if _, err := os.Stat(planDir); os.IsNotExist(err) {
-				os.MkdirAll(planDir, 0755)
-			}
-			planFile := filepath.Join(planDir, "plan.json")
-			data, _ := json.MarshalIndent(plan, "", "  ")
-			os.WriteFile(planFile, data, 0644)
-			fmt.Fprintf(os.Stderr, "Plan written to %s\n", planFile)
-
-			return nil
+			return writePlanFile(path, plan)
 		},
 	}
+}
+
+func writePlanFile(path string, plan *ir.GrpPlan) error {
+	planDir := filepath.Join(path, ".grp")
+	if err := os.MkdirAll(planDir, 0755); err != nil {
+		return fmt.Errorf("create plan directory: %w", err)
+	}
+	data, err := json.MarshalIndent(plan, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal plan: %w", err)
+	}
+	planFile := filepath.Join(planDir, "plan.json")
+	if err := os.WriteFile(planFile, data, 0644); err != nil {
+		return fmt.Errorf("write plan: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Plan written to %s\n", planFile)
+	return nil
 }
 
 func printPlanMarkdown(plan *ir.GrpPlan) {

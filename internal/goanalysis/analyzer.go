@@ -15,48 +15,64 @@ func AnalyzePath(path string, cfg *Config) (*ir.AnalyzerResult, error) {
 		cfg = DefaultConfig()
 	}
 
-	info, err := os.Stat(path)
+	goFiles, err := collectGoFiles(path)
 	if err != nil {
-		return nil, fmt.Errorf("cannot access path %s: %w", path, err)
-	}
-
-	var goFiles []*GoFile
-	if info.IsDir() {
-		err = filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if fi.IsDir() {
-				base := filepath.Base(p)
-				if base != "." && shared.ShouldSkipDir(base) {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if IsGoFile(p) {
-				gf, parseErr := ParseGoFile(p)
-				if parseErr == nil {
-					goFiles = append(goFiles, gf)
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		gf, err := ParseGoFile(path)
-		if err != nil {
-			return nil, err
-		}
-		goFiles = append(goFiles, gf)
+		return nil, err
 	}
 
 	diags := detectDiagnostics(goFiles, cfg)
 	if diags == nil {
 		diags = []ir.Diagnostic{}
 	}
+	sortDiagnostics(diags)
 
+	return &ir.AnalyzerResult{
+		Files:       fileIRs(goFiles),
+		Diagnostics: diags,
+	}, nil
+}
+
+func collectGoFiles(path string) ([]*GoFile, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot access path %s: %w", path, err)
+	}
+
+	if !info.IsDir() {
+		gf, err := ParseGoFile(path)
+		if err != nil {
+			return nil, err
+		}
+		return []*GoFile{gf}, nil
+	}
+
+	return walkGoFiles(path)
+}
+
+func walkGoFiles(path string) ([]*GoFile, error) {
+	var goFiles []*GoFile
+	err := filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if shouldSkipWalkEntry(p, fi) {
+			return filepath.SkipDir
+		}
+		if IsGoFile(p) {
+			if gf, parseErr := ParseGoFile(p); parseErr == nil {
+				goFiles = append(goFiles, gf)
+			}
+		}
+		return nil
+	})
+	return goFiles, err
+}
+
+func shouldSkipWalkEntry(path string, fi os.FileInfo) bool {
+	return fi.IsDir() && filepath.Base(path) != "." && shared.ShouldSkipDir(filepath.Base(path))
+}
+
+func fileIRs(goFiles []*GoFile) []*ir.FileIR {
 	files := make([]*ir.FileIR, len(goFiles))
 	for i, gf := range goFiles {
 		files[i] = &ir.FileIR{
@@ -65,19 +81,17 @@ func AnalyzePath(path string, cfg *Config) (*ir.AnalyzerResult, error) {
 			Lines:    gf.Lines,
 		}
 	}
+	return files
+}
 
+func sortDiagnostics(diags []ir.Diagnostic) {
+	severityOrder := map[ir.Severity]int{ir.SeverityHigh: 0, ir.SeverityMedium: 1, ir.SeverityLow: 2}
 	sort.Slice(diags, func(i, j int) bool {
-		so := map[ir.Severity]int{ir.SeverityHigh: 0, ir.SeverityMedium: 1, ir.SeverityLow: 2}
 		if diags[i].Severity != diags[j].Severity {
-			return so[diags[i].Severity] < so[diags[j].Severity]
+			return severityOrder[diags[i].Severity] < severityOrder[diags[j].Severity]
 		}
 		return diags[i].Code < diags[j].Code
 	})
-
-	return &ir.AnalyzerResult{
-		Files:       files,
-		Diagnostics: diags,
-	}, nil
 }
 
 func detectDiagnostics(files []*GoFile, cfg *Config) []ir.Diagnostic {
@@ -97,7 +111,10 @@ func detectDiagnostics(files []*GoFile, cfg *Config) []ir.Diagnostic {
 }
 
 func relPath(path string) string {
-	cwd, _ := os.Getwd()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return path
+	}
 	rel, err := filepath.Rel(cwd, path)
 	if err != nil {
 		return path

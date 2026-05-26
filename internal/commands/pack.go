@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/canadian-ai/girl/internal/analyzer"
-	"github.com/canadian-ai/girl/internal/goanalysis"
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/packer"
 	"github.com/canadian-ai/girl/internal/planner"
@@ -45,22 +43,9 @@ func PackCommand() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			path := c.Args().First()
-			if path == "" {
-				path = "."
-			}
-
+			path := commandPath(c)
 			lang := resolveLang(path, c.String("lang"))
-
-			var result *ir.AnalyzerResult
-			var err error
-
-			if lang == "go" {
-				result, err = goanalysis.AnalyzePath(path, nil)
-			} else {
-				a := analyzer.NewAnalyzer(nil)
-				result, err = a.Analyze(path)
-			}
+			result, err := analyzePath(path, lang)
 			if err != nil {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
@@ -86,57 +71,53 @@ func PackCommand() *cli.Command {
 				return fmt.Errorf("packing failed: %w", err)
 			}
 
-			switch stringFlag(c, "output", "o") {
-			case "markdown":
-				fmt.Printf("# GIRL Context Pack\n\n")
-				fmt.Printf("**Goal:** %s\n\n", pack.Goal)
-				fmt.Printf("**Token budget:** %d\n", pack.TokenBudget)
-				fmt.Printf("**Token estimate:** %d\n\n", pack.TokenEstimate)
-
-				fmt.Printf("## Files\n\n")
-				for _, f := range pack.Files {
-					fmt.Printf("- `%s`\n", f)
-				}
-				fmt.Println()
-				fmt.Printf("## Summaries\n\n")
-				for _, s := range pack.Summaries {
-					fmt.Printf("- `%s`: %s\n", s.Path, s.Summary)
-				}
-				fmt.Println()
-
-				if len(pack.Diagnostics) > 0 {
-					fmt.Printf("## Diagnostics\n\n")
-					for _, d := range pack.Diagnostics {
-						fmt.Printf("- [%s] %s\n", strings.ToUpper(string(d.Severity)), d.Message)
-					}
-					fmt.Println()
-				}
-
-				fmt.Printf("## Steps\n\n")
-				for _, s := range pack.Steps {
-					fmt.Printf("- %s: %s\n", s.ID, s.Action)
-				}
-				fmt.Println()
-
-				if len(pack.Risks) > 0 {
-					fmt.Printf("## Risks\n\n")
-					for _, r := range pack.Risks {
-						fmt.Printf("- %s\n", r)
-					}
-					fmt.Println()
-				}
-
-				if len(pack.Verification) > 0 {
-					fmt.Printf("## Verification\n\n")
-					for _, v := range pack.Verification {
-						fmt.Printf("```bash\n%s\n```\n\n", v)
-					}
-				}
-			default:
+			if stringFlag(c, "output", "o") == "markdown" {
+				printPackMarkdown(pack)
+			} else {
 				printJSON(pack)
 			}
 
 			return nil
 		},
+	}
+}
+
+func printPackMarkdown(pack *ir.ContextPack) {
+	fmt.Printf("# GIRL Context Pack\n\n")
+	fmt.Printf("**Goal:** %s\n\n", pack.Goal)
+	fmt.Printf("**Token budget:** %d\n", pack.TokenBudget)
+	fmt.Printf("**Token estimate:** %d\n\n", pack.TokenEstimate)
+	printPackList("Files", pack.Files, func(f string) string { return fmt.Sprintf("`%s`", f) })
+	printPackList("Summaries", pack.Summaries, func(s ir.FileSummary) string {
+		return fmt.Sprintf("`%s`: %s", s.Path, s.Summary)
+	})
+	printPackList("Diagnostics", pack.Diagnostics, func(d ir.Diagnostic) string {
+		return fmt.Sprintf("[%s] %s", strings.ToUpper(string(d.Severity)), d.Message)
+	})
+	printPackList("Steps", pack.Steps, func(s ir.GrpStep) string {
+		return fmt.Sprintf("%s: %s", s.ID, s.Action)
+	})
+	printPackList("Risks", pack.Risks, func(r string) string { return r })
+	printPackVerification(pack.Verification)
+}
+
+func printPackList[T any](title string, rows []T, format func(T) string) {
+	if len(rows) == 0 {
+		return
+	}
+	fmt.Printf("## %s\n\n", title)
+	for _, row := range rows {
+		fmt.Printf("- %s\n", format(row))
+	}
+	fmt.Println()
+}
+
+func printPackVerification(commands []string) {
+	if len(commands) == 0 {
+		return
+	}
+	fmt.Printf("## Verification\n\n")
+	for _, v := range commands {
+		fmt.Printf("```bash\n%s\n```\n\n", v)
 	}
 }

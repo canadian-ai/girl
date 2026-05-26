@@ -11,10 +11,10 @@ type Visitor interface {
 
 type BaseVisitor struct{}
 
-func (v *BaseVisitor) VisitFile(file *ir.FileIR) error { return nil }
+func (v *BaseVisitor) VisitFile(file *ir.FileIR) error           { return nil }
 func (v *BaseVisitor) VisitComponent(comp *ir.ComponentIR) error { return nil }
-func (v *BaseVisitor) VisitHook(hook *ir.HookIR) error { return nil }
-func (v *BaseVisitor) GetResult() interface{} { return nil }
+func (v *BaseVisitor) VisitHook(hook *ir.HookIR) error           { return nil }
+func (v *BaseVisitor) GetResult() interface{}                    { return nil }
 
 type VisitorPipeline struct {
 	Visitors []Visitor
@@ -60,30 +60,7 @@ func NewResponsibilityVisitor() *ResponsibilityVisitor {
 
 func (v *ResponsibilityVisitor) VisitComponent(comp *ir.ComponentIR) error {
 	var resp []string
-
-	if len(comp.Hooks) > 0 {
-		hasForm := false
-		hasData := false
-		hasUI := false
-		for _, h := range comp.Hooks {
-			switch h.Name {
-			case "useForm", "useController", "useFieldArray":
-				hasForm = true
-			case "useQuery", "useMutation":
-				hasData = true
-			}
-		}
-		if hasForm {
-			resp = append(resp, "form-logic")
-		}
-		if hasData {
-			resp = append(resp, "data-fetching")
-		}
-		if hasUI {
-			resp = append(resp, "ui-rendering")
-		}
-	}
-
+	resp = append(resp, hookResponsibilities(comp)...)
 	if len(comp.StateVars) > 3 {
 		resp = append(resp, "local-state-management")
 	}
@@ -105,6 +82,28 @@ func (v *ResponsibilityVisitor) VisitComponent(comp *ir.ComponentIR) error {
 
 	v.Responsibilities[comp.Name] = resp
 	return nil
+}
+
+func hookResponsibilities(comp *ir.ComponentIR) []string {
+	hasForm := false
+	hasData := false
+	for _, h := range comp.Hooks {
+		switch h.Name {
+		case "useForm", "useController", "useFieldArray":
+			hasForm = true
+		case "useQuery", "useMutation":
+			hasData = true
+		}
+	}
+
+	var resp []string
+	if hasForm {
+		resp = append(resp, "form-logic")
+	}
+	if hasData {
+		resp = append(resp, "data-fetching")
+	}
+	return resp
 }
 
 func (v *ResponsibilityVisitor) GetResult() interface{} {

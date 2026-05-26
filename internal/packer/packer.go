@@ -36,15 +36,33 @@ func (p *Packer) Pack(req PackRequest) (*ir.ContextPack, error) {
 		budget = req.TokenBudget
 	}
 
+	diagCounts, codeCounts, fileDiagCounts := countDiagnostics(req.Diagnostics)
+	topCodes := topDiagnosticCodes(codeCounts, 5)
+	pack := newContextPack(req, budget, diagCounts, topCodes)
+
+	p.addFileSummaries(pack, req.Files, fileDiagCounts)
+	remaining := p.addComponentSnippets(pack, req.Files, budget)
+	remaining = p.addDiagnosticSnippets(pack, req.Diagnostics, remaining)
+	pack.TokenEstimate = budget - remaining
+	pack.Risks = collectRisks(req.Diagnostics, req.Steps)
+	pack.Verification = p.detectAvailableVerification()
+
+	return pack, nil
+}
+
+func countDiagnostics(diags []ir.Diagnostic) (map[string]int, map[string]int, map[string]int) {
 	diagCounts := map[string]int{}
 	codeCounts := map[string]int{}
 	fileDiagCounts := map[string]int{}
-	for _, d := range req.Diagnostics {
+	for _, d := range diags {
 		diagCounts[string(d.Severity)]++
 		codeCounts[d.Code]++
 		fileDiagCounts[d.File]++
 	}
+	return diagCounts, codeCounts, fileDiagCounts
+}
 
+func topDiagnosticCodes(codeCounts map[string]int, limit int) []string {
 	type codeFreq struct {
 		code string
 		freq int
@@ -58,13 +76,16 @@ func (p *Packer) Pack(req PackRequest) (*ir.ContextPack, error) {
 	})
 	var topCodes []string
 	for i, cf := range sorted {
-		if i >= 5 {
+		if i >= limit {
 			break
 		}
 		topCodes = append(topCodes, cf.code)
 	}
+	return topCodes
+}
 
-	pack := &ir.ContextPack{
+func newContextPack(req PackRequest, budget int, diagCounts map[string]int, topCodes []string) *ir.ContextPack {
+	return &ir.ContextPack{
 		Goal:             req.Goal,
 		TokenBudget:      budget,
 		Files:            []string{},
@@ -76,11 +97,12 @@ func (p *Packer) Pack(req PackRequest) (*ir.ContextPack, error) {
 		DiagnosticCounts: diagCounts,
 		TopCodes:         topCodes,
 	}
+}
 
-	for _, f := range req.Files {
-		rel, _ := filepath.Rel(".", f.Path)
+func (p *Packer) addFileSummaries(pack *ir.ContextPack, files []*ir.FileIR, fileDiagCounts map[string]int) {
+	for _, f := range files {
+		rel := packRelPath(f.Path)
 		pack.Files = append(pack.Files, rel)
-
 		summary := ir.FileSummary{
 			Path:           rel,
 			Lines:          f.Lines,
@@ -90,13 +112,15 @@ func (p *Packer) Pack(req PackRequest) (*ir.ContextPack, error) {
 		}
 		pack.Summaries = append(pack.Summaries, summary)
 	}
+}
 
+func (p *Packer) addComponentSnippets(pack *ir.ContextPack, files []*ir.FileIR, budget int) int {
 	remaining := budget
-	for _, f := range req.Files {
+	for _, f := range files {
 		if remaining <= 0 {
 			break
 		}
-		rel, _ := filepath.Rel(".", f.Path)
+		rel := packRelPath(f.Path)
 		for _, c := range f.Components {
 			if remaining <= 0 {
 				break
@@ -106,40 +130,50 @@ func (p *Packer) Pack(req PackRequest) (*ir.ContextPack, error) {
 			remaining -= snippet.Tokens
 		}
 	}
+	return remaining
+}
 
-	for _, d := range req.Diagnostics {
+func (p *Packer) addDiagnosticSnippets(pack *ir.ContextPack, diags []ir.Diagnostic, remaining int) int {
+	for _, d := range diags {
 		if remaining <= 0 {
 			break
 		}
 		if d.Component != "" || d.File == "" {
 			continue
 		}
-		rel, _ := filepath.Rel(".", d.File)
+		rel := packRelPath(d.File)
 		snippet := p.createDiagnosticSnippet(d.File, rel, d, remaining)
 		pack.SelectedSnippets = append(pack.SelectedSnippets, *snippet)
 		remaining -= snippet.Tokens
 	}
+	return remaining
+}
 
-	pack.TokenEstimate = budget - remaining
-
+func collectRisks(diags []ir.Diagnostic, steps []ir.GrpStep) []string {
 	riskSet := map[string]bool{}
-	for _, d := range req.Diagnostics {
+	for _, d := range diags {
 		if d.Severity == ir.SeverityHigh {
 			riskSet[d.Message] = true
 		}
 	}
-	for _, s := range req.Steps {
+	for _, s := range steps {
 		if s.Risk == ir.SeverityHigh {
 			riskSet[s.Action] = true
 		}
 	}
+	risks := []string{}
 	for r := range riskSet {
-		pack.Risks = append(pack.Risks, r)
+		risks = append(risks, r)
 	}
+	return risks
+}
 
-	pack.Verification = p.detectAvailableVerification()
-
-	return pack, nil
+func packRelPath(path string) string {
+	rel, err := filepath.Rel(".", path)
+	if err != nil {
+		return rel
+	}
+	return rel
 }
 
 func (p *Packer) createSnippet(readPath, relPath string, comp ir.ComponentIR, budget int) *ir.Snippet {
@@ -246,7 +280,7 @@ func (p *Packer) detectAvailableVerification() []string {
 	var cmds []string
 	checks := []string{"package.json"}
 	for _, c := range checks {
-		if _, err := os.Stat(c); err == nil {
+		if statExists(c) {
 			cmds = append(cmds, "npm run typecheck", "npm run lint", "npm test", "npm run build")
 			break
 		}
@@ -254,13 +288,18 @@ func (p *Packer) detectAvailableVerification() []string {
 
 	goChecks := []string{"go.mod"}
 	for _, c := range goChecks {
-		if _, err := os.Stat(c); err == nil {
+		if statExists(c) {
 			cmds = append(cmds, "go build ./...", "go vet ./...", "go test ./...")
 			break
 		}
 	}
 
 	return cmds
+}
+
+func statExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info != nil
 }
 
 func summarizeFile(f *ir.FileIR, diagCount int) string {

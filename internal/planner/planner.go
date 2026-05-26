@@ -71,62 +71,57 @@ func (p *Planner) inferGoal(diags []ir.Diagnostic, target string) string {
 	if len(diags) == 0 {
 		return "Improve code quality"
 	}
-
-	hasLargeFile := false
-	hasLongFn := false
-	hasComplexity := false
-	hasNesting := false
-	hasErrors := false
-	for _, d := range diags {
-		switch d.Code {
-		case "go.large-file":
-			hasLargeFile = true
-		case "go.long-function":
-			hasLongFn = true
-		case "go.high-complexity":
-			hasComplexity = true
-		case "go.deep-nesting":
-			hasNesting = true
-		case "go.ignored-error":
-			hasErrors = true
-		}
-	}
-
-	parts := []string{}
-	if hasLargeFile {
-		parts = append(parts, "split large files")
-	}
-	if hasLongFn || hasComplexity || hasNesting {
-		parts = append(parts, "simplify complex functions")
-	}
-	if hasErrors {
-		parts = append(parts, "handle ignored errors")
-	}
-
+	parts := inferGoGoalParts(diags)
 	if len(parts) == 0 {
-		componentRelated := false
-		hookRelated := false
-		for _, d := range diags {
-			if strings.Contains(d.Code, "component") {
-				componentRelated = true
-			}
-			if strings.Contains(d.Code, "hook") {
-				hookRelated = true
-			}
-		}
-		if componentRelated {
-			parts = append(parts, "reduce component size")
-		}
-		if hookRelated {
-			parts = append(parts, "extract custom hooks")
-		}
+		parts = inferReactGoalParts(diags)
 	}
-
 	if len(parts) == 0 {
 		parts = append(parts, "improve code structure")
 	}
-
 	return fmt.Sprintf("Refactor %s: %s", target, strings.Join(parts, " and "))
+}
+
+func inferGoGoalParts(diags []ir.Diagnostic) []string {
+	codes := diagnosticCodes(diags)
+	parts := []string{}
+	if codes["go.large-file"] {
+		parts = append(parts, "split large files")
+	}
+	if codes["go.long-function"] || codes["go.high-complexity"] || codes["go.deep-nesting"] {
+		parts = append(parts, "simplify complex functions")
+	}
+	if codes["go.ignored-error"] {
+		parts = append(parts, "handle ignored errors")
+	}
+	return parts
+}
+
+func inferReactGoalParts(diags []ir.Diagnostic) []string {
+	parts := []string{}
+	if hasCodePart(diags, "component") {
+		parts = append(parts, "reduce component size")
+	}
+	if hasCodePart(diags, "hook") {
+		parts = append(parts, "extract custom hooks")
+	}
+	return parts
+}
+
+func diagnosticCodes(diags []ir.Diagnostic) map[string]bool {
+	codes := map[string]bool{}
+	for _, d := range diags {
+		codes[d.Code] = true
+	}
+	return codes
+}
+
+func hasCodePart(diags []ir.Diagnostic, part string) bool {
+	for _, d := range diags {
+		if strings.Contains(d.Code, part) {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Planner) applySpecificRecipe(plan *ir.GrpPlan, req PlanRequest) {
@@ -204,10 +199,11 @@ func (p *Planner) assignStepIDs(plan *ir.GrpPlan) {
 func slugTarget(s string) string {
 	var result strings.Builder
 	for _, r := range strings.ToLower(s) {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+		switch {
+		case isSlugChar(r):
 			result.WriteRune(r)
-		} else if r == ' ' || r == '-' || r == '_' {
-			if result.Len() == 0 || result.String()[result.Len()-1] != '-' {
+		case isSlugSeparator(r):
+			if !strings.HasSuffix(result.String(), "-") {
 				result.WriteRune('-')
 			}
 		}
@@ -220,6 +216,14 @@ func slugTarget(s string) string {
 		slug = "target"
 	}
 	return slug
+}
+
+func isSlugChar(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+}
+
+func isSlugSeparator(r rune) bool {
+	return r == ' ' || r == '-' || r == '_'
 }
 
 func (p *Planner) detectVerification(target string, lang string) []string {

@@ -37,11 +37,8 @@ func (g *NodeGraph) FileNodeFor(path string) NodeID {
 
 func (g *NodeGraph) AddNode(n Node) {
 	g.nodes[n.ID()] = n
-	base := g.getBase(n)
-	if base != nil {
-		for _, c := range base.children {
-			g.addChild(n.ID(), c)
-		}
+	for _, c := range n.Children() {
+		g.addChild(n.ID(), c)
 	}
 }
 
@@ -159,49 +156,6 @@ func (g *NodeGraph) FindByName(name string) []Node {
 		}
 	}
 	return result
-}
-
-func (g *NodeGraph) getBase(n Node) *NodeBase {
-	switch v := n.(type) {
-	case *RootNode:
-		return &v.NodeBase
-	case *VariableNode:
-		return &v.NodeBase
-	case *ArrayNode:
-		return &v.NodeBase
-	case *ObjectNode:
-		return &v.NodeBase
-	case *FunctionNode:
-		return &v.NodeBase
-	case *ComponentNode:
-		return &v.NodeBase
-	case *HookNode:
-		return &v.NodeBase
-	case *StateNode:
-		return &v.NodeBase
-	case *EffectNode:
-		return &v.NodeBase
-	case *JSXNode:
-		return &v.NodeBase
-	case *ReferenceNode:
-		return &v.NodeBase
-	case *CallNode:
-		return &v.NodeBase
-	case *ImportNode:
-		return &v.NodeBase
-	case *ExportNode:
-		return &v.NodeBase
-	case *ConditionalNode:
-		return &v.NodeBase
-	case *LoopNode:
-		return &v.NodeBase
-	case *EventNode:
-		return &v.NodeBase
-	case *PropNode:
-		return &v.NodeBase
-	default:
-		return nil
-	}
 }
 
 func (g *NodeGraph) Merge(other *NodeGraph) {

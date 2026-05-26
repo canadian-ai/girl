@@ -54,25 +54,7 @@ func (p *SimpleParser) ParseDir(dir string, excludeDirs []string) ([]*ir.FileIR,
 		p.ExcludeDirs = append(p.ExcludeDirs, excludeDirs...)
 	}
 
-	var files []string
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			if path != dir && p.isExcludedDir(info.Name()) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		ext := filepath.Ext(path)
-		if ext == ".tsx" || ext == ".ts" || ext == ".jsx" || ext == ".js" {
-			if !p.isExcludedExt(path) {
-				files = append(files, path)
-			}
-		}
-		return nil
-	})
+	files, err := p.collectParseFiles(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -86,6 +68,38 @@ func (p *SimpleParser) ParseDir(dir string, excludeDirs []string) ([]*ir.FileIR,
 		results = append(results, fir)
 	}
 	return results, nil
+}
+
+func (p *SimpleParser) collectParseFiles(dir string) ([]string, error) {
+	var files []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if shouldSkipWalkDir(path, dir, info, p) {
+			return filepath.SkipDir
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if p.shouldParseFile(path) {
+			files = append(files, path)
+		}
+		return nil
+	})
+	return files, err
+}
+
+func shouldSkipWalkDir(path, root string, info os.FileInfo, p *SimpleParser) bool {
+	return info.IsDir() && path != root && p.isExcludedDir(info.Name())
+}
+
+func (p *SimpleParser) shouldParseFile(path string) bool {
+	switch filepath.Ext(path) {
+	case ".tsx", ".ts", ".jsx", ".js":
+		return !p.isExcludedExt(path)
+	}
+	return false
 }
 
 func (p *SimpleParser) ParseFile(path string) (*ir.FileIR, error) {
@@ -140,7 +154,7 @@ func parseImports(content string) []ir.ImportIR {
 		}
 		seen[source] = true
 		imports = append(imports, ir.ImportIR{
-			Source: source,
+			Source:  source,
 			Default: m[1],
 		})
 	}
@@ -208,38 +222,48 @@ func countLines(s string) int {
 func findComponentEnd(content string, startIdx int, lines []string) int {
 	depth := 0
 	inJSX := false
-	foundArrow := false
 	foundBrace := false
 	lineNum := countLines(content[:startIdx])
 
 	for i := startIdx; i < len(content); i++ {
 		ch := content[i]
-		switch {
-		case ch == '{' && !inJSX:
-			if !foundArrow {
-				foundArrow = true
-				depth++
-				foundBrace = true
-			} else {
-				depth++
-			}
-		case ch == '}' && !inJSX:
+		if ch == '\n' {
+			lineNum++
+			continue
+		}
+		if inJSX {
+			inJSX = !endsJSXTag(ch)
+			continue
+		}
+		if startsJSXTag(content, i) {
+			inJSX = true
+			continue
+		}
+		if ch == '{' {
+			depth++
+			foundBrace = true
+			continue
+		}
+		if ch == '}' {
 			depth--
 			if foundBrace && depth == 0 {
 				return lineNum
 			}
-		case ch == '<' && !inJSX:
-			if i+1 < len(content) && (isLetter(content[i+1]) || content[i+1] == '/' || content[i+1] == '>') {
-				inJSX = true
-			}
-		case ch == '>' && inJSX:
-			inJSX = false
-		case ch == '/' && inJSX && i > 0 && content[i-1] == '<':
-		case ch == '\n':
-			lineNum++
 		}
 	}
 	return lineNum
+}
+
+func startsJSXTag(content string, pos int) bool {
+	if content[pos] != '<' || pos+1 >= len(content) {
+		return false
+	}
+	next := content[pos+1]
+	return isLetter(next) || next == '/' || next == '>'
+}
+
+func endsJSXTag(ch byte) bool {
+	return ch == '>'
 }
 
 func isLetter(ch byte) bool {

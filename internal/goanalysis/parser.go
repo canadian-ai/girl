@@ -30,55 +30,58 @@ func ParseGoFile(path string) (*GoFile, error) {
 	}
 
 	for _, decl := range f.Decls {
-		switch d := decl.(type) {
-		case *ast.FuncDecl:
-			start := fset.Position(d.Pos()).Line
-			end := fset.Position(d.End()).Line
-			if end == 0 {
-				end = start
-			}
-
-			recv := ""
-			if d.Recv != nil && len(d.Recv.List) > 0 {
-				exprStr := typeExprString(d.Recv.List[0].Type)
-				if len(d.Recv.List[0].Names) > 0 {
-					recv = fmt.Sprintf("(%s %s)", d.Recv.List[0].Names[0].Name, exprStr)
-				} else {
-					recv = fmt.Sprintf("(%s)", exprStr)
-				}
-			}
-
-			fn := GoFunction{
-				Name:       d.Name.Name,
-				Receiver:   recv,
-				StartLine:  start,
-				EndLine:    end,
-				Lines:      end - start + 1,
-				Params:     len(d.Type.Params.List),
-				MaxNesting: computeNesting(d.Body),
-			}
-
-			if d.Type.Results != nil {
-				fn.Returns = len(d.Type.Results.List)
-			}
-
-			fn.Complexity = computeComplexity(d)
-			fn.IgnoredErrs = countIgnoredErrors(d)
-
-			if d.Type.Results != nil {
-				for _, ret := range d.Type.Results.List {
-					if isErrorType(ret.Type) {
-						fn.HasErrors = true
-						break
-					}
-				}
-			}
-
-			gf.Functions = append(gf.Functions, fn)
+		if d, ok := decl.(*ast.FuncDecl); ok {
+			gf.Functions = append(gf.Functions, newGoFunction(fset, d))
 		}
 	}
 
 	return gf, nil
+}
+
+func newGoFunction(fset *token.FileSet, d *ast.FuncDecl) GoFunction {
+	start := fset.Position(d.Pos()).Line
+	end := fset.Position(d.End()).Line
+	if end == 0 {
+		end = start
+	}
+
+	fn := GoFunction{
+		Name:        d.Name.Name,
+		Receiver:    receiverName(d),
+		StartLine:   start,
+		EndLine:     end,
+		Lines:       end - start + 1,
+		Params:      len(d.Type.Params.List),
+		MaxNesting:  computeNesting(d.Body),
+		Complexity:  computeComplexity(d),
+		IgnoredErrs: countIgnoredErrors(d),
+	}
+	if d.Type.Results != nil {
+		fn.Returns = len(d.Type.Results.List)
+		fn.HasErrors = hasErrorResult(d.Type.Results.List)
+	}
+	return fn
+}
+
+func receiverName(d *ast.FuncDecl) string {
+	if d.Recv == nil || len(d.Recv.List) == 0 {
+		return ""
+	}
+	recv := d.Recv.List[0]
+	exprStr := typeExprString(recv.Type)
+	if len(recv.Names) > 0 {
+		return fmt.Sprintf("(%s %s)", recv.Names[0].Name, exprStr)
+	}
+	return fmt.Sprintf("(%s)", exprStr)
+}
+
+func hasErrorResult(results []*ast.Field) bool {
+	for _, ret := range results {
+		if isErrorType(ret.Type) {
+			return true
+		}
+	}
+	return false
 }
 
 func computeComplexity(fn *ast.FuncDecl) int {
@@ -113,52 +116,83 @@ func computeNesting(body *ast.BlockStmt) int {
 	if body == nil {
 		return 0
 	}
-	maxDepth := 0
-	var walk func(n ast.Node, depth int)
-	walk = func(n ast.Node, depth int) {
-		if depth > maxDepth {
-			maxDepth = depth
-		}
-		switch node := n.(type) {
-		case *ast.IfStmt:
-			walk(node.Body, depth+1)
-			if node.Else != nil {
-				if blk, ok := node.Else.(*ast.BlockStmt); ok {
-					walk(blk, depth+1)
-				} else {
-					walk(node.Else, depth+1)
-				}
-			}
-		case *ast.ForStmt:
-			walk(node.Body, depth+1)
-		case *ast.RangeStmt:
-			walk(node.Body, depth+1)
-		case *ast.SwitchStmt:
-			walk(node.Body, depth+1)
-		case *ast.TypeSwitchStmt:
-			walk(node.Body, depth+1)
-		case *ast.SelectStmt:
-			walk(node.Body, depth+1)
-		case *ast.BlockStmt:
-			for _, stmt := range node.List {
-				walk(stmt, depth)
-			}
-		default:
-			ast.Inspect(n, func(c ast.Node) bool {
-				if c == n {
-					return false
-				}
-				switch c.(type) {
-				case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.SelectStmt:
-					walk(c, depth+1)
-					return false
-				}
-				return true
-			})
-		}
+	w := &nestingWalker{}
+	w.walk(body, 0)
+	return w.maxDepth
+}
+
+type nestingWalker struct {
+	maxDepth int
+}
+
+func (w *nestingWalker) walk(n ast.Node, depth int) {
+	if depth > w.maxDepth {
+		w.maxDepth = depth
 	}
-	walk(body, 0)
-	return maxDepth
+	if block, ok := n.(*ast.BlockStmt); ok {
+		w.walkBlock(block, depth)
+		return
+	}
+	if w.walkControlNode(n, depth) {
+		return
+	}
+	w.walkNestedControlNodes(n, depth)
+}
+
+func (w *nestingWalker) walkBlock(block *ast.BlockStmt, depth int) {
+	for _, stmt := range block.List {
+		w.walk(stmt, depth)
+	}
+}
+
+func (w *nestingWalker) walkControlNode(n ast.Node, depth int) bool {
+	switch node := n.(type) {
+	case *ast.IfStmt:
+		w.walk(node.Body, depth+1)
+		w.walkIfElse(node.Else, depth+1)
+	case *ast.ForStmt:
+		w.walk(node.Body, depth+1)
+	case *ast.RangeStmt:
+		w.walk(node.Body, depth+1)
+	case *ast.SwitchStmt:
+		w.walk(node.Body, depth+1)
+	case *ast.TypeSwitchStmt:
+		w.walk(node.Body, depth+1)
+	case *ast.SelectStmt:
+		w.walk(node.Body, depth+1)
+	default:
+		return false
+	}
+	return true
+}
+
+func (w *nestingWalker) walkIfElse(node ast.Node, depth int) {
+	if node == nil {
+		return
+	}
+	w.walk(node, depth)
+}
+
+func (w *nestingWalker) walkNestedControlNodes(n ast.Node, depth int) {
+	ast.Inspect(n, func(c ast.Node) bool {
+		if c == n {
+			return false
+		}
+		if isNestingControlNode(c) {
+			w.walk(c, depth+1)
+			return false
+		}
+		return true
+	})
+}
+
+func isNestingControlNode(n ast.Node) bool {
+	switch n.(type) {
+	case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.SelectStmt:
+		return true
+	default:
+		return false
+	}
 }
 
 func countIgnoredErrors(fn *ast.FuncDecl) int {

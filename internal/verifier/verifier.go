@@ -10,10 +10,10 @@ import (
 )
 
 type CommandCheck struct {
-	Name     string `json:"name"`
-	Script   string `json:"script"`
-	Command  string `json:"command"`
-	Exists   bool   `json:"exists"`
+	Name    string `json:"name"`
+	Script  string `json:"script"`
+	Command string `json:"command"`
+	Exists  bool   `json:"exists"`
 }
 
 type VerifyResult struct {
@@ -51,16 +51,16 @@ func (v *Verifier) Verify(path string) (*VerifyResult, error) {
 		Commands:       scripts,
 	}
 
-	if _, err := os.Stat(filepath.Join(path, "tsconfig.json")); err == nil {
+	if pathExists(filepath.Join(path, "tsconfig.json")) {
 		result.HasConfig = true
 	}
-	if _, err := os.Stat(filepath.Join(path, "convex")); err == nil {
+	if pathExists(filepath.Join(path, "convex")) {
 		result.HasConvex = true
 	}
-	if _, err := os.Stat(filepath.Join(path, "Dockerfile")); err == nil {
+	if pathExists(filepath.Join(path, "Dockerfile")) {
 		result.HasDocker = true
 	}
-	if _, err := os.Stat(filepath.Join(path, ".github/workflows")); err == nil {
+	if pathExists(filepath.Join(path, ".github/workflows")) {
 		result.HasCI = true
 	}
 
@@ -68,22 +68,31 @@ func (v *Verifier) Verify(path string) (*VerifyResult, error) {
 }
 
 func (v *Verifier) detectPackageManager(path string) string {
-	if _, err := os.Stat(filepath.Join(path, "bun.lock")); err == nil {
-		return "bun"
+	lockfiles := []struct {
+		name    string
+		manager string
+	}{
+		{name: "bun.lock", manager: "bun"},
+		{name: "pnpm-lock.yaml", manager: "pnpm"},
+		{name: "yarn.lock", manager: "yarn"},
+		{name: "package-lock.json", manager: "npm"},
+		{name: "go.mod", manager: "go"},
 	}
-	if _, err := os.Stat(filepath.Join(path, "pnpm-lock.yaml")); err == nil {
-		return "pnpm"
-	}
-	if _, err := os.Stat(filepath.Join(path, "yarn.lock")); err == nil {
-		return "yarn"
-	}
-	if _, err := os.Stat(filepath.Join(path, "package-lock.json")); err == nil {
-		return "npm"
-	}
-	if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
-		return "go"
+
+	for _, lockfile := range lockfiles {
+		if pathExists(filepath.Join(path, lockfile.name)) {
+			return lockfile.manager
+		}
 	}
 	return "unknown"
+}
+
+func pathExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info != nil
 }
 
 func (v *Verifier) detectScripts(path string) []CommandCheck {
