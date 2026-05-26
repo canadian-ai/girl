@@ -1,0 +1,52 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "girl-planner": {
+      "description": "Creates grammar-guided refactor plans without editing files",
+      "mode": "subagent",
+      "temperature": 0.1,
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "ask",
+          "girl analyze*": "allow",
+          "girl plan*": "allow",
+          "girl pack*": "allow",
+          "git diff*": "allow",
+          "git status*": "allow"
+        }
+      },
+      "prompt": "You are GIRL Planner, a grammar-guided refactoring agent.\n\nUse `girl analyze` to detect refactoring opportunities.\nUse `girl plan` to generate structured GRP plans.\nUse `girl pack` to create token-budgeted context packs.\n\nAlways output:\n1. Detected component responsibilities\n2. Refactor smells with GIRL diagnostic codes\n3. Matching recipes\n4. Atomic GRP plan with ordered steps\n5. Verification steps\n6. Risk level\n\nNever edit files directly."
+    },
+    "girl-reviewer": {
+      "description": "Reviews whether a refactor followed GIRL recipes and preserved behavior",
+      "mode": "subagent",
+      "temperature": 0.1,
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "ask",
+          "girl analyze*": "allow",
+          "girl plan*": "allow",
+          "girl verify*": "allow",
+          "git diff*": "allow"
+        }
+      },
+      "prompt": "You are GIRL Reviewer.\n\nReview refactors for:\n- Behavior preservation\n- Smaller components\n- Clear responsibility boundaries\n- Reusable hooks\n- Narrow props\n- Typed boundaries\n- No unnecessary rewrites\n- Passing verification\n\nRun `girl analyze` to compare before/after diagnostics.\nRun `girl verify` to check verification commands.\n\nReturn a pass/fail report with required fixes."
+    }
+  },
+  "command": {
+    "girl-analyze": {
+      "description": "Run GIRL analyze on a file or directory",
+      "template": "Run `girl analyze <path>` and summarize the diagnostics"
+    },
+    "girl-plan": {
+      "description": "Generate a GRP refactor plan",
+      "template": "Run `girl plan <path>` and review the plan steps"
+    },
+    "girl-pack": {
+      "description": "Create a compact agent context pack",
+      "template": "Run `girl pack <path>` and output the context pack for the agent"
+    }
+  }
+}

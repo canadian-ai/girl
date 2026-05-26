@@ -1,0 +1,77 @@
+recipes:
+  - id: react.split-large-component
+    description: "Split a large component into smaller focused components by responsibility boundary"
+    match:
+      min_lines: 200
+      signals: ["multiple-hooks", "multiple-state", "mixed-responsibilities"]
+    transform:
+      action: split_component
+      strategy: responsibility_boundary
+      max_steps: 5
+    verify: ["typecheck", "tests"]
+    risk: medium
+
+  - id: react.extract-repeated-jsx
+    description: "Extract repeated JSX blocks into a reusable component"
+    match:
+      min_occurrences: 3
+      signals: ["repeated-jsx"]
+    transform:
+      action: extract_component
+      props: infer_from_differences
+    verify: ["typecheck", "lint"]
+    risk: low
+
+  - id: react.extract-custom-hook
+    description: "Extract related hook logic into a custom hook"
+    match:
+      min_hooks: 6
+      signals: ["too-many-hooks", "keyboard-events", "side-effects"]
+    transform:
+      action: extract_hook
+      strategy: related_state_effects
+    verify: ["typecheck", "tests"]
+    risk: low
+
+  - id: react.reduce-state-vars
+    description: "Consolidate multiple state variables into a reducer or grouped state"
+    match:
+      min_state_vars: 5
+      signals: ["too-many-state-vars"]
+    transform:
+      action: consolidate_state
+      strategy: use_reducer
+    verify: ["typecheck", "tests"]
+    risk: medium
+
+  - id: react.consolidate-effects
+    description: "Merge related useEffect calls or extract logic into custom hooks"
+    match:
+      min_effects: 3
+      signals: ["too-many-effects"]
+    transform:
+      action: consolidate_effects
+      strategy: merge_or_extract
+    verify: ["typecheck", "tests"]
+    risk: medium
+
+  - id: react.add-prop-types
+    description: "Add TypeScript interfaces for component props"
+    match:
+      signals: ["missing-prop-types"]
+      exclude_if: ["has-types"]
+    transform:
+      action: add_types
+      template: interface
+    verify: ["typecheck"]
+    risk: low
+
+  - id: react.extract-constants
+    description: "Move hardcoded data outside the component to external constants"
+    match:
+      signals: ["hardcoded-data"]
+    transform:
+      action: extract_data
+      target: external_file
+    verify: ["typecheck"]
+    risk: low

@@ -1,0 +1,9 @@
+/girl
+/dist/
+*.test
+*.out
+evals/private/**
+!evals/private/.gitkeep
+reports/**
+.grp/
+.DS_Store
