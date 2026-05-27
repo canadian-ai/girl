@@ -2,9 +2,48 @@
 
 **Grammar-Informed Refactoring Language** for AI coding agents.
 
+> **GRP Core** is the envelope. Bindings define how specific languages, frameworks, and tools speak it.
+>
+> **GIRL** is the first reference implementation of GRP, starting with Go, TypeScript, and React bindings.
+
 GIRL analyzes code, detects refactoring opportunities, and generates structured
 GRP (Grammar Refactoring Protocol) plans that make agent refactoring safe,
 repeatable, and token-efficient.
+
+## Design Philosophy
+
+GRP does not care how you parse code.
+GRP only cares that you can describe the refactor clearly.
+
+GIRL is not a parser, linter, codemod engine, or AI agent. It is the handoff protocol between them.
+
+## GRP vs GIRL
+
+| | GRP | GIRL |
+|---|---|---|
+| **Role** | Minimal protocol for source-grounded refactoring plans | First reference implementation of GRP |
+| **Scope** | Plan envelope, diagnostics, steps, verification | Go and TypeScript analyzers, recipe engine, CLI |
+| **Extensible** | Yes — binding namespaced codes like `go.*`, `react.*` | Yes — register new recipes and diagnostics |
+| **Language** | Language-agnostic | Focused on Go and TypeScript/React |
+
+**Non-goals for GRP Core:**
+- parser or AST format
+- grammar engine
+- codemod runtime
+- AI agent
+- language-specific rules
+
+## Architecture
+
+```txt
+Source code
+  -> language/tool-specific analyzer
+  -> binding maps findings into GRP diagnostics
+  -> GRP plan
+  -> GIRL context pack
+  -> agent/codemod/human
+  -> verification
+```
 
 ## Why
 
@@ -25,8 +64,12 @@ go build -o girl ./cmd/girl/
 # Analyze Go code explicitly, or use --lang auto to detect Go/TS
 ./girl analyze . --lang go --output text
 
-# Generate a refactor plan
+# Generate a GRP refactor plan (JSON, Markdown, or GRP JSON)
 ./girl plan examples/messy-react-form --output markdown
+./girl plan . --lang go --output grp-json
+
+# Validate a GRP plan file
+./girl validate examples/grp/minimal-plan.json
 
 # Create a token-budgeted agent context pack
 ./girl pack examples/messy-react-form --budget 8000 --output markdown
@@ -44,6 +87,7 @@ go build -o girl ./cmd/girl/
 | `girl refs <path>` | List reference nodes, optionally filtered by symbol |
 | `girl plan <path>` | Generate structured GRP refactor plan |
 | `girl pack <path>` | Create token-budgeted agent context pack |
+| `girl validate <file>` | Validate a GRP plan JSON file |
 | `girl verify <path>` | Detect available verification commands |
 
 ### `girl analyze`
@@ -55,27 +99,32 @@ files, ignored errors, and large parameter lists.
 
 Output: JSON, text, or markdown. Use `--lang auto|ts|go` to choose the analyzer.
 
-### `girl nodes`
-
-Parses TS/TSX files into the semantic node graph and lists nodes. Use
-`--kind component`, `--kind hook`, `--kind state`, `--kind jsx`, or
-`--kind reference` to focus output.
-
-### `girl refs`
-
-Lists reference nodes from the semantic graph. Use `--symbol <name>` to focus on
-one identifier.
-
 ### `girl plan`
 
 Generates an ordered GRP plan with step-by-step refactoring actions, risk
 levels, and required verification commands.
+
+Output formats:
+- `--output json` (default) — internal IR JSON
+- `--output markdown` — human-readable Markdown
+- `--output grp-json` — valid GRP Core JSON with deterministic IDs and requires linkage
 
 ### `girl pack`
 
 Creates a token-budgeted context pack optimized for AI coding agents.
 Includes file summaries, selected component snippets, diagnostics, steps,
 risks, and verification commands.
+
+### `girl validate`
+
+Validates a GRP plan JSON file against the core requirements:
+required fields, valid enum values, deterministic ID formatting, diagnostic
+uniqueness, step-diagnostic linkage, and relative file paths.
+
+### `girl verify`
+
+Detects available verification commands for a project by inspecting
+`package.json`, `go.mod`, and project structure.
 
 ## GIRL Recipes
 
@@ -107,17 +156,19 @@ Issues: [github.com/canadian-ai/girl/issues](https://github.com/canadian-ai/girl
 
 ## Roadmap
 
-See `docs/roadmap/high-impact-plan.md` for the full timeline roadmap.
-
-Key milestones:
+See `docs/roadmap/high-impact-plan.md` for the full timeline.
 
 | Phase | Status | Target |
 |-------|--------|--------|
 | Initial scaffolding, Go self-hosting, core productionization | **Done** | May 18-25 |
 | Dogfood recursion (0 GIRL self-diagnostics) | **Done** | May 26 |
-| GRP Core v0.1 — spec, schemas, pkg/grp, grp-json, validate | **In progress** | May 26 - Jun 1 |
-| Bindings v0.1 — Go/TS/React docs, verification detection | **Planned** | Jun 2 - Jun 8 |
-| Context + Trust — CI, golden tests, privacy, dogfood case study | **Planned** | Jun 9 - Jun 15 |
+| GRP Core v0.1 — spec, schemas, pkg/grp, grp-json, validate | **Done** | May 26 - Jun 1 |
+| GRP-Go binding v0.1 | **In progress** | Jun 2 - Jun 8 |
+| GRP-TypeScript binding v0.1 | **Planned** | Jun 2 - Jun 8 |
+| GRP-React binding v0.1 | **Planned** | Jun 2 - Jun 8 |
+| GIRL context packs | **Planned** | Jun 9 - Jun 15 |
+| Repo-native verification | **Planned** | Jun 9 - Jun 15 |
+| Golden tests and conformance | **Planned** | Jun 9 - Jun 15 |
 | Production release | **Planned** | Jun 16+ |
 
 Track via [GitHub Project](https://github.com/orgs/canadian-ai/projects/6) or see `docs/project.md` for issue details.
@@ -132,8 +183,8 @@ GRP Core is a minimal plan envelope. The full specification is in `docs/spec/`:
 - **[Verification](docs/spec/verification.md)** — verification shape, types, detection rules
 - **[Extensions](docs/spec/extensions.md)** — extension system, `requiredExtensions`, namespacing
 - **[Conformance](docs/spec/conformance.md)** — Core and Binding conformance levels
-- **[Schemas](../schemas/grp-plan.v0.1.schema.json)** — JSON Schema files for Plan, Diagnostic, Step, Verification
-- **[Examples](../examples/grp/)** — minimal, GRP-Go, and GRP-React example plans
+- **[Schemas](schemas/grp-plan.v0.1.schema.json)** — JSON Schema files for Plan, Diagnostic, Step, Verification
+- **[Examples](examples/grp/)** — minimal, GRP-Go, and GRP-React example plans
 
 A minimal GRP plan:
 
@@ -152,6 +203,15 @@ A minimal GRP plan:
   "verification": []
 }
 ```
+
+## Future Tool Bindings (post-v0.1)
+
+- GritQL binding
+- Tree-sitter binding
+- OpenRewrite binding
+- ESLint binding
+- SARIF binding
+- LSP binding
 
 ## Use with OpenCode
 

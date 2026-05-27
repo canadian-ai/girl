@@ -166,12 +166,13 @@ func (d Diagnostic) DiagnosticTarget() string {
 }
 
 type GrpStep struct {
-	ID     string   `json:"id"`
-	Recipe string   `json:"recipe"`
-	Action string   `json:"action"`
-	File   string   `json:"file"`
-	Risk   Severity `json:"risk"`
-	Verify []string `json:"verify"`
+	ID              string   `json:"id"`
+	Recipe          string   `json:"recipe"`
+	Action          string   `json:"action"`
+	File            string   `json:"file"`
+	Risk            Severity `json:"risk"`
+	Verify          []string `json:"verify"`
+	SourceDiagIndex int      `json:"-"`
 }
 
 type GrpPlan struct {

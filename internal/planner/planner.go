@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/recipes"
@@ -35,7 +34,7 @@ func (p *Planner) GeneratePlan(req PlanRequest) *ir.GrpPlan {
 		diags = []ir.Diagnostic{}
 	}
 	plan := &ir.GrpPlan{
-		PlanID:       fmt.Sprintf("grp_%d", time.Now().Unix()),
+		PlanID:       "",
 		Goal:         req.Goal,
 		Target:       req.Target,
 		Diagnostics:  diags,
@@ -145,11 +144,12 @@ func (p *Planner) applySpecificRecipe(plan *ir.GrpPlan, req PlanRequest) {
 }
 
 func (p *Planner) generateStepsFromDiagnostics(plan *ir.GrpPlan, req PlanRequest) {
-	for _, diag := range req.Diagnostics {
+	for i, diag := range req.Diagnostics {
 		step := recipes.StepForDiagnostic(diag)
 		if step.Recipe == "" {
 			continue
 		}
+		step.SourceDiagIndex = i
 		plan.Steps = append(plan.Steps, step)
 	}
 }

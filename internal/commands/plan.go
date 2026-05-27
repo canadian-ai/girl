@@ -9,6 +9,7 @@ import (
 
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/planner"
+	"github.com/canadian-ai/girl/pkg/grp"
 	"github.com/urfave/cli/v2"
 )
 
@@ -29,7 +30,7 @@ func PlanCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:    "output",
 				Aliases: []string{"o"},
-				Usage:   "Output format: json (default), markdown",
+				Usage:   "Output format: json (default), markdown, grp-json",
 				Value:   "json",
 			},
 			&cli.StringFlag{
@@ -64,13 +65,45 @@ func PlanCommand() *cli.Command {
 			switch stringFlag(c, "output", "o") {
 			case "markdown":
 				printPlanMarkdown(plan)
+			case "grp-json":
+				gp := grp.FromIRPlan(plan)
+				gp.Language = lang
+				grp.NormalizePlan(gp)
+				gp.ID = grp.ComputePlanID(gp)
+				result := grp.ValidatePlan(gp)
+				if !result.Valid {
+					fmt.Fprintf(os.Stderr, "Warning: generated plan has validation issues:\n")
+					for _, e := range result.Errors {
+						fmt.Fprintf(os.Stderr, "  - %s: %s\n", e.Field, e.Message)
+					}
+				}
+				if err := writeGRPPlanFile(path, gp); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+				}
+				printJSON(gp)
 			default:
 				printJSON(plan)
 			}
 
-			return writePlanFile(path, plan)
+			if stringFlag(c, "output", "o") != "grp-json" {
+				_ = writePlanFile(path, plan)
+			}
+			return nil
 		},
 	}
+}
+
+func writeGRPPlanFile(path string, plan *grp.Plan) error {
+	planDir := filepath.Join(path, ".grp")
+	if err := os.MkdirAll(planDir, 0755); err != nil {
+		return fmt.Errorf("create plan directory: %w", err)
+	}
+	data, err := json.MarshalIndent(plan, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal plan: %w", err)
+	}
+	planFile := filepath.Join(planDir, "plan.json")
+	return os.WriteFile(planFile, data, 0644)
 }
 
 func writePlanFile(path string, plan *ir.GrpPlan) error {
