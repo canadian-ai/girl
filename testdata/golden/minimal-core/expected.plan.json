@@ -1,0 +1,32 @@
+{
+  "specversion": "0.1",
+  "id": "grp_973e36d7",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/golden/minimal-core/input",
+  "language": "go",
+  "goal": "Improve code quality",
+  "risk": "low",
+  "diagnostics": [],
+  "steps": [],
+  "verification": [
+    {
+      "command": "go build ./...",
+      "required": true,
+      "source": "auto",
+      "confidence": "high"
+    },
+    {
+      "command": "go vet ./...",
+      "required": true,
+      "source": "auto",
+      "confidence": "high"
+    },
+    {
+      "command": "go test ./...",
+      "required": true,
+      "source": "auto",
+      "confidence": "high"
+    }
+  ]
+}
