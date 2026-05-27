@@ -1,0 +1,198 @@
+{
+  "specversion": "0.1",
+  "id": "grp_e5f6g7h8",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "internal/server/handler.go",
+  "language": "go",
+  "goal": "Refactor server handler: reduce complexity and fix error handling",
+  "risk": "medium",
+  "time": "2026-05-27T12:00:00Z",
+  "repository": "https://github.com/example/server",
+  "commit": "abc123def456",
+  "tool": "girl v0.1.0",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "go.high-complexity",
+      "severity": "high",
+      "confidence": "high",
+      "message": "Function handleRequest has cyclomatic complexity 22 (threshold: 10)",
+      "file": "internal/server/handler.go",
+      "span": {
+        "startLine": 42,
+        "startColumn": 1,
+        "endLine": 89,
+        "endColumn": 2
+      },
+      "symbol": {
+        "kind": "function",
+        "name": "handleRequest"
+      },
+      "metadata": {
+        "complexity": "22",
+        "threshold": "10"
+      }
+    },
+    {
+      "id": "diag_002",
+      "code": "go.ignored-error",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Return value of db.Query is not checked",
+      "file": "internal/server/handler.go",
+      "span": {
+        "startLine": 55,
+        "startColumn": 5,
+        "endLine": 55,
+        "endColumn": 25
+      },
+      "symbol": {
+        "kind": "function",
+        "name": "handleRequest"
+      }
+    },
+    {
+      "id": "diag_003",
+      "code": "go.long-function",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Function handleRequest has 87 lines (threshold: 40)",
+      "file": "internal/server/handler.go",
+      "span": {
+        "startLine": 42,
+        "startColumn": 1,
+        "endLine": 89,
+        "endColumn": 2
+      },
+      "symbol": {
+        "kind": "function",
+        "name": "handleRequest"
+      },
+      "metadata": {
+        "lines": "87",
+        "threshold": "40"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_go.high-complexity_handleRequest",
+      "recipe": "go.simplify-branches",
+      "title": "Simplify branching in handleRequest",
+      "action": "Extract guard clauses and reduce nesting in handleRequest",
+      "target": {
+        "file": "internal/server/handler.go",
+        "symbol": "handleRequest",
+        "kind": "function"
+      },
+      "risk": "medium",
+      "requires": ["diag_001"],
+      "verify": [
+        {
+          "command": "go test ./internal/server/...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "test"
+        }
+      ],
+      "execution": {
+        "mode": "agent-assisted"
+      }
+    },
+    {
+      "id": "step_002_go.ignored-error_handleRequest",
+      "recipe": "go.handle-error",
+      "title": "Handle unchecked error from db.Query",
+      "action": "Add error check for db.Query call in handleRequest",
+      "target": {
+        "file": "internal/server/handler.go",
+        "symbol": "handleRequest",
+        "kind": "function"
+      },
+      "risk": "low",
+      "requires": ["diag_002"],
+      "verify": [
+        {
+          "command": "go build ./...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "build"
+        },
+        {
+          "command": "go test ./...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "test"
+        }
+      ],
+      "execution": {
+        "mode": "automated"
+      }
+    },
+    {
+      "id": "step_003_go.long-function_handleRequest",
+      "recipe": "go.extract-function",
+      "title": "Extract smaller functions from handleRequest",
+      "action": "Split handleRequest into smaller focused functions",
+      "target": {
+        "file": "internal/server/handler.go",
+        "symbol": "handleRequest",
+        "kind": "function"
+      },
+      "risk": "medium",
+      "requires": ["diag_001", "diag_003"],
+      "verify": [
+        {
+          "command": "go test ./...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "test"
+        },
+        {
+          "command": "go vet ./...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "lint"
+        }
+      ],
+      "execution": {
+        "mode": "agent-assisted"
+      }
+    }
+  ],
+  "verification": [
+    {
+      "command": "go build ./...",
+      "required": true,
+      "source": "go",
+      "confidence": "high",
+      "type": "build"
+    },
+    {
+      "command": "go vet ./...",
+      "required": true,
+      "source": "go",
+      "confidence": "high",
+      "type": "lint"
+    },
+    {
+      "command": "go test ./...",
+      "required": true,
+      "source": "go",
+      "confidence": "high",
+      "type": "test"
+    }
+  ],
+  "extensions": {
+    "girl.analysis": {
+      "analyzerVersion": "0.1.0",
+      "totalDiagnostics": 3
+    }
+  }
+}

@@ -121,20 +121,6 @@ Consumers that do not support a given binding MUST ignore its extension fields.
 | `medium` | Behavioral change, requires test verification. Review recommended. |
 | `high` | Structural change, may affect other components. Human review required. |
 
-## Verification Shape
+## Verification
 
-```json
-{
-  "command": "go test ./...",
-  "required": true,
-  "source": "go",
-  "confidence": "high"
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `command` | string | Shell command to run |
-| `required` | boolean | Whether this must pass before the plan is complete |
-| `source` | string | Detection source: `"go"`, `"package.json"`, `"Makefile"`, etc. |
-| `confidence` | string | One of: `"high"`, `"medium"`, `"low"` |
+The [Verification spec](verification.md) defines the verification shape and detection rules.

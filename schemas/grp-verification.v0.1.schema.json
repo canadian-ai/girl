@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/canadian-ai/girl/schemas/grp-verification.v0.1.schema.json",
+  "title": "GRP Verification",
+  "type": "object",
+  "required": ["command", "required", "source", "confidence"],
+  "properties": {
+    "command": { "type": "string" },
+    "required": { "type": "boolean" },
+    "source": { "type": "string" },
+    "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+    "type": { "type": "string", "enum": ["build", "test", "lint", "typecheck", "format", "security", "custom"] }
+  }
+}

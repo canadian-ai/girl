@@ -1,0 +1,13 @@
+{
+  "specversion": "0.1",
+  "id": "grp_a1b2c3d4",
+  "type": "dev.refactor.plan",
+  "source": "github.com/example/girl",
+  "subject": ".",
+  "language": "go",
+  "goal": "Improve code quality through targeted refactoring",
+  "risk": "low",
+  "diagnostics": [],
+  "steps": [],
+  "verification": []
+}
