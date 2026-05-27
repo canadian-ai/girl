@@ -28,6 +28,8 @@ type PackRequest struct {
 	Diagnostics []ir.Diagnostic
 	Steps       []ir.GrpStep
 	TokenBudget int
+	PlanID      string
+	PrivacyMode string
 }
 
 func (p *Packer) Pack(req PackRequest) (*ir.ContextPack, error) {
@@ -41,13 +43,43 @@ func (p *Packer) Pack(req PackRequest) (*ir.ContextPack, error) {
 	pack := newContextPack(req, budget, diagCounts, topCodes)
 
 	p.addFileSummaries(pack, req.Files, fileDiagCounts)
-	remaining := p.addComponentSnippets(pack, req.Files, budget)
-	remaining = p.addDiagnosticSnippets(pack, req.Diagnostics, remaining)
+
+	tier := snippetTier(budget)
+	var remaining int
+	if tier == 0 {
+		remaining = p.addDiagnosticSnippets(pack, req.Diagnostics, budget)
+		if remaining > 0 {
+			remaining = p.addComponentSnippets(pack, req.Files, remaining)
+		}
+	} else {
+		remaining = p.addComponentSnippets(pack, req.Files, budget)
+		remaining = p.addDiagnosticSnippets(pack, req.Diagnostics, remaining)
+	}
 	pack.TokenEstimate = budget - remaining
+
 	pack.Risks = collectRisks(req.Diagnostics, req.Steps)
 	pack.Verification = p.detectAvailableVerification()
 
+	privacy := req.PrivacyMode
+	if privacy == "" {
+		privacy = "private"
+	}
+	p.applyPrivacy(privacy, pack, req.Files)
+
 	return pack, nil
+}
+
+func snippetTier(budget int) int {
+	switch {
+	case budget <= 4000:
+		return 0
+	case budget <= 8000:
+		return 1
+	case budget <= 16000:
+		return 2
+	default:
+		return 3
+	}
 }
 
 func countDiagnostics(diags []ir.Diagnostic) (map[string]int, map[string]int, map[string]int) {
@@ -300,6 +332,66 @@ func (p *Packer) detectAvailableVerification() []string {
 func statExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info != nil
+}
+
+func (p *Packer) applyPrivacy(mode string, pack *ir.ContextPack, files []*ir.FileIR) {
+	switch mode {
+	case "private":
+		return
+	case "redacted":
+		homeDir, _ := os.UserHomeDir()
+		for i, f := range pack.Files {
+			pack.Files[i] = redactPath(f, homeDir)
+		}
+		for i, s := range pack.Summaries {
+			pack.Summaries[i].Path = redactPath(s.Path, homeDir)
+		}
+		for i, sn := range pack.SelectedSnippets {
+			pack.SelectedSnippets[i].File = redactPath(sn.File, homeDir)
+		}
+	case "public":
+		for i, f := range pack.Files {
+			pack.Files[i] = sanitizePublicPath(f)
+		}
+		for i, s := range pack.Summaries {
+			pack.Summaries[i].Path = sanitizePublicPath(s.Path)
+		}
+		for i, sn := range pack.SelectedSnippets {
+			pack.SelectedSnippets[i].File = sanitizePublicPath(sn.File)
+		}
+	}
+}
+
+func redactPath(path, homeDir string) string {
+	if filepath.IsAbs(path) {
+		parts := strings.Split(path, string(filepath.Separator))
+		if len(parts) > 2 {
+			return filepath.Join("<redacted>", parts[len(parts)-2], parts[len(parts)-1])
+		}
+		return filepath.Join("<redacted>", parts[len(parts)-1])
+	}
+	if homeDir != "" && strings.HasPrefix(path, homeDir) {
+		return strings.Replace(path, homeDir, "~", 1)
+	}
+	return path
+}
+
+func sanitizePublicPath(path string) string {
+	cleaned := filepath.Clean(path)
+	parts := strings.Split(cleaned, string(filepath.Separator))
+	var filtered []string
+	for _, p := range parts {
+		if strings.Contains(p, "private") || strings.Contains(p, "secret") || strings.Contains(p, "internal") {
+			filtered = append(filtered, "synthetic")
+		} else {
+			filtered = append(filtered, p)
+		}
+	}
+	return strings.Join(filtered, string(filepath.Separator))
+}
+
+func (p *Packer) GrpContextPack(pack *ir.ContextPack, planID string) *ir.GrpContextPack {
+	return pack.ToGrpContextPack(planID)
 }
 
 func summarizeFile(f *ir.FileIR, diagCount int) string {
