@@ -10,10 +10,13 @@ import (
 )
 
 type CommandCheck struct {
-	Name    string `json:"name"`
-	Script  string `json:"script"`
-	Command string `json:"command"`
-	Exists  bool   `json:"exists"`
+	Name       string `json:"name"`
+	Script     string `json:"script"`
+	Command    string `json:"command"`
+	Required   bool   `json:"required"`
+	Source     string `json:"source"`
+	Confidence string `json:"confidence"`
+	Exists     bool   `json:"exists"`
 }
 
 type VerifyResult struct {
@@ -24,6 +27,8 @@ type VerifyResult struct {
 	HasConvex      bool           `json:"hasConvex"`
 	HasDocker      bool           `json:"hasDocker"`
 	HasCI          bool           `json:"hasCI"`
+	HasGolangCILint bool          `json:"hasGolangCILint,omitempty"`
+	HasMakefile    bool           `json:"hasMakefile,omitempty"`
 }
 
 func NewVerifier() *Verifier {
@@ -63,6 +68,16 @@ func (v *Verifier) Verify(path string) (*VerifyResult, error) {
 	if pathExists(filepath.Join(path, ".github/workflows")) {
 		result.HasCI = true
 	}
+	if pathExists(filepath.Join(path, ".golangci.yml")) || pathExists(filepath.Join(path, ".golangci.yaml")) {
+		result.HasGolangCILint = true
+	}
+	result.HasMakefile = pathExists(filepath.Join(path, "Makefile"))
+
+	goCmds := v.detectGoCommands(path, pm)
+	result.Commands = append(result.Commands, goCmds...)
+
+	optionalCmds := v.detectOptionalCommands(path)
+	result.Commands = append(result.Commands, optionalCmds...)
 
 	return result, nil
 }
@@ -95,6 +110,15 @@ func pathExists(path string) bool {
 	return info != nil
 }
 
+func (v *Verifier) confidenceFor(pm string) string {
+	switch pm {
+	case "bun", "pnpm", "yarn", "npm", "go":
+		return "high"
+	default:
+		return "medium"
+	}
+}
+
 func (v *Verifier) detectScripts(path string) []CommandCheck {
 	pkgPath := filepath.Join(path, "package.json")
 	data, err := os.ReadFile(pkgPath)
@@ -111,28 +135,77 @@ func (v *Verifier) detectScripts(path string) []CommandCheck {
 
 	pm := v.detectPackageManager(path)
 	runner := "npm run"
+	source := "binding-default"
+	confidence := v.confidenceFor(pm)
 	switch pm {
 	case "bun":
 		runner = "bun run"
+		source = "lockfile"
+		confidence = "high"
 	case "pnpm":
 		runner = "pnpm"
+		source = "lockfile"
+		confidence = "high"
+	case "yarn":
+		runner = "yarn"
+		source = "lockfile"
+		confidence = "high"
+	}
+	if pm == "npm" {
+		source = "lockfile"
+		confidence = "high"
 	}
 
-	wantedScripts := []string{"lint", "typecheck", "test", "build"}
+	wantedScripts := []string{"typecheck", "lint", "test", "build", "format"}
 	var checks []CommandCheck
 
 	for _, name := range wantedScripts {
 		if _, exists := pkg.Scripts[name]; exists {
+			required := name == "build" || name == "typecheck"
 			checks = append(checks, CommandCheck{
-				Name:    name,
-				Script:  name,
-				Command: fmt.Sprintf("%s %s", runner, name),
-				Exists:  true,
+				Name:       name,
+				Script:     name,
+				Command:    fmt.Sprintf("%s %s", runner, name),
+				Required:   required,
+				Source:     source,
+				Confidence: confidence,
+				Exists:     true,
 			})
 		}
 	}
 
 	return checks
+}
+
+func (v *Verifier) detectGoCommands(path string, pm string) []CommandCheck {
+	if pm != "go" {
+		return nil
+	}
+	return []CommandCheck{
+		{Name: "Go build", Command: "go build ./...", Required: true, Source: "binding-default", Confidence: "high", Exists: true},
+		{Name: "Go vet", Command: "go vet ./...", Required: true, Source: "binding-default", Confidence: "high", Exists: true},
+		{Name: "Go test", Command: "go test ./...", Required: true, Source: "binding-default", Confidence: "high", Exists: true},
+	}
+}
+
+func (v *Verifier) detectOptionalCommands(path string) []CommandCheck {
+	var cmds []CommandCheck
+	makefile := filepath.Join(path, "Makefile")
+	if data, err := os.ReadFile(makefile); err == nil {
+		if strings.Contains(string(data), "test:") {
+			cmds = append(cmds, CommandCheck{
+				Name: "make test", Command: "make test",
+				Required: false, Source: "Makefile", Confidence: "medium", Exists: true,
+			})
+		}
+	}
+	if pathExists(filepath.Join(path, ".golangci.yml")) || pathExists(filepath.Join(path, ".golangci.yaml")) {
+		cmds = append(cmds, CommandCheck{
+			Name: "golangci-lint", Command: "golangci-lint run",
+			Required: false, Source: "config-file", Confidence: "high", Exists: true,
+		})
+	}
+	return cmds
 }
 
 func (v *Verifier) RunCommand(cmdStr string, workDir string) (string, error) {

@@ -27,13 +27,13 @@ func PackCommand() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "privacy",
-				Usage: "Privacy mode: public, private",
+				Usage: "Privacy mode: private, redacted, public",
 				Value: "private",
 			},
 			&cli.StringFlag{
 				Name:    "output",
 				Aliases: []string{"o"},
-				Usage:   "Output format: json (default), markdown",
+				Usage:   "Output format: json (default), markdown, grp-context-json",
 				Value:   "json",
 			},
 			&cli.StringFlag{
@@ -66,14 +66,20 @@ func PackCommand() *cli.Command {
 				Diagnostics: plan.Diagnostics,
 				Steps:       plan.Steps,
 				TokenBudget: c.Int("budget"),
+				PlanID:      plan.PlanID,
+				PrivacyMode: c.String("privacy"),
 			})
 			if err != nil {
 				return fmt.Errorf("packing failed: %w", err)
 			}
 
-			if stringFlag(c, "output", "o") == "markdown" {
+			switch stringFlag(c, "output", "o") {
+			case "markdown":
 				printPackMarkdown(pack)
-			} else {
+			case "grp-context-json":
+				gcp := pkr.GrpContextPack(pack, plan.PlanID)
+				printJSON(gcp)
+			default:
 				printJSON(pack)
 			}
 
