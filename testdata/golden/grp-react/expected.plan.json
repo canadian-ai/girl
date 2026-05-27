@@ -1,0 +1,38 @@
+{
+  "specversion": "0.1",
+  "id": "grp_746aa14e",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/golden/grp-react/input",
+  "language": "ts",
+  "goal": "Improve code quality",
+  "risk": "low",
+  "diagnostics": [],
+  "steps": [],
+  "verification": [
+    {
+      "command": "npm run typecheck",
+      "required": true,
+      "source": "auto",
+      "confidence": "high"
+    },
+    {
+      "command": "npm run lint",
+      "required": true,
+      "source": "auto",
+      "confidence": "high"
+    },
+    {
+      "command": "npm test",
+      "required": true,
+      "source": "auto",
+      "confidence": "high"
+    },
+    {
+      "command": "npm run build",
+      "required": true,
+      "source": "auto",
+      "confidence": "high"
+    }
+  ]
+}
