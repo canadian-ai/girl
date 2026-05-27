@@ -46,8 +46,8 @@ func convertVerification(cmds []string) []Verification {
 		v[i] = Verification{
 			Command:    cmd,
 			Required:   true,
-			Source:     "auto",
-			Confidence: "high",
+			Source:     "binding-default",
+			Confidence: "medium",
 		}
 	}
 	return v

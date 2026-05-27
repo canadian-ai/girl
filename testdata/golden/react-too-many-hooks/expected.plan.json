@@ -1,0 +1,79 @@
+{
+  "specversion": "0.1",
+  "id": "grp_f2c76ab5",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/golden/react-too-many-hooks/input",
+  "language": "ts",
+  "goal": "Improve code quality",
+  "risk": "low",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "react.too-many-hooks",
+      "severity": "low",
+      "confidence": "high",
+      "message": "Component \"Dashboard\" has 8 hooks (limit: 5)",
+      "file": "testdata/golden/react-too-many-hooks/input/App.tsx",
+      "symbol": {
+        "kind": "component",
+        "name": "Dashboard"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_react.too-many-hooks_dashboard",
+      "recipe": "react.extract-custom-hook",
+      "title": "react.extract-custom-hook",
+      "action": "Extract hooks from Dashboard into custom hooks",
+      "target": {
+        "file": "testdata/golden/react-too-many-hooks/input/App.tsx"
+      },
+      "risk": "low",
+      "requires": [
+        "diag_001"
+      ],
+      "verify": [
+        {
+          "command": "typecheck",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "tests",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm run typecheck",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    },
+    {
+      "command": "npm run lint",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    },
+    {
+      "command": "npm test",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    },
+    {
+      "command": "npm run build",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    }
+  ]
+}

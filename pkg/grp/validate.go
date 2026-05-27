@@ -43,6 +43,9 @@ func validateBasicFields(p *Plan, result *ValidationResult) {
 	requiredNonEmpty(result, "type", p.Type)
 	requiredNonEmpty(result, "source", p.Source)
 	requiredNonEmpty(result, "subject", p.Subject)
+	if p.Subject != "" && isAbsolute(p.Subject) {
+		result.Errors = append(result.Errors, err("subject", "must not be an absolute path"))
+	}
 	requiredNonEmpty(result, "language", p.Language)
 	requiredNonEmpty(result, "goal", p.Goal)
 	enumCheck(result, "risk", string(p.Risk), validRisk)
@@ -94,6 +97,9 @@ func validateSteps(steps []Step, diagIDs map[string]bool, result *ValidationResu
 		requiredNonEmpty(result, prefix+".title", s.Title)
 		requiredNonEmpty(result, prefix+".action", s.Action)
 		requiredNonEmpty(result, prefix+".target.file", s.Target.File)
+		if s.Target.File != "" && isAbsolute(s.Target.File) {
+			result.Errors = append(result.Errors, err(prefix+".target.file", "must not be an absolute path"))
+		}
 		enumCheck(result, prefix+".risk", string(s.Risk), validRisk)
 		for _, req := range s.Requires {
 			if !diagIDs[req] {

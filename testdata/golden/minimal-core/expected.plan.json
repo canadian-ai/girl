@@ -13,20 +13,20 @@
     {
       "command": "go build ./...",
       "required": true,
-      "source": "auto",
-      "confidence": "high"
+      "source": "binding-default",
+      "confidence": "medium"
     },
     {
       "command": "go vet ./...",
       "required": true,
-      "source": "auto",
-      "confidence": "high"
+      "source": "binding-default",
+      "confidence": "medium"
     },
     {
       "command": "go test ./...",
       "required": true,
-      "source": "auto",
-      "confidence": "high"
+      "source": "binding-default",
+      "confidence": "medium"
     }
   ]
 }

@@ -1,6 +1,6 @@
 # Repository Instructions
 
-- Use Go 1.22+ for development.
+- Use Go 1.25+ for development.
 - Use `go build`, `go test`, `go mod tidy`.
 - The `girl` binary goes in the repo root.
 - Keep `.gitignore` up to date for private eval data.
