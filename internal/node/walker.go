@@ -1,6 +1,9 @@
 package node
 
-import "reflect"
+import (
+	"reflect"
+	"sort"
+)
 
 type VisitContext struct {
 	Graph   *NodeGraph
@@ -123,26 +126,41 @@ func (w *Walker) walkOrphans() []Node {
 	for _, fileID := range w.graph.AllFiles() {
 		root := w.graph.Node(w.graph.FileNodeFor(fileID))
 		if root != nil {
-			collectIDs(root, visited)
+			w.collectIDs(root, visited)
 		}
 	}
-	var orphans []Node
-	for _, n := range w.graph.AllNodes() {
+	all := w.graph.AllNodes()
+	orphanSet := make(map[NodeID]bool, len(all))
+	for _, n := range all {
 		if !visited[n.ID()] {
-			orphans = append(orphans, n)
+			orphanSet[n.ID()] = true
 		}
 	}
-	return orphans
+	rootIDs := make([]string, 0, len(orphanSet))
+	for id := range orphanSet {
+		parent := w.graph.ParentOf(id)
+		if parent == nil || !orphanSet[parent.ID()] {
+			rootIDs = append(rootIDs, string(id))
+		}
+	}
+	sort.Strings(rootIDs)
+	roots := make([]Node, 0, len(rootIDs))
+	for _, id := range rootIDs {
+		if root := w.graph.Node(NodeID(id)); root != nil {
+			roots = append(roots, root)
+		}
+	}
+	return roots
 }
 
-func collectIDs(n Node, visited map[NodeID]bool) {
+func (w *Walker) collectIDs(n Node, visited map[NodeID]bool) {
 	if visited[n.ID()] {
 		return
 	}
 	visited[n.ID()] = true
-	for _, c := range n.Children() {
-		if child := n; child != nil {
-			_ = c
+	for _, child := range w.graph.ChildrenOf(n.ID()) {
+		if child != nil {
+			w.collectIDs(child, visited)
 		}
 	}
 }
@@ -185,8 +203,7 @@ func (w *Walker) visitEnter(ctx *VisitContext, n Node) error {
 }
 
 func (w *Walker) walkChildren(n Node, depth int) error {
-	for _, cid := range n.Children() {
-		child := w.graph.Node(cid)
+	for _, child := range w.graph.ChildrenOf(n.ID()) {
 		if child == nil {
 			continue
 		}
