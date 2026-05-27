@@ -1,0 +1,204 @@
+{
+  "specversion": "0.1",
+  "id": "grp_i9j0k1l2",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "src/components/UserProfile.tsx",
+  "language": "ts",
+  "goal": "Refactor UserProfile component: reduce size and extract repeated JSX",
+  "risk": "medium",
+  "time": "2026-05-27T14:30:00Z",
+  "repository": "https://github.com/example/dashboard",
+  "commit": "fedcba987654",
+  "tool": "girl v0.1.0",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "react.large-component",
+      "severity": "high",
+      "confidence": "high",
+      "message": "Component UserProfile has 210 lines (threshold: 100)",
+      "file": "src/components/UserProfile.tsx",
+      "span": {
+        "startLine": 1,
+        "startColumn": 1,
+        "endLine": 210,
+        "endColumn": 2
+      },
+      "symbol": {
+        "kind": "component",
+        "name": "UserProfile"
+      },
+      "metadata": {
+        "lines": "210",
+        "threshold": "100"
+      }
+    },
+    {
+      "id": "diag_002",
+      "code": "react.repeated-jsx",
+      "severity": "medium",
+      "confidence": "medium",
+      "message": "Similar JSX block 'user-card' appears 3 times in UserProfile",
+      "file": "src/components/UserProfile.tsx",
+      "span": {
+        "startLine": 45,
+        "startColumn": 7,
+        "endLine": 72,
+        "endColumn": 8
+      },
+      "symbol": {
+        "kind": "component",
+        "name": "UserProfile"
+      },
+      "metadata": {
+        "pattern": "user-card",
+        "occurrences": "3"
+      }
+    },
+    {
+      "id": "diag_003",
+      "code": "react.too-many-hooks",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Component UserProfile uses 8 hooks (threshold: 5)",
+      "file": "src/components/UserProfile.tsx",
+      "symbol": {
+        "kind": "component",
+        "name": "UserProfile"
+      },
+      "metadata": {
+        "hooks": "8",
+        "threshold": "5"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_react.large-component_UserProfile",
+      "recipe": "react.split-large-component",
+      "title": "Split UserProfile into smaller focused components",
+      "action": "Extract UserDetails, UserSettings, and UserActivity from UserProfile",
+      "target": {
+        "file": "src/components/UserProfile.tsx",
+        "symbol": "UserProfile",
+        "kind": "component"
+      },
+      "risk": "medium",
+      "requires": ["diag_001"],
+      "verify": [
+        {
+          "command": "npm run typecheck",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "typecheck"
+        },
+        {
+          "command": "npm test -- --coverage",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "test"
+        }
+      ],
+      "execution": {
+        "mode": "agent-assisted"
+      }
+    },
+    {
+      "id": "step_002_react.repeated-jsx_UserProfile",
+      "recipe": "react.extract-repeated-jsx",
+      "title": "Extract repeated user-card JSX into UserCard component",
+      "action": "Create UserCard component and replace 3 instances of user-card block",
+      "target": {
+        "file": "src/components/UserProfile.tsx",
+        "symbol": "UserProfile",
+        "kind": "component"
+      },
+      "risk": "low",
+      "requires": ["diag_002"],
+      "verify": [
+        {
+          "command": "npm run typecheck",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "typecheck"
+        },
+        {
+          "command": "npm test",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "test"
+        }
+      ],
+      "execution": {
+        "mode": "automated"
+      }
+    },
+    {
+      "id": "step_003_react.too-many-hooks_UserProfile",
+      "recipe": "react.extract-custom-hook",
+      "title": "Extract custom hooks from UserProfile",
+      "action": "Extract useUserData and useUserPreferences custom hooks from UserProfile",
+      "target": {
+        "file": "src/components/UserProfile.tsx",
+        "symbol": "UserProfile",
+        "kind": "component"
+      },
+      "risk": "medium",
+      "requires": ["diag_003"],
+      "verify": [
+        {
+          "command": "npm run typecheck",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "typecheck"
+        },
+        {
+          "command": "npm test",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "test"
+        }
+      ],
+      "execution": {
+        "mode": "agent-assisted"
+      }
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm run typecheck",
+      "required": true,
+      "source": "package.json",
+      "confidence": "high",
+      "type": "typecheck"
+    },
+    {
+      "command": "npm run lint",
+      "required": true,
+      "source": "package.json",
+      "confidence": "high",
+      "type": "lint"
+    },
+    {
+      "command": "npm test",
+      "required": true,
+      "source": "package.json",
+      "confidence": "high",
+      "type": "test"
+    },
+    {
+      "command": "npm run build",
+      "required": false,
+      "source": "package.json",
+      "confidence": "medium",
+      "type": "build"
+    }
+  ]
+}

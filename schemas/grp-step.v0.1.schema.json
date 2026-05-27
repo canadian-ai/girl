@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/canadian-ai/girl/schemas/grp-step.v0.1.schema.json",
+  "title": "GRP Step",
+  "type": "object",
+  "required": ["id", "title", "action", "target", "risk"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^step_" },
+    "recipe": { "type": "string" },
+    "title": { "type": "string" },
+    "action": { "type": "string" },
+    "target": {
+      "type": "object",
+      "required": ["file"],
+      "properties": {
+        "file": { "type": "string" },
+        "symbol": { "type": "string" },
+        "kind": { "type": "string" }
+      }
+    },
+    "risk": { "type": "string", "enum": ["high", "medium", "low"] },
+    "requires": { "type": "array", "items": { "type": "string" } },
+    "verify": {
+      "type": "array",
+      "items": { "$ref": "grp-verification.v0.1.schema.json" }
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string", "enum": ["manual", "agent-assisted", "codemod", "automated", "detect-only"] }
+      }
+    }
+  }
+}

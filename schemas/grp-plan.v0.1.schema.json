@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/canadian-ai/girl/schemas/grp-plan.v0.1.schema.json",
+  "title": "GRP Plan",
+  "type": "object",
+  "required": ["specversion", "id", "type", "source", "subject", "language", "goal", "risk", "diagnostics", "steps", "verification"],
+  "properties": {
+    "specversion": { "type": "string", "pattern": "^0\\.\\d+$" },
+    "id": { "type": "string", "pattern": "^grp_" },
+    "type": { "type": "string" },
+    "source": { "type": "string" },
+    "subject": { "type": "string" },
+    "language": { "type": "string" },
+    "goal": { "type": "string" },
+    "risk": { "type": "string", "enum": ["high", "medium", "low"] },
+    "diagnostics": { "type": "array", "items": { "$ref": "grp-diagnostic.v0.1.schema.json" } },
+    "steps": { "type": "array", "items": { "$ref": "grp-step.v0.1.schema.json" } },
+    "verification": { "type": "array", "items": { "$ref": "grp-verification.v0.1.schema.json" } },
+    "time": { "type": "string", "format": "date-time" },
+    "repository": { "type": "string" },
+    "commit": { "type": "string" },
+    "tool": { "type": "string" },
+    "extensions": { "type": "object" },
+    "requiredExtensions": { "type": "array", "items": { "type": "string" } },
+    "context": { "type": "object" },
+    "artifacts": { "type": "array", "items": { "type": "string" } }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/canadian-ai/girl/schemas/grp-diagnostic.v0.1.schema.json",
+  "title": "GRP Diagnostic",
+  "type": "object",
+  "required": ["id", "code", "severity", "confidence", "message", "file"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^diag_" },
+    "code": { "type": "string" },
+    "severity": { "type": "string", "enum": ["high", "medium", "low"] },
+    "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+    "message": { "type": "string" },
+    "file": { "type": "string" },
+    "span": {
+      "type": "object",
+      "properties": {
+        "startLine": { "type": "integer", "minimum": 1 },
+        "startColumn": { "type": "integer", "minimum": 1 },
+        "endLine": { "type": "integer", "minimum": 1 },
+        "endColumn": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["startLine", "endLine"]
+    },
+    "line": { "type": "integer", "minimum": 1 },
+    "endLine": { "type": "integer", "minimum": 1 },
+    "symbol": {
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string" },
+        "name": { "type": "string" }
+      }
+    },
+    "metadata": { "type": "object" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "related": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string" },
+          "span": { "$ref": "#/properties/span" }
+        },
+        "required": ["message", "span"]
+      }
+    },
+    "fixes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "kind": { "type": "string" },
+          "span": { "$ref": "#/properties/span" }
+        },
+        "required": ["title", "kind", "span"]
+      }
+    }
+  }
+}
