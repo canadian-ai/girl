@@ -30,7 +30,11 @@ func FromIRPlan(irPlan *ir.GrpPlan) *Plan {
 	}
 
 	for i, s := range irPlan.Steps {
-		p.Steps[i] = convertStep(s)
+		step := convertStep(s)
+		if s.SourceDiagIndex >= 0 && s.SourceDiagIndex < len(p.Diagnostics) {
+			step.Requires = []string{p.Diagnostics[s.SourceDiagIndex].ID}
+		}
+		p.Steps[i] = step
 	}
 
 	return p

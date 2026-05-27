@@ -20,6 +20,7 @@ func main() {
 			commands.RefsCommand(),
 			commands.PlanCommand(),
 			commands.PackCommand(),
+			commands.ValidateCommand(),
 			commands.VerifyCommand(),
 		},
 	}
