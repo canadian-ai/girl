@@ -2,6 +2,8 @@
 
 GRP Core does not care how you parse code. GRP Core only cares that you can describe the refactor clearly. Bindings map tool-specific findings into GRP diagnostics and steps.
 
+Namespace conventions are defined in [docs/namespaces.md](../namespaces.md). The `tool.*` namespace is for external tool bindings, distinct from language (`go.*`, `ts.*`) and framework (`react.*`) bindings.
+
 ## How a tool binding works
 
 1. **Analyze input** — The tool (e.g. ESLint, GritQL, Tree-sitter) processes source code

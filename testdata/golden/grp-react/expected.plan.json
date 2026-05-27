@@ -13,26 +13,26 @@
     {
       "command": "npm run typecheck",
       "required": true,
-      "source": "auto",
-      "confidence": "high"
+      "source": "binding-default",
+      "confidence": "medium"
     },
     {
       "command": "npm run lint",
       "required": true,
-      "source": "auto",
-      "confidence": "high"
+      "source": "binding-default",
+      "confidence": "medium"
     },
     {
       "command": "npm test",
       "required": true,
-      "source": "auto",
-      "confidence": "high"
+      "source": "binding-default",
+      "confidence": "medium"
     },
     {
       "command": "npm run build",
       "required": true,
-      "source": "auto",
-      "confidence": "high"
+      "source": "binding-default",
+      "confidence": "medium"
     }
   ]
 }

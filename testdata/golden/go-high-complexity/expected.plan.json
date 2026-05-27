@@ -1,0 +1,80 @@
+{
+  "specversion": "0.1",
+  "id": "grp_e8286824",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/golden/go-high-complexity/input",
+  "language": "go",
+  "goal": "Improve code quality",
+  "risk": "low",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "go.high-complexity",
+      "severity": "low",
+      "confidence": "high",
+      "message": "Function complexFunc has cyclomatic complexity 13 (limit: 10)",
+      "file": "testdata/golden/go-high-complexity/input/main.go",
+      "line": 3,
+      "symbol": {
+        "kind": "function",
+        "name": "complexFunc"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_go.high-complexity_complexfunc",
+      "recipe": "go.simplify-branches",
+      "title": "go.simplify-branches",
+      "action": "Simplify branching logic in complexFunc with guard clauses and early returns",
+      "target": {
+        "file": "testdata/golden/go-high-complexity/input/main.go"
+      },
+      "risk": "low",
+      "requires": [
+        "diag_001"
+      ],
+      "verify": [
+        {
+          "command": "go build ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "go vet ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "go test ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    }
+  ],
+  "verification": [
+    {
+      "command": "go build ./...",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    },
+    {
+      "command": "go vet ./...",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    },
+    {
+      "command": "go test ./...",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    }
+  ]
+}

@@ -150,11 +150,11 @@ func TestFromIRPlan(t *testing.T) {
 	if !p.Verification[0].Required {
 		t.Errorf("Verification[0].Required = false, want true")
 	}
-	if p.Verification[0].Source != "auto" {
-		t.Errorf("Verification[0].Source = %q, want %q", p.Verification[0].Source, "auto")
+	if p.Verification[0].Source != "binding-default" {
+		t.Errorf("Verification[0].Source = %q, want %q", p.Verification[0].Source, "binding-default")
 	}
-	if p.Verification[0].Confidence != "high" {
-		t.Errorf("Verification[0].Confidence = %q, want %q", p.Verification[0].Confidence, "high")
+	if p.Verification[0].Confidence != "medium" {
+		t.Errorf("Verification[0].Confidence = %q, want %q", p.Verification[0].Confidence, "medium")
 	}
 	if p.Verification[1].Command != "go vet ./..." {
 		t.Errorf("Verification[1].Command = %q, want %q", p.Verification[1].Command, "go vet ./...")

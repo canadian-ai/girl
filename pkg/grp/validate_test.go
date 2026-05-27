@@ -40,7 +40,7 @@ func validPlan() *Plan {
 				Command:    "go test ./...",
 				Required:   true,
 				Source:     "go",
-				Confidence: "high",
+				Confidence: "medium",
 			},
 		},
 	}
@@ -279,4 +279,57 @@ func hasFieldMsg(errs []ValidationError, field, msgSub string) bool {
 		}
 	}
 	return false
+}
+
+func TestValidatePlanAbsoluteSubject(t *testing.T) {
+	p := validPlan()
+	p.Subject = "/absolute/path"
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "subject", "absolute") {
+		t.Errorf("expected error for absolute subject, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanAbsoluteStepTarget(t *testing.T) {
+	p := validPlan()
+	p.Steps = []Step{
+		{
+			ID: "step_001", Title: "title", Action: "action",
+			Target: Target{File: "/absolute/path"}, Risk: SeverityLow,
+		},
+	}
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "steps[0].target.file", "absolute") {
+		t.Errorf("expected error for absolute step target, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanMissingSubject(t *testing.T) {
+	p := validPlan()
+	p.Subject = ""
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasField(result.Errors, "subject") {
+		t.Errorf("expected error for missing subject, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanMissingGoal(t *testing.T) {
+	p := validPlan()
+	p.Goal = ""
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasField(result.Errors, "goal") {
+		t.Errorf("expected error for missing goal, got: %v", result.Errors)
+	}
 }
