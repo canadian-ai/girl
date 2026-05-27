@@ -21,11 +21,13 @@ Issues: `#2`–`#16`
 ### Bindings v0.1
 GitHub Project column: **Bindings v0.1**
 
-Language binding documentation that turns GRP from abstract to concrete:
-- Go diagnostics, recipes, verification (`bindings/go/`)
-- TypeScript diagnostics, recipes, verification (`bindings/typescript/`)
-- React diagnostics, recipes, verification (`bindings/react/`)
+Language binding documentation that maps specific languages/frameworks into GRP:
+
+- **GRP-Go** — Go diagnostics, recipes, verification (`bindings/go/`)
+- **GRP-TypeScript** — TypeScript diagnostics, recipes, verification (`bindings/typescript/`)
+- **GRP-React** — React diagnostics, recipes, verification (`bindings/react/`)
 - Verification detection improvements (package manager, script discovery)
+- **Future Tool Bindings** — GritQL, Tree-sitter, OpenRewrite, ESLint, SARIF, LSP
 
 Issues: `#17`–`#22`
 
@@ -67,6 +69,7 @@ Issues: `#23`–`#28`
 | 20 | Document TypeScript binding diagnostics and recipes | Bindings v0.1 |
 | 21 | Document React binding diagnostics and recipes | Bindings v0.1 |
 | 22 | Improve package-manager and script-based verification detection | Bindings v0.1 |
+| 29 | Document future tool binding model | Bindings v0.1 |
 | 23 | Add grp-context-json output for girl pack | Context + Trust |
 | 24 | Add context pack privacy modes | Context + Trust |
 | 25 | Add budget-aware snippet selection tiers | Context + Trust |
