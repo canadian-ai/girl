@@ -95,12 +95,24 @@ Recipes are the unit of refactoring knowledge:
 - `go.handle-error` — Replace ignored errors with explicit handling
 - `go.extract-options-struct` — Group large parameter lists
 
+## Project Board
+
+Track progress across milestones on the [GIRL/GRP GitHub Project](https://github.com/orgs/canadian-ai/projects/6):
+
+- **GRP Core v0.1** — spec, schemas, pkg/grp types, deterministic GRP output, validate command
+- **Bindings v0.1** — Go, TypeScript, React binding docs and verification detection
+- **Context + Trust** — context pack improvements, CI, golden tests, privacy, dogfooding
+
+Issues: [github.com/canadian-ai/girl/issues](https://github.com/canadian-ai/girl/issues)
+
 ## Roadmap
 
 See `docs/roadmap/high-impact-plan.md` for the next high-impact implementation
 plan: structured diagnostics, stable GRP step IDs, recipe registry, Go context
 packing, lower-noise diagnostics, safer language detection, and docs/spec
 alignment.
+
+Also see `docs/project.md` for full milestone breakdown.
 
 ## GRP Plan Format
 
