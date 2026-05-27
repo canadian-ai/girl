@@ -1,267 +1,147 @@
-# High-Impact Implementation Plan
+# GIRL/GRP Roadmap
 
-This plan turns the current GIRL/GRP review into small, shippable slices. The
-goal is to make GIRL better as an agent preprocessor: local analysis, compact
-diagnostics, deterministic GRP plans, focused context packs, and repo-native
-verification.
+**Project board**: [github.com/orgs/canadian-ai/projects/6](https://github.com/orgs/canadian-ai/projects/6)
+**Issues**: [github.com/canadian-ai/girl/issues](https://github.com/canadian-ai/girl/issues)
 
-## Success Criteria
-
-- Plans do not parse human diagnostic messages to find symbols or targets.
-- Every GRP step has a unique, stable ID.
-- Adding a new diagnostic or language does not grow the planner switch.
-- Go context packs include the right function snippets, not just file metadata.
-- Go diagnostics are useful enough to drive refactors with low false-positive
-  noise.
-- Auto-detection skips irrelevant directories and handles mixed repos safely.
-- Public docs show synthetic examples only and do not expose local paths.
-
-## Priority 1: Structured Diagnostics
-
-Problem: planner logic currently extracts targets from `Diagnostic.Message`.
-Messages are for humans; planner input should be structured.
-
-Deliverables:
-
-- Add structured fields to `ir.Diagnostic`:
-  - `Kind`: `function`, `file`, `component`, `hook`, `reference`, etc.
-  - `Symbol`: primary symbol name, such as `buildComponentFromBody`.
-  - `EndLine`: optional end line for snippet selection.
-  - `Package`: optional package/module name for Go and future languages.
-  - `Metadata`: optional string map for analyzer-specific details.
-- Populate these fields in Go diagnostics.
-- Populate compatible fields in React diagnostics where available.
-- Replace `extractTarget` message parsing with structured target selection.
-- Keep `Message` as display-only text.
-
-Implementation order:
-
-1. Extend the IR struct.
-2. Update all diagnostic constructors.
-3. Add a `diagnosticTarget(d ir.Diagnostic) string` helper that prefers
-   `Symbol`, then `Component`, then `File`.
-4. Remove message parsing from planner code.
-5. Add tests for Go and React target selection.
-
-Verification:
-
-- `go test ./...`
-- `./girl plan . --lang go --output markdown`
-- Confirm step actions include real function/file targets.
-
-Risk: low. Mostly additive struct fields and planner cleanup.
-
-## Priority 2: Stable Unique GRP Step IDs
-
-Problem: multiple diagnostics with the same code can produce duplicate step IDs,
-for example `step_go.high-complexity`.
-
-Deliverables:
-
-- Step IDs should include a stable ordinal or short target slug.
-- IDs should be deterministic for the same diagnostic ordering.
-- IDs should avoid leaking absolute paths.
-
-Recommended format:
-
-```txt
-step_<ordinal>_<diagnostic-code>_<target-slug>
 ```
 
-Example:
+Phase                     | Status        | Timeline
+--------------------------|---------------|-----------------
+Initial scaffolding       | DONE          | May 18-20
+Go self-hosting           | DONE          | May 20-21
+Productionize core        | DONE          | May 22-23
+Parser robustness         | DONE          | May 24
+SARIF + packer + gov      | DONE          | May 25
+Dogfood recursion         | DONE          | May 26
+GRP Core v0.1             | IN PROGRESS   | May 26 - Jun 1
+Bindings v0.1             | PLANNED       | Jun 2 - Jun 8
+Context + Trust           | PLANNED       | Jun 9 - Jun 15
+Production release        | PLANNED       | Jun 16+
 
-```txt
-step_001_go.high-complexity_buildComponentFromBody
 ```
 
-Implementation order:
+## Completed
 
-1. Sort diagnostics deterministically by severity, file, line, code, symbol.
-2. Generate step IDs after all steps are assembled.
-3. Slugify symbol/component/file basename only.
-4. Add tests for duplicate-code diagnostics.
+### May 18-20: Initial scaffolding
 
-Verification:
+- Repo skeleton, CLI skeleton, TSX parser, node graph
+- OpenCode skills, docs, roadmap
+- GitHub repo created
 
-- `go test ./...`
-- Generate a plan for GIRL itself and confirm no duplicate step IDs.
+### May 20-21: Go self-hosting
 
-Risk: low. Changes plan stability and should improve downstream agent execution.
+- Go analyzer via stdlib `go/parser` + `go/ast`
+- Go diagnostics: long-function, high-complexity, deep-nesting, large-file, ignored-error, too-many-params
+- Go recipes: extract-function, simplify-branches, flatten-nesting, split-file, handle-error, extract-options-struct
+- Go verification: `go build`, `go vet`, `go test`
+- Synthetic fixtures (`testdata/real/`)
 
-## Priority 3: Recipe Registry
+### May 22-23: Productionize core
 
-Problem: `generateStepsFromDiagnostics` is becoming a large language-specific
-switch. It will get harder to maintain as GIRL adds languages and more recipes.
+- **Structured diagnostics**: `ir.Diagnostic` extended with `Kind`, `Symbol`, `EndLine`, `Package`, `Span`, `Metadata`, `Related`, `Fixes`. Planner no longer parses message text. Diagnostic-target helper prefers symbol → component → file.
+- **Recipe registry**: 14 mappings in `internal/recipes/diagnostics.go`. Planner calls `recipes.StepForDiagnostic(diag)` instead of a large switch. Adding new diagnostics no longer grows planner.
+- **Stable step IDs**: `step_001_go.high-complexity_buildComponentFromBody` format. Deterministic after sorting.
+- **Safer language detection**: `shared.ShouldSkipDir` covers `.git`, `.grp`, `node_modules`, `vendor`, `dist`, `build`, `.next`, `.turbo`. Go detected via `go.mod`.
 
-Deliverables:
+### May 24: Parser robustness
 
-- Add a recipe registry keyed by diagnostic code.
-- Move Go recipe mapping out of planner core.
-- Move React recipe mapping into the same registry path.
-- Keep the planner responsible for orchestration, risk, verification, and IDs.
+- Split 855-line `parser.go` into `parser.go` (459 lines) + `component.go` (401 lines)
+- 10 malformed-input tests: empty, unclosed JSX, unmatched braces, garbage, unterminated strings, deep nesting, non-ASCII — none panic
 
-Suggested shape:
+### May 25: SARIF + packer + governance
 
-```go
-type DiagnosticRecipe struct {
-    Code string
-    Recipe string
-    Risk func(ir.Diagnostic) ir.Severity
-    Verify func(ir.Diagnostic) []string
-    Action func(ir.Diagnostic) string
-}
-```
+- **SARIF 2.1.0 exporter** (`internal/sarif/exporter.go`): level mapping, rule dedup, span fallback
+- **Rich context packer**: diagnostic-range snippet selection, relative path privacy, `DiagnosticCounts` + `TopCodes` in `ContextPack`
+- **Governance files**: CHANGELOG.md, CONTRIBUTING.md, SECURITY.md, CODEOWNERS
 
-Implementation order:
+### May 26: Dogfood recursion
 
-1. Create `internal/recipes/diagnostics.go`.
-2. Add Go mappings first.
-3. Move React mappings.
-4. Make planner call `recipes.StepForDiagnostic(diag)`.
-5. Delete the large switch once parity is confirmed.
+- Refactored 17 internal files across 7 packages: parser, packer, SARIF, goanalysis, verifier, command, planner, node, visitor, recipes
+- 1130 insertions, 902 deletions
+- GIRL self-analysis: **0 issues**
+- Tests: 141/141 passed
+- Dogfood: `girl analyze` → 0 issues, `girl plan` → empty (no unresolved diagnostics), `girl verify` → go/ts detection
+- **All 7 original roadmap priorities complete**
 
-Verification:
+## In Progress
 
-- Snapshot compare representative React plan output before/after.
-- Snapshot compare Go plan output before/after.
-- `go test ./...`
+### May 26 - Jun 1: GRP Core v0.1 (+15 issues)
 
-Risk: medium. Touches core planner behavior, but can be done incrementally.
+GitHub project column: **GRP Core v0.1**
 
-## Priority 4: Go Context Pack Support
+Protocol standard work that makes GRP a real specification:
 
-Problem: Go analysis currently fills basic `FileIR` fields. `girl pack --lang go`
-cannot yet choose compact function snippets around diagnostics.
+- **Spec docs** (`spec/`): core plan envelope, diagnostic shape, step shape, verification shape, extension rules, conformance levels
+- **JSON schemas** (`schemas/`): plan, diagnostic, step, verification
+- **Example plans** (`examples/grp/`): minimal, Go, React
+- **Public types** (`pkg/grp/`): Plan, Diagnostic, Step, Verification, Span, Symbol, Target, Execution
+- **GRP normalization**: deterministic sorting, content-hash plan IDs, stable diagnostic IDs (`diag_001`), step `requires` linking
+- **CLI**: `girl plan --output grp-json`, `girl validate`
+- **Tests**: determinism, schema validation, round-trip
 
-Deliverables:
+Issues: [#2](https://github.com/canadian-ai/girl/issues/2) - [#16](https://github.com/canadian-ai/girl/issues/16)
 
-- Include Go function summaries in `FileIR` or a language-neutral symbol model.
-- Select snippets by diagnostic `File`, `Line`, and `EndLine`.
-- Add package/file summaries to packs.
-- Keep packs private-safe: no absolute paths, no hidden/private fixture leakage.
+## Planned
 
-Implementation order:
+### Jun 2 - Jun 8: Bindings v0.1 (+6 issues)
 
-1. Decide whether to extend `FileIR` or add `SymbolIR`.
-2. Store function ranges from Go parser.
-3. Update packer snippet selection to use diagnostic ranges.
-4. Add `--privacy private` path redaction checks for Go packs.
-5. Add smoke fixtures under synthetic `testdata/` only.
+GitHub project column: **Bindings v0.1**
 
-Verification:
+Formal language binding documentation:
 
-- `./girl pack . --lang go --budget 12000 --output markdown`
-- Confirm the pack includes high-value functions like parser/planner hotspots.
-- `go test ./...`
+- **Go binding**: diagnostics, recipes, verification docs (`bindings/go/`)
+- **TypeScript binding**: diagnostics, recipes, verification docs (`bindings/typescript/`)
+- **React binding**: diagnostics, recipes, verification docs (`bindings/react/`)
+- **Verification detection**: package-manager-aware (npm/pnpm/yarn/bun), package.json script discovery, confidence levels
 
-Risk: medium. Requires careful IR shape so TSX and Go do not diverge.
+Issues: [#17](https://github.com/canadian-ai/girl/issues/17) - [#22](https://github.com/canadian-ai/girl/issues/22)
 
-## Priority 5: Lower-Noise Go Diagnostics
+### Jun 9 - Jun 15: Context + Trust (+6 issues)
 
-Problem: ignored-error detection currently treats any ignored call result as an
-ignored error. That can over-report without type information.
+GitHub project column: **Context + Trust**
 
-Deliverables:
+Production-hardening for reliable agent use:
 
-- Reduce false positives without requiring heavy dependencies by default.
-- Add optional typed analysis later if needed.
+- **Context pack GRP format**: `girl pack --output grp-context-json`
+- **Privacy modes**: `--privacy private|redacted|public`
+- **Budget tiers**: 4k, 8k, 16k, 32k snippet selection
+- **CI**: GitHub Actions workflow
+- **Golden tests**: deterministic GRP output fixtures
+- **Dogfooding case study**: documented results
 
-Implementation order:
+Issues: [#23](https://github.com/canadian-ai/girl/issues/23) - [#28](https://github.com/canadian-ai/girl/issues/28)
 
-1. First-pass heuristic improvements:
-   - Only report `_` in multi-return assignments.
-   - Prioritize functions that themselves return `error`.
-   - Ignore obvious non-error helpers if no error signal exists.
-2. Add tests for common patterns:
-   - `value, _ := strconv.Atoi(x)` should report.
-   - `_, ok := m[k]` should not report.
-   - `x, _ := pureTuple()` should not report unless known error-like.
-3. Later optional mode: add typed analysis with `go/packages` behind a flag.
+### Jun 16+: Production release
 
-Verification:
+- False positive rate documentation and control
+- SARIF export verified against real repos
+- Context packs privacy-verified
+- Dry-run patch mode
+- Rollback metadata
+- GitHub Action published
+- Homebrew tap (optional)
+- Public announcement
 
-- `go test ./...`
-- Compare current GIRL self-analysis count before/after.
-- Manually inspect any remaining `go.ignored-error` findings.
+## Dogfooded Milestone
 
-Risk: medium. Better precision may reduce count, which is good if documented.
-
-## Priority 6: Safer Language Detection And Walking
-
-Problem: auto-detect walks too broadly and defaults mixed repos to TypeScript.
-
-Deliverables:
-
-- Shared directory skip policy across analyzers.
-- Explicit mixed-repo behavior.
-- Better defaults for monorepos.
-
-Implementation order:
-
-1. Add shared `ShouldSkipDir(base string) bool` helper.
-2. Skip `.git`, `.grp`, `node_modules`, `vendor`, `dist`, `build`, `.next`, and
-   generated output dirs.
-3. Return `go` when `go.mod` is present at target root.
-4. For mixed repos without `go.mod`, prefer explicit error/warning or require
-   `--lang` for deterministic behavior.
-5. Add tests for root Go repo, TS app, and mixed fixture.
-
-Verification:
-
-- `go test ./...`
-- `./girl analyze . --output text`
-- `./girl analyze testdata/real --output text`
-
-Risk: low. Improves performance and predictability.
-
-## Priority 7: Documentation And Spec Alignment
-
-Problem: docs describe the original React-only flow and older recipe identifier
-rules. Go support and new roadmap need clear public-facing docs.
-
-Deliverables:
-
-- README documents `--lang auto|go|ts`.
-- README lists current Go diagnostics and recipes.
-- GRP spec clarifies recipe naming for language-level refactors.
-- Docs state that examples are synthetic and private paths stay redacted.
-
-Verification:
-
-- Manual README/spec review.
-- Run all documented commands against synthetic fixtures or GIRL itself.
-
-Risk: low.
-
-## Two-Week Execution Order
-
-Week 1:
-
-1. Structured diagnostics.
-2. Stable step IDs.
-3. Safer language detection.
-4. README/spec alignment.
-
-Week 2:
-
-1. Recipe registry.
-2. Go context pack support.
-3. Lower-noise Go diagnostics.
-4. Dogfood on GIRL parser/planner refactors.
-
-## Dogfood Milestone
-
-After priorities 1 through 4 land, use GIRL on itself:
+GIRL now analyzes and plans refactors for itself with **zero diagnostic findings**:
 
 ```bash
-./girl analyze . --lang go --output text
-./girl plan . --lang go --goal "refactor GIRL parser and planner hotspots" --output markdown
-./girl pack . --lang go --budget 12000 --output markdown
-go build ./...
-go vet ./...
-go test ./...
+./girl analyze . --lang go --output text    # 0 issues
+./girl plan . --lang go --output grp-json     # valid GRP, empty step list
+./girl verify . --output text                 # go detection, no scripts
+go build ./... && go vet ./... && go test ./...  # all pass
 ```
 
-Expected outcome: the generated GRP plan should be specific enough that an agent
-can extract helpers from `internal/parsertsx/parser.go` and simplify
-`internal/planner/planner.go` without reading the whole repo.
+## Key Metric
+
+| Metric | May 19 | May 26 | Target |
+|--------|--------|--------|--------|
+| GIRL self-diagnostics | 38 | 0 | 0 |
+| Tests passing | 30 | 141 | 200+ |
+| Go packages analyzed | 0 | 2 | 3 |
+| TS/React packages analyzed | 2 | 2 | 3 |
+| Language bindings documented | 0 | 0 | 3 |
+| CI | none | none | green |
+| GRP conformance level | 0 | 2 | 3 |
+| Dogfooded | no | yes | continuous |

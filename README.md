@@ -107,12 +107,20 @@ Issues: [github.com/canadian-ai/girl/issues](https://github.com/canadian-ai/girl
 
 ## Roadmap
 
-See `docs/roadmap/high-impact-plan.md` for the next high-impact implementation
-plan: structured diagnostics, stable GRP step IDs, recipe registry, Go context
-packing, lower-noise diagnostics, safer language detection, and docs/spec
-alignment.
+See `docs/roadmap/high-impact-plan.md` for the full timeline roadmap.
 
-Also see `docs/project.md` for full milestone breakdown.
+Key milestones:
+
+| Phase | Status | Target |
+|-------|--------|--------|
+| Initial scaffolding, Go self-hosting, core productionization | **Done** | May 18-25 |
+| Dogfood recursion (0 GIRL self-diagnostics) | **Done** | May 26 |
+| GRP Core v0.1 — spec, schemas, pkg/grp, grp-json, validate | **In progress** | May 26 - Jun 1 |
+| Bindings v0.1 — Go/TS/React docs, verification detection | **Planned** | Jun 2 - Jun 8 |
+| Context + Trust — CI, golden tests, privacy, dogfood case study | **Planned** | Jun 9 - Jun 15 |
+| Production release | **Planned** | Jun 16+ |
+
+Track via [GitHub Project](https://github.com/orgs/canadian-ai/projects/6) or see `docs/project.md` for issue details.
 
 ## GRP Plan Format
 
