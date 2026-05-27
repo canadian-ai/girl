@@ -83,18 +83,30 @@ Issues: [#2](https://github.com/canadian-ai/girl/issues/2) - [#16](https://githu
 
 ## Planned
 
-### Jun 2 - Jun 8: Bindings v0.1 (+6 issues)
+### Jun 2 - Jun 8: Bindings v0.1 (+7 issues)
 
 GitHub project column: **Bindings v0.1**
 
-Formal language binding documentation:
+Language binding documentation that maps specific languages/frameworks into GRP:
 
-- **Go binding**: diagnostics, recipes, verification docs (`bindings/go/`)
-- **TypeScript binding**: diagnostics, recipes, verification docs (`bindings/typescript/`)
-- **React binding**: diagnostics, recipes, verification docs (`bindings/react/`)
+- **GRP-Go**: diagnostics, recipes, verification docs (`bindings/go/`)
+- **GRP-TypeScript**: diagnostics, recipes, verification docs (`bindings/typescript/`)
+- **GRP-React**: diagnostics, recipes, verification docs (`bindings/react/`)
+- **Future Tool Bindings**: GritQL, Tree-sitter, OpenRewrite, ESLint, SARIF, LSP (`docs/bindings/tool-bindings.md`)
 - **Verification detection**: package-manager-aware (npm/pnpm/yarn/bun), package.json script discovery, confidence levels
 
-Issues: [#17](https://github.com/canadian-ai/girl/issues/17) - [#22](https://github.com/canadian-ai/girl/issues/22)
+Issues: [#17](https://github.com/canadian-ai/girl/issues/17) - [#22](https://github.com/canadian-ai/girl/issues/22), [#29](https://github.com/canadian-ai/girl/issues/29)
+
+#### Binding names
+
+- **GRP-Go** — diagnostics, recipes, verification docs for Go
+- **GRP-TypeScript** — diagnostics, recipes, verification docs for TypeScript
+- **GRP-React** — diagnostics, recipes, verification docs for React
+- **Future Tool Bindings** — document how GritQL, Tree-sitter, OpenRewrite, ESLint, SARIF, LSP will map into GRP
+
+GRP Core does not care how you parse code. GRP only cares that you can describe the refactor clearly.
+Go uses `go/parser`/`go/ast`/`go/types`. TypeScript can use TS Compiler API, ts-morph, Tree-sitter, Babel/SWC.
+React defines framework-specific diagnostics on top of TS analysis.
 
 ### Jun 9 - Jun 15: Context + Trust (+6 issues)
 
@@ -141,7 +153,7 @@ go build ./... && go vet ./... && go test ./...  # all pass
 | Tests passing | 30 | 141 | 200+ |
 | Go packages analyzed | 0 | 2 | 3 |
 | TS/React packages analyzed | 2 | 2 | 3 |
-| Language bindings documented | 0 | 0 | 3 |
+| Language bindings documented | 0 | 0 | 3 (GRP-Go, GRP-TypeScript, GRP-React) |
 | CI | none | none | green |
 | GRP conformance level | 0 | 2 | 3 |
 | Dogfooded | no | yes | continuous |

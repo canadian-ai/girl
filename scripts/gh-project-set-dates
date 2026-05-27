@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# gh-project-set-dates: Set issue-level date fields (Start date, Target date)
+# and project status on GitHub Project V2 items.
+#
+# Dates render in the project board roadmap view. Uses issue-level date fields
+# (IFD_*) via updateIssueFieldValue mutation, and project item status via
+# updateProjectV2ItemFieldValue.
+#
+# Requires: gh (GitHub CLI) with repo scope, jq.
+#
+# Usage:
+#   gh-project-set-dates -p <project> -i <range> -s <date> -t <date> [-S <status>]
+#
+# Options:
+#   -p, --project NUM     Project V2 number (required)
+#   -i, --issues RANGE    Issue numbers: "2-16" or "2,3,5,8-12" (required)
+#   -s, --start DATE      Start date YYYY-MM-DD
+#   -t, --target DATE     Target date YYYY-MM-DD
+#   -S, --status STATUS   Backlog | Ready | In progress | In review | Done
+#   --owner OWNER         GitHub org (default: canadian-ai)
+#   --repo REPO           Repo name (default: auto-detect from project)
+#   -n, --dry-run         Preview without writing
+#   -h, --help            Show this message
+#
+# Examples:
+#   gh-project-set-dates -p 6 -i 2-16 -s 2026-05-26 -t 2026-06-01 -S "In progress"
+#   gh-project-set-dates -p 6 -i 23 -s 2026-06-09 -t 2026-06-15 -S Ready
+
+PROJECT="" ISSUES="" START_DATE="" TARGET_DATE="" STATUS=""
+OWNER="canadian-ai" REPO="" DRY_RUN=false
+
+usage() { sed -n '3,26p' "$0"; exit 0; }
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -p|--project)  PROJECT="$2";  shift 2 ;;
+    -i|--issues)   ISSUES="$2";   shift 2 ;;
+    -s|--start)    START_DATE="$2"; shift 2 ;;
+    -t|--target)   TARGET_DATE="$2"; shift 2 ;;
+    -S|--status)   STATUS="$2";   shift 2 ;;
+    --owner)       OWNER="$2";    shift 2 ;;
+    --repo)        REPO="$2";     shift 2 ;;
+    -n|--dry-run)  DRY_RUN=true; shift ;;
+    -h|--help)     usage ;;
+    *) echo "Unknown: $1"; usage ;;
+  esac
+done
+
+[[ -z "$PROJECT" ]] && { echo "ERROR: --project required"; usage; }
+[[ -z "$ISSUES" ]] && { echo "ERROR: --issues required"; usage; }
+
+# --- Resolve issue numbers ---
+ISSUE_NUMS=()
+IFS=',' read -ra PARTS <<< "$ISSUES"
+for part in "${PARTS[@]}"; do
+  if [[ "$part" == *-* ]]; then
+    lo="${part%-*}"; hi="${part#*-}"
+    for ((i=lo; i<=hi; i++)); do ISSUE_NUMS+=("$i"); done
+  else
+    ISSUE_NUMS+=("$part")
+  fi
+done
+echo "Target: ${ISSUE_NUMS[*]}"
+
+# --- Get project metadata ---
+echo "Querying project $PROJECT..."
+PROJ_DATA=$(gh api graphql -f query='
+  query($owner: String!, $project: Int!) {
+    org: organization(login: $owner) {
+      proj: projectV2(number: $project) {
+        id
+        field(name: "Status") {
+          ... on ProjectV2SingleSelectField {
+            id
+            options { id name }
+          }
+        }
+        repositories(first: 10) { nodes { name } }
+        items(first: 100) {
+          nodes {
+            id
+            content { ... on Issue { number id repository { name } } }
+          }
+        }
+      }
+    }
+  }
+' -f owner="$OWNER" -F project="$PROJECT" --jq '.data.org.proj')
+
+PROJ_ID=$(echo "$PROJ_DATA" | jq -r '.id')
+
+# Find repo if not specified
+if [[ -z "$REPO" ]]; then
+  REPO=$(echo "$PROJ_DATA" | jq -r '.repositories.nodes[0].name')
+fi
+
+# Build JSON map: { "issueNum": { issueId, itemId, repo } }
+ISSUE_MAP=$(echo "$PROJ_DATA" | jq '
+  [.items.nodes[] | select(.content.number != null) |
+   {key: (.content.number | tostring),
+    value: {issueId: .content.id, itemId: .id, repo: .content.repository.name}}] | from_entries
+')
+
+echo "Repo: $OWNER/$REPO"
+
+# --- Resolve status field ---
+STATUS_FIELD=$(echo "$PROJ_DATA" | jq -r --arg s "$STATUS" '
+  .field | if $s != "" then
+    .id // null
+  else null end
+')
+STATUS_OPT=$(echo "$PROJ_DATA" | jq -r --arg s "$STATUS" '
+  .field.options[] | select(.name == $s) | .id // null
+')
+if [[ -n "$STATUS" && -z "$STATUS_OPT" ]]; then
+  echo "ERROR: Status '$STATUS' not found. Options: Backlog, Ready, In progress, In review, Done"
+  exit 1
+fi
+
+# --- Resolve issue-level date field IDs ---
+START_FIELD=""
+TARGET_FIELD=""
+if [[ -n "$START_DATE" || -n "$TARGET_DATE" ]]; then
+  # Get from any issue in the project that has date fields
+  DATE_FIELDS=$(echo "$PROJ_DATA" | jq -r '.items.nodes[0].content.id' | head -1)
+  FIRST_ISSUE_ID=$(echo "$PROJ_DATA" | jq -r '.items.nodes[0].content.id // empty')
+  if [[ -n "$FIRST_ISSUE_ID" ]]; then
+    FIELDS=$(gh api graphql -f query='
+      query($issue: ID!) {
+        node(id: $issue) {
+          ... on Issue {
+            issueFieldValues(first: 10) {
+              nodes {
+                ... on IssueFieldDateValue {
+                  value
+                  field { ... on IssueFieldDate { id name } }
+                }
+              }
+            }
+          }
+        }
+      }
+    ' -F issue="$FIRST_ISSUE_ID" --jq '.data.node.issueFieldValues.nodes[]')
+    START_FIELD=$(echo "$FIELDS" | jq -r 'select(.field.name == "Start date") | .field.id' | head -1)
+    TARGET_FIELD=$(echo "$FIELDS" | jq -r 'select(.field.name == "Target date") | .field.id' | head -1)
+  fi
+  [[ -z "$START_FIELD" ]] && { echo "ERROR: 'Start date' field not found on issues"; exit 1; }
+  [[ -z "$TARGET_FIELD" ]] && { echo "ERROR: 'Target date' field not found on issues"; exit 1; }
+  echo "  Start field: $START_FIELD"
+  echo "  Target field: $TARGET_FIELD"
+fi
+
+# --- Apply ---
+for NUM in "${ISSUE_NUMS[@]}"; do
+  INFO=$(echo "$ISSUE_MAP" | jq -r --arg n "$NUM" '.[$n]')
+  if [[ -z "$INFO" || "$INFO" == "null" ]]; then
+    echo "  #$NUM: not found in project, skipping"
+    continue
+  fi
+  ISSUE_ID=$(echo "$INFO" | jq -r '.issueId')
+  ITEM_ID=$(echo "$INFO" | jq -r '.itemId')
+  echo "  #$NUM..."
+
+  if $DRY_RUN; then
+    [[ -n "$START_DATE" ]] && echo "    start=$START_DATE"
+    [[ -n "$TARGET_DATE" ]] && echo "    target=$TARGET_DATE"
+    [[ -n "$STATUS" ]] && echo "    status=$STATUS ($STATUS_OPT)"
+    continue
+  fi
+
+  if [[ -n "$START_DATE" ]]; then
+    gh api graphql -f query='
+      mutation($i: ID!, $f: ID!, $d: String!) {
+        updateIssueFieldValue(input: { issueId: $i issueField: { fieldId: $f dateValue: $d } })
+        { clientMutationId }
+      }
+    ' -F i="$ISSUE_ID" -F f="$START_FIELD" -f d="$START_DATE" --silent 2>/dev/null
+    echo "    start=$START_DATE"
+  fi
+
+  if [[ -n "$TARGET_DATE" ]]; then
+    gh api graphql -f query='
+      mutation($i: ID!, $f: ID!, $d: String!) {
+        updateIssueFieldValue(input: { issueId: $i issueField: { fieldId: $f dateValue: $d } })
+        { clientMutationId }
+      }
+    ' -F i="$ISSUE_ID" -F f="$TARGET_FIELD" -f d="$TARGET_DATE" --silent 2>/dev/null
+    echo "    target=$TARGET_DATE"
+  fi
+
+  if [[ -n "$STATUS" ]]; then
+    gh api graphql -f query='
+      mutation($p: ID!, $i: ID!, $f: ID!, $o: String!) {
+        updateProjectV2ItemFieldValue(input: {
+          projectId: $p itemId: $i fieldId: $f value: { singleSelectOptionId: $o }
+        }) { projectV2Item { id } }
+      }
+    ' -F p="$PROJ_ID" -F i="$ITEM_ID" -F f="$STATUS_FIELD" -f o="$STATUS_OPT" --silent 2>/dev/null
+    echo "    status=$STATUS"
+  fi
+done
+
+echo "Done."

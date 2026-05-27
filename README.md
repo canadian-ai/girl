@@ -124,24 +124,27 @@ Track via [GitHub Project](https://github.com/orgs/canadian-ai/projects/6) or se
 
 ## GRP Plan Format
 
-A GRP plan is a JSON document containing:
+GRP Core is a minimal plan envelope. The full specification is in `docs/spec/`:
+
+- **[Core](docs/spec/core.md)** — plan envelope, fields, risk levels, bindings
+- **[Diagnostics](docs/spec/diagnostics.md)** — diagnostic shape, rules, severity/confidence
+- **[Steps](docs/spec/steps.md)** — step shape, ID rules, execution modes
+
+A minimal GRP plan:
 
 ```json
 {
-  "planId": "grp_1234567890",
-  "goal": "Refactor component X: reduce component size and extract hooks",
+  "specversion": "0.1",
+  "id": "grp_8f41c2b9",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": ".",
+  "language": "go",
+  "goal": "Refactor long functions into smaller focused units",
   "risk": "medium",
-  "steps": [
-    {
-      "id": "step_react.large-component",
-      "recipe": "react.split-large-component",
-      "action": "Split ComponentName into smaller focused components",
-      "file": "src/Component.tsx",
-      "risk": "medium",
-      "verify": ["typecheck", "tests"]
-    }
-  ],
-  "verification": ["npm run typecheck", "npm run lint", "npm test"]
+  "diagnostics": [],
+  "steps": [],
+  "verification": []
 }
 ```
 
