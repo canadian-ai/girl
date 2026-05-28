@@ -33,6 +33,8 @@ GIRL is not a parser, linter, codemod engine, or AI agent. It is the handoff pro
 - AI agent
 - language-specific rules
 
+Binding maturity is tracked in [docs/bindings/maturity.md](docs/bindings/maturity.md).
+
 ## Architecture
 
 ```txt
@@ -185,6 +187,7 @@ GRP Core is a minimal plan envelope. The full specification is in `docs/spec/`:
 - **[Conformance](docs/spec/conformance.md)** — Core and Binding conformance levels
 - **[Schemas](schemas/grp-plan.v0.1.schema.json)** — JSON Schema files for Plan, Diagnostic, Step, Verification
 - **[Examples](examples/grp/)** — minimal, GRP-Go, and GRP-React example plans
+- **[Namespaces](docs/namespaces.md)** — diagnostic and recipe naming conventions
 
 A minimal GRP plan:
 
@@ -203,6 +206,8 @@ A minimal GRP plan:
   "verification": []
 }
 ```
+
+See [Namespaces](docs/namespaces.md) for the complete namespace convention.
 
 ## Future Tool Bindings (post-v0.1)
 

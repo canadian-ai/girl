@@ -1,0 +1,292 @@
+{
+  "specversion": "0.1",
+  "id": "grp_32e8cb11",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/golden/react-multi-diag/input",
+  "language": "ts",
+  "goal": "Improve code quality",
+  "risk": "medium",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "react.mixed-responsibilities",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Component \"Dashboard\" has ~3 detected responsibilities",
+      "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "symbol": {
+        "kind": "component",
+        "name": "Dashboard"
+      }
+    },
+    {
+      "id": "diag_002",
+      "code": "react.too-many-effects",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Component \"Dashboard\" has 3 useEffect calls (limit: 2)",
+      "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "symbol": {
+        "kind": "component",
+        "name": "Dashboard"
+      }
+    },
+    {
+      "id": "diag_003",
+      "code": "react.too-many-state-vars",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Component \"Dashboard\" has 10 state variables (limit: 4)",
+      "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "symbol": {
+        "kind": "component",
+        "name": "Dashboard"
+      }
+    },
+    {
+      "id": "diag_004",
+      "code": "react.large-component",
+      "severity": "low",
+      "confidence": "high",
+      "message": "Component \"Dashboard\" is 220 lines (limit: 200)",
+      "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "span": {
+        "startLine": 38,
+        "endLine": 257
+      },
+      "line": 38,
+      "endLine": 257,
+      "symbol": {
+        "kind": "component",
+        "name": "Dashboard"
+      }
+    },
+    {
+      "id": "diag_005",
+      "code": "react.complex-conditionals",
+      "severity": "low",
+      "confidence": "high",
+      "message": "Component \"Dashboard\" has 16 conditional expressions (limit: 5)",
+      "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "symbol": {
+        "kind": "component",
+        "name": "Dashboard"
+      }
+    },
+    {
+      "id": "diag_006",
+      "code": "react.repeated-jsx",
+      "severity": "low",
+      "confidence": "high",
+      "message": "JSX element \u003cCard\u003e repeated 5 times in component \"Dashboard\"",
+      "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "symbol": {
+        "kind": "component",
+        "name": "Dashboard"
+      }
+    },
+    {
+      "id": "diag_007",
+      "code": "react.too-many-hooks",
+      "severity": "low",
+      "confidence": "high",
+      "message": "Component \"Dashboard\" has 13 hooks (limit: 5)",
+      "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "symbol": {
+        "kind": "component",
+        "name": "Dashboard"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_react.too-many-effects_dashboard",
+      "recipe": "react.consolidate-effects",
+      "title": "react.consolidate-effects",
+      "action": "Consolidate useEffect calls in Dashboard",
+      "target": {
+        "file": "testdata/golden/react-multi-diag/input/App.tsx"
+      },
+      "risk": "medium",
+      "requires": [
+        "diag_002"
+      ],
+      "verify": [
+        {
+          "command": "typecheck",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "tests",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "step_002_react.too-many-state-vars_dashboard",
+      "recipe": "react.reduce-state-vars",
+      "title": "react.reduce-state-vars",
+      "action": "Consolidate state variables in Dashboard using useReducer",
+      "target": {
+        "file": "testdata/golden/react-multi-diag/input/App.tsx"
+      },
+      "risk": "medium",
+      "requires": [
+        "diag_003"
+      ],
+      "verify": [
+        {
+          "command": "typecheck",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "tests",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "step_003_react.mixed-responsibilities_dashboard",
+      "recipe": "react.split-large-component",
+      "title": "react.split-large-component",
+      "action": "Separate concerns in Dashboard by extracting non-UI logic",
+      "target": {
+        "file": "testdata/golden/react-multi-diag/input/App.tsx"
+      },
+      "risk": "medium",
+      "requires": [
+        "diag_001"
+      ],
+      "verify": [
+        {
+          "command": "typecheck",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "tests",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "step_004_react.too-many-hooks_dashboard",
+      "recipe": "react.extract-custom-hook",
+      "title": "react.extract-custom-hook",
+      "action": "Extract hooks from Dashboard into custom hooks",
+      "target": {
+        "file": "testdata/golden/react-multi-diag/input/App.tsx"
+      },
+      "risk": "low",
+      "requires": [
+        "diag_007"
+      ],
+      "verify": [
+        {
+          "command": "typecheck",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "tests",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "step_005_react.repeated-jsx_dashboard",
+      "recipe": "react.extract-repeated-jsx",
+      "title": "react.extract-repeated-jsx",
+      "action": "Extract repeated JSX in Dashboard into a reusable component",
+      "target": {
+        "file": "testdata/golden/react-multi-diag/input/App.tsx"
+      },
+      "risk": "low",
+      "requires": [
+        "diag_006"
+      ],
+      "verify": [
+        {
+          "command": "typecheck",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "lint",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "step_006_react.large-component_dashboard",
+      "recipe": "react.split-large-component",
+      "title": "react.split-large-component",
+      "action": "Split Dashboard (testdata/golden/react-multi-diag/input/App.tsx) into smaller focused components",
+      "target": {
+        "file": "testdata/golden/react-multi-diag/input/App.tsx"
+      },
+      "risk": "low",
+      "requires": [
+        "diag_004"
+      ],
+      "verify": [
+        {
+          "command": "typecheck",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "tests",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm run typecheck",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    },
+    {
+      "command": "npm run lint",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    },
+    {
+      "command": "npm test",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    },
+    {
+      "command": "npm run build",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ GRP diagnostics and recipes use a dot-separated namespace to identify the origin
 | `go.*`      | Language binding  | `go.high-complexity`, `go.deep-nesting`       |
 | `ts.*`      | Language binding  | `ts.missing-type`, `ts.any-usage`             |
 | `react.*`   | Framework binding | `react.large-component`, `react.too-many-hooks` |
+| `next.*`    | Framework binding | `next.static-props-missing`, `next.client-component-rule` |
 | `framework.*` | Generic framework | Reserved for framework-agnostic extensions    |
 | `tool.*`    | External tool     | `tool.gritql.pattern-match`, `tool.eslint.no-unused-vars` |
 | `vendor.*`  | Vendor-owned      | Reserved for third-party binding maintainers  |
@@ -38,6 +39,8 @@ Framework bindings encode findings specific to a particular framework or library
 - `react.mixed-responsibilities` — Component mixes state, effects, and rendering excessively
 - `react.hardcoded-data` — Component embeds literal data that should be external
 - `react.missing-prop-types` — Component is missing type annotations for its props
+- `next.static-props-missing` — Server component missing `getStaticProps` or equivalent
+- `next.client-component-rule` — Client component rules violated (e.g., `'use client'` directive)
 
 ## Tool bindings
 

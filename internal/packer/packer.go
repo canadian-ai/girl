@@ -309,6 +309,8 @@ func (p *Packer) createDiagnosticSnippet(readPath, relPath string, d ir.Diagnost
 }
 
 func (p *Packer) detectAvailableVerification() []string {
+	// TODO: this duplicates verifier logic — consolidate when extracting
+	// verification to a shared package
 	var cmds []string
 	checks := []string{"package.json"}
 	for _, c := range checks {

@@ -1,0 +1,221 @@
+{
+  "specversion": "0.1",
+  "id": "grp_566aa456",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/golden/go-multi-diag/input",
+  "language": "go",
+  "goal": "Improve code quality",
+  "risk": "high",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "go.deep-nesting",
+      "severity": "high",
+      "confidence": "high",
+      "message": "Function parseConfig has nesting depth 13 (limit: 4)",
+      "file": "testdata/golden/go-multi-diag/input/main.go",
+      "line": 43,
+      "symbol": {
+        "kind": "function",
+        "name": "parseConfig"
+      }
+    },
+    {
+      "id": "diag_002",
+      "code": "go.high-complexity",
+      "severity": "high",
+      "confidence": "high",
+      "message": "Function parseConfig has cyclomatic complexity 40 (limit: 10)",
+      "file": "testdata/golden/go-multi-diag/input/main.go",
+      "line": 43,
+      "symbol": {
+        "kind": "function",
+        "name": "parseConfig"
+      }
+    },
+    {
+      "id": "diag_003",
+      "code": "go.ignored-error",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Function parseConfig ignores 4 error(s) with _",
+      "file": "testdata/golden/go-multi-diag/input/main.go",
+      "line": 43,
+      "symbol": {
+        "kind": "function",
+        "name": "parseConfig"
+      },
+      "metadata": {
+        "confidence": "high",
+        "reason": "error return value ignored with _"
+      }
+    },
+    {
+      "id": "diag_004",
+      "code": "go.long-function",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Function parseConfig in \"testdata/golden/go-multi-diag/input/main.go\" is 126 lines (limit: 80)",
+      "file": "testdata/golden/go-multi-diag/input/main.go",
+      "span": {
+        "startLine": 43,
+        "endLine": 168
+      },
+      "line": 43,
+      "endLine": 168,
+      "symbol": {
+        "kind": "function",
+        "name": "parseConfig"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_go.deep-nesting_parseconfig",
+      "recipe": "go.flatten-nesting",
+      "title": "go.flatten-nesting",
+      "action": "Reduce nesting depth in parseConfig by extracting helper functions",
+      "target": {
+        "file": "testdata/golden/go-multi-diag/input/main.go"
+      },
+      "risk": "high",
+      "requires": [
+        "diag_001"
+      ],
+      "verify": [
+        {
+          "command": "go build ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "go vet ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "go test ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "step_002_go.high-complexity_parseconfig",
+      "recipe": "go.simplify-branches",
+      "title": "go.simplify-branches",
+      "action": "Simplify branching logic in parseConfig with guard clauses and early returns",
+      "target": {
+        "file": "testdata/golden/go-multi-diag/input/main.go"
+      },
+      "risk": "high",
+      "requires": [
+        "diag_002"
+      ],
+      "verify": [
+        {
+          "command": "go build ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "go vet ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "go test ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "step_003_go.long-function_parseconfig",
+      "recipe": "go.extract-function",
+      "title": "go.extract-function",
+      "action": "Extract smaller functions from parseConfig",
+      "target": {
+        "file": "testdata/golden/go-multi-diag/input/main.go"
+      },
+      "risk": "medium",
+      "requires": [
+        "diag_004"
+      ],
+      "verify": [
+        {
+          "command": "go build ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "go vet ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "go test ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "step_004_go.ignored-error_parseconfig",
+      "recipe": "go.handle-error",
+      "title": "go.handle-error",
+      "action": "Handle ignored errors in parseConfig",
+      "target": {
+        "file": "testdata/golden/go-multi-diag/input/main.go"
+      },
+      "risk": "medium",
+      "requires": [
+        "diag_003"
+      ],
+      "verify": [
+        {
+          "command": "go vet ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "go build ./...",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    }
+  ],
+  "verification": [
+    {
+      "command": "go build ./...",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    },
+    {
+      "command": "go vet ./...",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    },
+    {
+      "command": "go test ./...",
+      "required": true,
+      "source": "binding-default",
+      "confidence": "medium"
+    }
+  ]
+}

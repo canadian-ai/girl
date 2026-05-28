@@ -87,6 +87,7 @@ func (v *Verifier) detectPackageManager(path string) string {
 		name    string
 		manager string
 	}{
+		{name: "bun.lockb", manager: "bun"},
 		{name: "bun.lock", manager: "bun"},
 		{name: "pnpm-lock.yaml", manager: "pnpm"},
 		{name: "yarn.lock", manager: "yarn"},
@@ -110,12 +111,15 @@ func pathExists(path string) bool {
 	return info != nil
 }
 
+// confidenceFor returns confidence based on package manager.
+// When pm is "unknown", the caller should use "suggested" as source
+// and "low" as confidence since no lockfile was found.
 func (v *Verifier) confidenceFor(pm string) string {
 	switch pm {
 	case "bun", "pnpm", "yarn", "npm", "go":
 		return "high"
 	default:
-		return "medium"
+		return "low"
 	}
 }
 
@@ -135,24 +139,24 @@ func (v *Verifier) detectScripts(path string) []CommandCheck {
 
 	pm := v.detectPackageManager(path)
 	runner := "npm run"
-	source := "binding-default"
+	source := "suggested"
 	confidence := v.confidenceFor(pm)
 	switch pm {
 	case "bun":
 		runner = "bun run"
-		source = "lockfile"
+		source = "package.json"
 		confidence = "high"
 	case "pnpm":
 		runner = "pnpm"
-		source = "lockfile"
+		source = "package.json"
 		confidence = "high"
 	case "yarn":
 		runner = "yarn"
-		source = "lockfile"
+		source = "package.json"
 		confidence = "high"
 	}
 	if pm == "npm" {
-		source = "lockfile"
+		source = "package.json"
 		confidence = "high"
 	}
 
@@ -182,9 +186,9 @@ func (v *Verifier) detectGoCommands(path string, pm string) []CommandCheck {
 		return nil
 	}
 	return []CommandCheck{
-		{Name: "Go build", Command: "go build ./...", Required: true, Source: "binding-default", Confidence: "high", Exists: true},
-		{Name: "Go vet", Command: "go vet ./...", Required: true, Source: "binding-default", Confidence: "high", Exists: true},
-		{Name: "Go test", Command: "go test ./...", Required: true, Source: "binding-default", Confidence: "high", Exists: true},
+		{Name: "Go build", Command: "go build ./...", Required: true, Source: "go.mod", Confidence: "high", Exists: true},
+		{Name: "Go vet", Command: "go vet ./...", Required: true, Source: "go.mod", Confidence: "high", Exists: true},
+		{Name: "Go test", Command: "go test ./...", Required: true, Source: "go.mod", Confidence: "high", Exists: true},
 	}
 }
 
@@ -195,7 +199,7 @@ func (v *Verifier) detectOptionalCommands(path string) []CommandCheck {
 		if strings.Contains(string(data), "test:") {
 			cmds = append(cmds, CommandCheck{
 				Name: "make test", Command: "make test",
-				Required: false, Source: "Makefile", Confidence: "medium", Exists: true,
+				Required: false, Source: "Makefile", Confidence: "high", Exists: true,
 			})
 		}
 	}
