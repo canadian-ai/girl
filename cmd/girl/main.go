@@ -22,6 +22,7 @@ func main() {
 			commands.PackCommand(),
 			commands.ValidateCommand(),
 			commands.VerifyCommand(),
+			commands.VersionCommand(),
 		},
 	}
 

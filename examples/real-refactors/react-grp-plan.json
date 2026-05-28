@@ -1,0 +1,402 @@
+{
+  "specversion": "0.1",
+  "id": "grp_a7b8c9d0",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "examples/real-refactors/react-before/App.tsx",
+  "language": "ts",
+  "goal": "Refactor UserDashboard: reduce component size, extract custom hooks, split repeated JSX, externalize hardcoded data",
+  "risk": "medium",
+  "time": "2026-05-27T15:00:00Z",
+  "repository": "https://github.com/example/dashboard",
+  "commit": "a1b2c3d4e5f6",
+  "tool": "girl v0.1.0",
+  "artifacts": [
+    "react-after/"
+  ],
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "react.large-component",
+      "severity": "high",
+      "confidence": "high",
+      "message": "Component UserDashboard has 198 lines (threshold: 100)",
+      "file": "examples/real-refactors/react-before/App.tsx",
+      "span": {
+        "startLine": 40,
+        "startColumn": 1,
+        "endLine": 238,
+        "endColumn": 2
+      },
+      "symbol": {
+        "kind": "component",
+        "name": "UserDashboard"
+      },
+      "metadata": {
+        "lines": "198",
+        "threshold": "100"
+      }
+    },
+    {
+      "id": "diag_002",
+      "code": "react.too-many-hooks",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Component UserDashboard uses 11 hooks (threshold: 5)",
+      "file": "examples/real-refactors/react-before/App.tsx",
+      "span": {
+        "startLine": 41,
+        "startColumn": 3,
+        "endLine": 59,
+        "endColumn": 4
+      },
+      "symbol": {
+        "kind": "component",
+        "name": "UserDashboard"
+      },
+      "metadata": {
+        "hooks": "11",
+        "threshold": "5"
+      }
+    },
+    {
+      "id": "diag_003",
+      "code": "react.too-many-effects",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Component UserDashboard has 3 useEffect calls (threshold: 2)",
+      "file": "examples/real-refactors/react-before/App.tsx",
+      "span": {
+        "startLine": 61,
+        "startColumn": 3,
+        "endLine": 80,
+        "endColumn": 4
+      },
+      "symbol": {
+        "kind": "component",
+        "name": "UserDashboard"
+      },
+      "metadata": {
+        "effects": "3",
+        "threshold": "2"
+      }
+    },
+    {
+      "id": "diag_004",
+      "code": "react.repeated-jsx",
+      "severity": "medium",
+      "confidence": "medium",
+      "message": "Similar JSX block 'status-badge' appears 3 times in UserDashboard",
+      "file": "examples/real-refactors/react-before/App.tsx",
+      "span": {
+        "startLine": 162,
+        "startColumn": 19,
+        "endLine": 169,
+        "endColumn": 22
+      },
+      "symbol": {
+        "kind": "component",
+        "name": "UserDashboard"
+      },
+      "metadata": {
+        "pattern": "status-badge",
+        "occurrences": "3"
+      },
+      "related": [
+        {
+          "message": "Duplicate badge for status 'active'",
+          "span": {
+            "startLine": 163,
+            "startColumn": 21,
+            "endLine": 165,
+            "endColumn": 22
+          }
+        },
+        {
+          "message": "Duplicate badge for status 'inactive'",
+          "span": {
+            "startLine": 165,
+            "startColumn": 21,
+            "endLine": 167,
+            "endColumn": 22
+          }
+        },
+        {
+          "message": "Duplicate badge for status 'suspended'",
+          "span": {
+            "startLine": 167,
+            "startColumn": 21,
+            "endLine": 169,
+            "endColumn": 22
+          }
+        }
+      ]
+    },
+    {
+      "id": "diag_005",
+      "code": "react.hardcoded-data",
+      "severity": "low",
+      "confidence": "high",
+      "message": "Inline static data MOCK_USERS (8 entries) should be externalized",
+      "file": "examples/real-refactors/react-before/App.tsx",
+      "span": {
+        "startLine": 3,
+        "startColumn": 1,
+        "endLine": 14,
+        "endColumn": 3
+      },
+      "symbol": {
+        "kind": "variable",
+        "name": "MOCK_USERS"
+      },
+      "metadata": {
+        "entries": "8"
+      },
+      "tags": ["mock-data", "extract-constant"],
+      "fixes": [
+        {
+          "title": "Move MOCK_USERS to data/mockUsers.ts",
+          "kind": "extract-file",
+          "span": {
+            "startLine": 3,
+            "startColumn": 1,
+            "endLine": 14,
+            "endColumn": 3
+          }
+        },
+        {
+          "title": "Move DEPARTMENTS, ROLES, STATUSES to data/constants.ts",
+          "kind": "extract-file",
+          "span": {
+            "startLine": 16,
+            "startColumn": 1,
+            "endLine": 18,
+            "endColumn": 2
+          }
+        }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_react.large-component_UserDashboard",
+      "recipe": "react.split-large-component",
+      "title": "Split UserDashboard into smaller focused components",
+      "action": "Extract UserList, SearchBar, FilterBar, AddUserModal from UserDashboard. Each component owns a single responsibility.",
+      "target": {
+        "file": "examples/real-refactors/react-before/App.tsx",
+        "symbol": "UserDashboard",
+        "kind": "component"
+      },
+      "risk": "medium",
+      "requires": ["diag_001"],
+      "verify": [
+        {
+          "command": "npm run typecheck",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "typecheck"
+        },
+        {
+          "command": "npm test -- --coverage",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "test"
+        }
+      ],
+      "execution": {
+        "mode": "agent-assisted"
+      }
+    },
+    {
+      "id": "step_002_react.too-many-hooks_UserDashboard",
+      "recipe": "react.extract-custom-hook",
+      "title": "Extract custom hooks from UserDashboard",
+      "action": "Create useUsers hook for user state and selection logic. Create useSearch hook for filtering, sorting, and search state. Reduces inline hooks from 11 to 2 (useUsers, useSearch) plus one useState for modal.",
+      "target": {
+        "file": "examples/real-refactors/react-before/App.tsx",
+        "symbol": "UserDashboard",
+        "kind": "component"
+      },
+      "risk": "medium",
+      "requires": ["diag_002"],
+      "verify": [
+        {
+          "command": "npm run typecheck",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "typecheck"
+        },
+        {
+          "command": "npm test",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "test"
+        }
+      ],
+      "execution": {
+        "mode": "agent-assisted"
+      }
+    },
+    {
+      "id": "step_003_react.too-many-effects_UserDashboard",
+      "recipe": "react.consolidate-effects",
+      "title": "Consolidate useEffect calls in UserDashboard",
+      "action": "Merge fetchUsers initial data fetch and selection reset into custom hooks. Remove render-counting useEffect. useUsers handles initial fetch; useSearch handles filter-dependent reset internally.",
+      "target": {
+        "file": "examples/real-refactors/react-before/App.tsx",
+        "symbol": "UserDashboard",
+        "kind": "component"
+      },
+      "risk": "medium",
+      "requires": ["diag_002", "diag_003"],
+      "verify": [
+        {
+          "command": "npm run typecheck",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "typecheck"
+        },
+        {
+          "command": "npm test",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "test"
+        }
+      ],
+      "execution": {
+        "mode": "agent-assisted"
+      }
+    },
+    {
+      "id": "step_004_react.repeated-jsx_UserDashboard",
+      "recipe": "react.extract-repeated-jsx",
+      "title": "Extract repeated status-badge JSX into StatusBadge component",
+      "action": "Create StatusBadge component that accepts status prop and renders the correct color. Replace the 3-condition inline ternary in the user row with <StatusBadge status={user.status} />. Also extract the user row into a UserCard component for the repeated list-item pattern.",
+      "target": {
+        "file": "examples/real-refactors/react-before/App.tsx",
+        "symbol": "UserDashboard",
+        "kind": "component"
+      },
+      "risk": "low",
+      "requires": ["diag_004"],
+      "verify": [
+        {
+          "command": "npm run typecheck",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "typecheck"
+        },
+        {
+          "command": "npm test",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "test"
+        }
+      ],
+      "execution": {
+        "mode": "automated"
+      }
+    },
+    {
+      "id": "step_005_react.hardcoded-data_UserDashboard",
+      "recipe": "react.extract-constants",
+      "title": "Extract hardcoded data to separate files",
+      "action": "Move MOCK_USERS to data/mockUsers.ts. Move DEPARTMENTS, ROLES, STATUSES to data/constants.ts. Export typed constants for reuse across the dashboard module.",
+      "target": {
+        "file": "examples/real-refactors/react-before/App.tsx",
+        "symbol": "MOCK_USERS",
+        "kind": "variable"
+      },
+      "risk": "low",
+      "requires": ["diag_005"],
+      "verify": [
+        {
+          "command": "npm run typecheck",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "typecheck"
+        },
+        {
+          "command": "npm test",
+          "required": true,
+          "source": "package.json",
+          "confidence": "high",
+          "type": "test"
+        }
+      ],
+      "execution": {
+        "mode": "automated"
+      }
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm run typecheck",
+      "required": true,
+      "source": "package.json",
+      "confidence": "high",
+      "type": "typecheck"
+    },
+    {
+      "command": "npm run lint",
+      "required": true,
+      "source": "package.json",
+      "confidence": "high",
+      "type": "lint"
+    },
+    {
+      "command": "npm test",
+      "required": true,
+      "source": "package.json",
+      "confidence": "high",
+      "type": "test"
+    },
+    {
+      "command": "npm run build",
+      "required": false,
+      "source": "package.json",
+      "confidence": "medium",
+      "type": "build"
+    }
+  ],
+  "extensions": {
+    "girl.analysis": {
+      "analyzerVersion": "0.1.0",
+      "totalDiagnostics": 5,
+      "aggregateRisk": "medium",
+      "recommendedOrder": ["step_001", "step_002", "step_003", "step_004", "step_005"]
+    },
+    "girl.recipes": {
+      "react.split-large-component": {
+        "description": "Split a component that exceeds the line threshold into smaller single-responsibility components",
+        "patterns": ["render-section-extraction", "subcomponent-extraction"]
+      },
+      "react.extract-custom-hook": {
+        "description": "Extract related state and effects into a custom hook",
+        "patterns": ["state-group-extraction"]
+      },
+      "react.consolidate-effects": {
+        "description": "Merge multiple useEffect calls into fewer, more focused effects or absorb them into custom hooks",
+        "patterns": ["effect-merging", "hook-absorption"]
+      },
+      "react.extract-repeated-jsx": {
+        "description": "Extract duplicated JSX blocks into reusable subcomponents",
+        "patterns": ["conditional-badge-extraction", "list-item-extraction"]
+      },
+      "react.extract-constants": {
+        "description": "Move inline constants, mock data, and enum-like arrays to separate files",
+        "patterns": ["mock-data-extraction", "constant-extraction"]
+      }
+    }
+  }
+}

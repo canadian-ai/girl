@@ -1,0 +1,287 @@
+{
+  "specversion": "0.1",
+  "id": "grp_f2a9c1e4",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "examples/real-refactors/go-before",
+  "language": "go",
+  "goal": "Refactor order processing: reduce complexity, flatten nesting, fix ignored errors",
+  "risk": "medium",
+  "time": "2026-05-27T15:30:00Z",
+  "tool": "girl v0.1.0",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "go.high-complexity",
+      "severity": "high",
+      "confidence": "high",
+      "message": "Function processOrder has cyclomatic complexity 19 (limit: 10)",
+      "file": "examples/real-refactors/go-before/main.go",
+      "span": {
+        "startLine": 21,
+        "startColumn": 1,
+        "endLine": 96,
+        "endColumn": 2
+      },
+      "symbol": {
+        "kind": "function",
+        "name": "processOrder"
+      },
+      "metadata": {
+        "complexity": "19",
+        "threshold": "10"
+      }
+    },
+    {
+      "id": "diag_002",
+      "code": "go.deep-nesting",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Function processOrder has nesting depth 4 (limit: 3)",
+      "file": "examples/real-refactors/go-before/main.go",
+      "span": {
+        "startLine": 31,
+        "startColumn": 3,
+        "endLine": 43,
+        "endColumn": 4
+      },
+      "symbol": {
+        "kind": "function",
+        "name": "processOrder"
+      },
+      "metadata": {
+        "depth": "4",
+        "threshold": "3"
+      }
+    },
+    {
+      "id": "diag_003",
+      "code": "go.long-function",
+      "severity": "high",
+      "confidence": "high",
+      "message": "Function processOrder in \"main.go\" is 76 lines (limit: 50)",
+      "file": "examples/real-refactors/go-before/main.go",
+      "span": {
+        "startLine": 21,
+        "startColumn": 1,
+        "endLine": 96,
+        "endColumn": 2
+      },
+      "symbol": {
+        "kind": "function",
+        "name": "processOrder"
+      },
+      "metadata": {
+        "lines": "76",
+        "threshold": "50"
+      }
+    },
+    {
+      "id": "diag_004",
+      "code": "go.ignored-error",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Function processOrder ignores 2 error(s) with _",
+      "file": "examples/real-refactors/go-before/main.go",
+      "span": {
+        "startLine": 67,
+        "startColumn": 5,
+        "endLine": 67,
+        "endColumn": 66
+      },
+      "symbol": {
+        "kind": "function",
+        "name": "processOrder"
+      },
+      "metadata": {
+        "ignored_count": "2"
+      },
+      "related": [
+        {
+          "message": "_ = fmt.Errorf(\"unsupported payment method: %s\", o.PaymentMethod)",
+          "span": {
+            "startLine": 67,
+            "startColumn": 5,
+            "endLine": 67,
+            "endColumn": 66
+          }
+        },
+        {
+          "message": "_ = errors.New(\"payment already marked as failed\")",
+          "span": {
+            "startLine": 70,
+            "startColumn": 5,
+            "endLine": 70,
+            "endColumn": 56
+          }
+        }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_go.high-complexity_processOrder",
+      "recipe": "go.simplify-branches",
+      "title": "Simplify branching in processOrder",
+      "action": "Simplify branching logic in processOrder with guard clauses and early returns",
+      "target": {
+        "file": "examples/real-refactors/go-before/main.go",
+        "symbol": "processOrder",
+        "kind": "function"
+      },
+      "risk": "high",
+      "requires": ["diag_001"],
+      "verify": [
+        {
+          "command": "go build ./...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "build"
+        },
+        {
+          "command": "go test ./...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "test"
+        }
+      ],
+      "execution": {
+        "mode": "agent-assisted"
+      }
+    },
+    {
+      "id": "step_002_go.deep-nesting_processOrder",
+      "recipe": "go.flatten-nesting",
+      "title": "Flatten nesting in processOrder",
+      "action": "Reduce nesting depth in processOrder by extracting helper functions",
+      "target": {
+        "file": "examples/real-refactors/go-before/main.go",
+        "symbol": "processOrder",
+        "kind": "function"
+      },
+      "risk": "medium",
+      "requires": ["diag_002"],
+      "verify": [
+        {
+          "command": "go build ./...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "build"
+        },
+        {
+          "command": "go vet ./...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "lint"
+        },
+        {
+          "command": "go test ./...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "test"
+        }
+      ],
+      "execution": {
+        "mode": "agent-assisted"
+      }
+    },
+    {
+      "id": "step_003_go.long-function_processOrder",
+      "recipe": "go.extract-function",
+      "title": "Extract smaller functions from processOrder",
+      "action": "Extract smaller functions from processOrder",
+      "target": {
+        "file": "examples/real-refactors/go-before/main.go",
+        "symbol": "processOrder",
+        "kind": "function"
+      },
+      "risk": "medium",
+      "requires": ["diag_001", "diag_003"],
+      "verify": [
+        {
+          "command": "go build ./...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "build"
+        },
+        {
+          "command": "go test ./...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "test"
+        }
+      ],
+      "execution": {
+        "mode": "agent-assisted"
+      }
+    },
+    {
+      "id": "step_004_go.ignored-error_processOrder",
+      "recipe": "go.handle-error",
+      "title": "Handle ignored errors in processOrder",
+      "action": "Handle ignored errors in processOrder",
+      "target": {
+        "file": "examples/real-refactors/go-before/main.go",
+        "symbol": "processOrder",
+        "kind": "function"
+      },
+      "risk": "low",
+      "requires": ["diag_004"],
+      "verify": [
+        {
+          "command": "go build ./...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "build"
+        },
+        {
+          "command": "go vet ./...",
+          "required": true,
+          "source": "go",
+          "confidence": "high",
+          "type": "lint"
+        }
+      ],
+      "execution": {
+        "mode": "automated"
+      }
+    }
+  ],
+  "verification": [
+    {
+      "command": "go build ./...",
+      "required": true,
+      "source": "go",
+      "confidence": "high",
+      "type": "build"
+    },
+    {
+      "command": "go vet ./...",
+      "required": true,
+      "source": "go",
+      "confidence": "high",
+      "type": "lint"
+    },
+    {
+      "command": "go test ./...",
+      "required": true,
+      "source": "go",
+      "confidence": "high",
+      "type": "test"
+    }
+  ],
+  "extensions": {
+    "girl.analysis": {
+      "analyzerVersion": "0.1.0",
+      "totalDiagnostics": 4
+    }
+  }
+}
