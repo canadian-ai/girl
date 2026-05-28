@@ -1,0 +1,13 @@
+{
+  "specversion": "",
+  "id": "",
+  "type": "",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/conformance/invalid-missing-fields",
+  "language": "go",
+  "goal": "Improve code quality",
+  "risk": "low",
+  "diagnostics": [],
+  "steps": [],
+  "verification": []
+}

@@ -1,6 +1,9 @@
 package grp
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -331,5 +334,147 @@ func TestValidatePlanMissingGoal(t *testing.T) {
 	}
 	if !hasField(result.Errors, "goal") {
 		t.Errorf("expected error for missing goal, got: %v", result.Errors)
+	}
+}
+
+func loadPlan(t *testing.T, dir string) *Plan {
+	t.Helper()
+	path := filepath.Join("..", "..", "testdata", "conformance", dir, "plan.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read fixture %s: %v", path, err)
+	}
+	var p Plan
+	if err := json.Unmarshal(data, &p); err != nil {
+		t.Fatalf("failed to unmarshal fixture %s: %v", path, err)
+	}
+	return &p
+}
+
+func TestConformanceValidMinimal(t *testing.T) {
+	p := loadPlan(t, "valid-minimal")
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("valid-minimal expected Valid=true, got errors: %v", result.Errors)
+	}
+}
+
+func TestConformanceValidFull(t *testing.T) {
+	p := loadPlan(t, "valid-full")
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("valid-full expected Valid=true, got errors: %v", result.Errors)
+	}
+}
+
+func TestConformanceInvalidMissingFields(t *testing.T) {
+	p := loadPlan(t, "invalid-missing-fields")
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("invalid-missing-fields expected Valid=false")
+	}
+	if !hasField(result.Errors, "specversion") {
+		t.Errorf("expected error for specversion, got: %v", result.Errors)
+	}
+	if !hasField(result.Errors, "id") {
+		t.Errorf("expected error for id, got: %v", result.Errors)
+	}
+	if !hasField(result.Errors, "type") {
+		t.Errorf("expected error for type, got: %v", result.Errors)
+	}
+}
+
+func TestConformanceInvalidIDs(t *testing.T) {
+	p := loadPlan(t, "invalid-ids")
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("invalid-ids expected Valid=false")
+	}
+	if !hasFieldMsg(result.Errors, "id", "grp_") {
+		t.Errorf("expected error for plan id prefix, got: %v", result.Errors)
+	}
+	if !hasFieldMsg(result.Errors, "diagnostics[0].id", "diag_") {
+		t.Errorf("expected error for diagnostic id prefix, got: %v", result.Errors)
+	}
+	if !hasFieldMsg(result.Errors, "steps[0].id", "step_") {
+		t.Errorf("expected error for step id prefix, got: %v", result.Errors)
+	}
+}
+
+func TestConformanceInvalidRisk(t *testing.T) {
+	p := loadPlan(t, "invalid-risk")
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("invalid-risk expected Valid=false")
+	}
+	if !hasField(result.Errors, "risk") {
+		t.Errorf("expected error for risk, got: %v", result.Errors)
+	}
+}
+
+func TestConformanceInvalidDuplicateDiag(t *testing.T) {
+	p := loadPlan(t, "invalid-duplicate-diag")
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("invalid-duplicate-diag expected Valid=false")
+	}
+	if !hasFieldMsg(result.Errors, "diagnostics[1].id", "duplicate") {
+		t.Errorf("expected error for duplicate diagnostic ID, got: %v", result.Errors)
+	}
+}
+
+func TestConformanceInvalidAbsolutePath(t *testing.T) {
+	p := loadPlan(t, "invalid-absolute-path")
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("invalid-absolute-path expected Valid=false")
+	}
+	if !hasFieldMsg(result.Errors, "subject", "absolute") {
+		t.Errorf("expected error for absolute subject, got: %v", result.Errors)
+	}
+	if !hasFieldMsg(result.Errors, "diagnostics[0].file", "absolute") {
+		t.Errorf("expected error for absolute diagnostic file, got: %v", result.Errors)
+	}
+	if !hasFieldMsg(result.Errors, "steps[0].target.file", "absolute") {
+		t.Errorf("expected error for absolute step target file, got: %v", result.Errors)
+	}
+}
+
+func TestConformanceInvalidStepRequires(t *testing.T) {
+	p := loadPlan(t, "invalid-step-requires")
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("invalid-step-requires expected Valid=false")
+	}
+	if !hasFieldMsg(result.Errors, "steps[0].requires", "unknown diagnostic") {
+		t.Errorf("expected error for unknown requires, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanEmptyDiagnostics(t *testing.T) {
+	p := validPlan()
+	p.Diagnostics = []Diagnostic{}
+	p.Steps = []Step{}
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("empty diagnostics should be valid, got errors: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanEmptySteps(t *testing.T) {
+	p := validPlan()
+	p.Steps = []Step{}
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("empty steps should be valid, got errors: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanEmptyVerification(t *testing.T) {
+	p := validPlan()
+	p.Verification = []Verification{}
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("empty verification should be valid, got errors: %v", result.Errors)
 	}
 }

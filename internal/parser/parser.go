@@ -22,7 +22,6 @@ type SimpleParser struct {
 
 func NewSimpleParser() *SimpleParser {
 	return &SimpleParser{
-		ExcludeDirs: []string{"node_modules", "dist", "build", ".next", ".git"},
 		ExcludeExts: []string{".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".lock"},
 	}
 }

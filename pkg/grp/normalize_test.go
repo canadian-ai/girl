@@ -1,6 +1,9 @@
 package grp
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -229,5 +232,68 @@ func TestNormalizePlanStepRequiresFromFilePathWithoutSymbol(t *testing.T) {
 	}
 	if !strings.Contains(p.Steps[0].ID, "handler") {
 		t.Errorf("step ID %q should contain handler", p.Steps[0].ID)
+	}
+}
+
+func loadPlanFixture(t *testing.T, dir string) *Plan {
+	t.Helper()
+	path := filepath.Join("..", "..", "testdata", "conformance", dir, "plan.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read fixture %s: %v", path, err)
+	}
+	var p Plan
+	if err := json.Unmarshal(data, &p); err != nil {
+		t.Fatalf("failed to unmarshal fixture %s: %v", path, err)
+	}
+	return &p
+}
+
+func TestConformanceNormalizeValidFull(t *testing.T) {
+	p := loadPlanFixture(t, "valid-full")
+	NormalizePlan(p)
+
+	if len(p.Diagnostics) != 2 {
+		t.Fatalf("expected 2 diagnostics, got %d", len(p.Diagnostics))
+	}
+	if p.Diagnostics[0].ID != "diag_001" {
+		t.Errorf("first diag ID = %q, want diag_001", p.Diagnostics[0].ID)
+	}
+	if p.Diagnostics[0].Code != "go.high-complexity" {
+		t.Errorf("first diag should be highest severity, got %s", p.Diagnostics[0].Code)
+	}
+	if p.Diagnostics[1].ID != "diag_002" {
+		t.Errorf("second diag ID = %q, want diag_002", p.Diagnostics[1].ID)
+	}
+
+	if len(p.Steps) != 2 {
+		t.Fatalf("expected 2 steps, got %d", len(p.Steps))
+	}
+	if p.Steps[0].Requires[0] != "diag_001" {
+		t.Errorf("first step requires = %q, want diag_001", p.Steps[0].Requires[0])
+	}
+	if p.Steps[1].Requires[0] != "diag_002" {
+		t.Errorf("second step requires = %q, want diag_002", p.Steps[1].Requires[0])
+	}
+}
+
+func TestConformanceComputePlanIDDeterministic(t *testing.T) {
+	p1 := loadPlanFixture(t, "valid-full")
+	p2 := loadPlanFixture(t, "valid-full")
+	id1 := ComputePlanID(p1)
+	id2 := ComputePlanID(p2)
+	if id1 != id2 {
+		t.Errorf("ComputePlanID should be deterministic: %s vs %s", id1, id2)
+	}
+	if !strings.HasPrefix(id1, "grp_") {
+		t.Errorf("plan ID %q should start with grp_", id1)
+	}
+}
+
+func TestConformanceComputePlanIDDifferentPlans(t *testing.T) {
+	id1 := ComputePlanID(loadPlanFixture(t, "valid-minimal"))
+	id2 := ComputePlanID(loadPlanFixture(t, "valid-full"))
+	if id1 == id2 {
+		t.Errorf("different plans should produce different IDs, both got %s", id1)
 	}
 }

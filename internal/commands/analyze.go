@@ -25,7 +25,7 @@ func AnalyzeCommand() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "lang",
-				Usage: "Language mode: auto (default), go, ts",
+				Usage: "Language mode: auto (default), go, ts, mixed",
 				Value: "auto",
 			},
 			&cli.IntFlag{

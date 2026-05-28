@@ -1,0 +1,30 @@
+{
+  "specversion": "0.1",
+  "id": "grp_dup_diag",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/conformance/invalid-duplicate-diag",
+  "language": "go",
+  "goal": "Improve code quality",
+  "risk": "low",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "go.high-complexity",
+      "severity": "high",
+      "confidence": "high",
+      "message": "First diagnostic",
+      "file": "a.go"
+    },
+    {
+      "id": "diag_001",
+      "code": "go.long-function",
+      "severity": "medium",
+      "confidence": "medium",
+      "message": "Second diagnostic with same ID",
+      "file": "b.go"
+    }
+  ],
+  "steps": [],
+  "verification": []
+}

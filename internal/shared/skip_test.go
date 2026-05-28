@@ -3,7 +3,7 @@ package shared
 import "testing"
 
 func TestShouldSkipDir_Exact(t *testing.T) {
-	for _, name := range []string{".git", ".grp", "node_modules", "vendor", "dist", "build", ".next"} {
+	for _, name := range []string{".git", ".grp", "node_modules", "vendor", "dist", "build", ".next", ".turbo", ".vercel", "out", ".cache", "coverage"} {
 		if !ShouldSkipDir(name) {
 			t.Errorf("ShouldSkipDir(%q) should be true", name)
 		}

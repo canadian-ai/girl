@@ -1,0 +1,31 @@
+{
+  "specversion": "0.1",
+  "id": "grp_bad_req",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/conformance/invalid-step-requires",
+  "language": "go",
+  "goal": "Improve code quality",
+  "risk": "low",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "go.high-complexity",
+      "severity": "high",
+      "confidence": "high",
+      "message": "Valid diagnostic",
+      "file": "a.go"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001",
+      "title": "Step referencing unknown diagnostic",
+      "action": "Fix the thing",
+      "target": { "file": "a.go" },
+      "risk": "low",
+      "requires": ["diag_999"]
+    }
+  ],
+  "verification": []
+}

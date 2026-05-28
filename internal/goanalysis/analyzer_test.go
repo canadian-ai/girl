@@ -252,7 +252,7 @@ func someFunc() error { return nil }
 	}
 
 	fn := gf.Functions[0]
-	diags := detectIgnoredErrors(gf, fn)
+	diags := detectIgnoredErrors(gf, fn, DefaultConfig())
 	if len(diags) == 0 {
 		t.Fatal("expected diagnostic for ignored errors")
 	}
@@ -266,6 +266,155 @@ func someFunc() error { return nil }
 	}
 	if d.File != relPath(path) {
 		t.Errorf("File = %q, want %q", d.File, relPath(path))
+	}
+}
+
+func TestIgnoredErrorPrecision(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "precision.go")
+
+	content := `package testdata
+
+func returnsError() error { return nil }
+func returnsString() string { return "" }
+
+func testPrecision() {
+	_ = returnsError()
+	_ = returnsString()
+}
+`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	gf, err := ParseGoFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var fn *GoFunction
+	for i := range gf.Functions {
+		if gf.Functions[i].Name == "testPrecision" {
+			fn = &gf.Functions[i]
+			break
+		}
+	}
+	if fn == nil {
+		t.Fatal("testPrecision not found")
+	}
+
+	switch fn.IgnoredErrConfidence {
+	case "high":
+		if fn.IgnoredErrs != 1 {
+			t.Errorf("with type info: IgnoredErrs = %d, want 1", fn.IgnoredErrs)
+		}
+	case "low":
+		if fn.IgnoredErrs != 2 {
+			t.Errorf("without type info (heuristic): IgnoredErrs = %d, want 2", fn.IgnoredErrs)
+		}
+	default:
+		t.Errorf("unexpected confidence: %q", fn.IgnoredErrConfidence)
+	}
+
+	cfg := DefaultConfig()
+	diags := detectIgnoredErrors(gf, *fn, cfg)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
+	}
+	d := diags[0]
+	if d.Metadata == nil {
+		t.Fatal("expected metadata on diagnostic")
+	}
+	if d.Metadata["reason"] != "error return value ignored with _" {
+		t.Errorf("metadata reason = %q", d.Metadata["reason"])
+	}
+	if d.Metadata["confidence"] == "" {
+		t.Errorf("metadata confidence is empty")
+	}
+}
+
+func TestIgnoredErrorConfigOff(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "configoff.go")
+
+	content := `package testdata
+
+func returnsError() error { return nil }
+
+func testConfigOff() {
+	_ = returnsError()
+}
+`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	gf, err := ParseGoFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var fn *GoFunction
+	for i := range gf.Functions {
+		if gf.Functions[i].Name == "testConfigOff" {
+			fn = &gf.Functions[i]
+			break
+		}
+	}
+	if fn == nil {
+		t.Fatal("testConfigOff not found")
+	}
+
+	cfg := &Config{IgnoredErrorConfidence: "off"}
+	diags := detectIgnoredErrors(gf, *fn, cfg)
+	if len(diags) != 0 {
+		t.Errorf("expected 0 diagnostics with config off, got %d", len(diags))
+	}
+}
+
+func TestIgnoredErrorConfigAlways(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "configalways.go")
+
+	content := `package testdata
+
+func someFunc() error { return nil }
+
+func testConfigAlways() {
+	_ = someFunc()
+}
+`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	gf, err := ParseGoFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var fn *GoFunction
+	for i := range gf.Functions {
+		if gf.Functions[i].Name == "testConfigAlways" {
+			fn = &gf.Functions[i]
+			break
+		}
+	}
+	if fn == nil {
+		t.Fatal("testConfigAlways not found")
+	}
+
+	cfg := &Config{IgnoredErrorConfidence: "always"}
+	diags := detectIgnoredErrors(gf, *fn, cfg)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
+	}
+	d := diags[0]
+	if d.Metadata == nil {
+		t.Fatal("expected metadata")
+	}
+	if d.Metadata["confidence"] != "high" {
+		t.Errorf("confidence = %q, want %q", d.Metadata["confidence"], "high")
 	}
 }
 

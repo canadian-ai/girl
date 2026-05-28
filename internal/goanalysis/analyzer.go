@@ -103,7 +103,7 @@ func detectDiagnostics(files []*GoFile, cfg *Config) []ir.Diagnostic {
 			diags = append(diags, detectHighComplexity(f, fn, cfg)...)
 			diags = append(diags, detectDeepNesting(f, fn, cfg)...)
 			diags = append(diags, detectTooManyParams(f, fn, cfg)...)
-			diags = append(diags, detectIgnoredErrors(f, fn)...)
+			diags = append(diags, detectIgnoredErrors(f, fn, cfg)...)
 		}
 
 	}
@@ -235,9 +235,16 @@ func detectTooManyParams(f *GoFile, fn GoFunction, cfg *Config) []ir.Diagnostic 
 	}}
 }
 
-func detectIgnoredErrors(f *GoFile, fn GoFunction) []ir.Diagnostic {
+func detectIgnoredErrors(f *GoFile, fn GoFunction, cfg *Config) []ir.Diagnostic {
 	if fn.IgnoredErrs == 0 {
 		return nil
+	}
+	if cfg.IgnoredErrorConfidence == "off" {
+		return nil
+	}
+	confidence := fn.IgnoredErrConfidence
+	if cfg.IgnoredErrorConfidence == "always" {
+		confidence = "high"
 	}
 	return []ir.Diagnostic{{
 		Code:       "go.ignored-error",
@@ -248,5 +255,9 @@ func detectIgnoredErrors(f *GoFile, fn GoFunction) []ir.Diagnostic {
 		Suggestion: "Check each error explicitly or use a helper like `must` for expected failures.",
 		Kind:       ir.NodeKindFunction,
 		Symbol:     fnName(fn),
+		Metadata: map[string]string{
+			"reason":     "error return value ignored with _",
+			"confidence": confidence,
+		},
 	}}
 }

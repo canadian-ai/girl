@@ -1,0 +1,31 @@
+{
+  "specversion": "0.1",
+  "id": "grp_abs_path",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "/absolute/path/to/project",
+  "language": "go",
+  "goal": "Improve code quality",
+  "risk": "low",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "go.high-complexity",
+      "severity": "high",
+      "confidence": "high",
+      "message": "Absolute path in diagnostic file",
+      "file": "/absolute/path/to/file.go"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001",
+      "title": "Fix absolute path step",
+      "action": "Fix the file",
+      "target": { "file": "/absolute/path/to/target.go" },
+      "risk": "low",
+      "requires": ["diag_001"]
+    }
+  ],
+  "verification": []
+}

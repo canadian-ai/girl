@@ -3,8 +3,10 @@ package goanalysis
 import (
 	"fmt"
 	"go/ast"
+	"go/importer"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"os"
 	"strings"
 )
@@ -23,38 +25,54 @@ func ParseGoFile(path string) (*GoFile, error) {
 		return nil, fmt.Errorf("parse error in %s: %w", path, err)
 	}
 
+	conf := types.Config{Importer: importer.Default()}
+	info := &types.Info{
+		Types: make(map[ast.Expr]types.TypeAndValue),
+		Defs:  make(map[*ast.Ident]types.Object),
+		Uses:  make(map[*ast.Ident]types.Object),
+	}
+	var typesInfo *types.Info
+	if _, err := conf.Check(f.Name.Name, fset, []*ast.File{f}, info); err != nil {
+		typesInfo = nil
+	} else {
+		typesInfo = info
+	}
+
 	gf := &GoFile{
-		Path:    path,
-		Package: f.Name.Name,
-		Lines:   len(lines),
+		Path:      path,
+		Package:   f.Name.Name,
+		Lines:     len(lines),
+		typesInfo: typesInfo,
 	}
 
 	for _, decl := range f.Decls {
 		if d, ok := decl.(*ast.FuncDecl); ok {
-			gf.Functions = append(gf.Functions, newGoFunction(fset, d))
+			gf.Functions = append(gf.Functions, newGoFunction(fset, d, typesInfo))
 		}
 	}
 
 	return gf, nil
 }
 
-func newGoFunction(fset *token.FileSet, d *ast.FuncDecl) GoFunction {
+func newGoFunction(fset *token.FileSet, d *ast.FuncDecl, info *types.Info) GoFunction {
 	start := fset.Position(d.Pos()).Line
 	end := fset.Position(d.End()).Line
 	if end == 0 {
 		end = start
 	}
 
+	ignoredErrs, confidence := countIgnoredErrors(d, info)
 	fn := GoFunction{
-		Name:        d.Name.Name,
-		Receiver:    receiverName(d),
-		StartLine:   start,
-		EndLine:     end,
-		Lines:       end - start + 1,
-		Params:      len(d.Type.Params.List),
-		MaxNesting:  computeNesting(d.Body),
-		Complexity:  computeComplexity(d),
-		IgnoredErrs: countIgnoredErrors(d),
+		Name:                 d.Name.Name,
+		Receiver:             receiverName(d),
+		StartLine:            start,
+		EndLine:              end,
+		Lines:                end - start + 1,
+		Params:               len(d.Type.Params.List),
+		MaxNesting:           computeNesting(d.Body),
+		Complexity:           computeComplexity(d),
+		IgnoredErrs:          ignoredErrs,
+		IgnoredErrConfidence: confidence,
 	}
 	if d.Type.Results != nil {
 		fn.Returns = len(d.Type.Results.List)
@@ -195,11 +213,13 @@ func isNestingControlNode(n ast.Node) bool {
 	}
 }
 
-func countIgnoredErrors(fn *ast.FuncDecl) int {
+func countIgnoredErrors(fn *ast.FuncDecl, info *types.Info) (int, string) {
 	count := 0
 	if fn.Body == nil {
-		return 0
+		return 0, "high"
 	}
+	hasTypeInfo := info != nil
+
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
 		assign, ok := n.(*ast.AssignStmt)
 		if !ok {
@@ -208,7 +228,7 @@ func countIgnoredErrors(fn *ast.FuncDecl) int {
 		for _, lhs := range assign.Lhs {
 			if id, ok := lhs.(*ast.Ident); ok && id.Name == "_" {
 				for _, rhs := range assign.Rhs {
-					if isCallReturningError(rhs) {
+					if isCallReturningError(rhs, info) {
 						count++
 					}
 				}
@@ -216,10 +236,17 @@ func countIgnoredErrors(fn *ast.FuncDecl) int {
 		}
 		return true
 	})
-	return count
+
+	if count == 0 {
+		return 0, "high"
+	}
+	if hasTypeInfo {
+		return count, "high"
+	}
+	return count, "low"
 }
 
-func isCallReturningError(expr ast.Expr) bool {
+func isCallReturningError(expr ast.Expr, info *types.Info) bool {
 	call, ok := expr.(*ast.CallExpr)
 	if !ok {
 		return false
@@ -227,7 +254,65 @@ func isCallReturningError(expr ast.Expr) bool {
 	if call.Fun == nil {
 		return false
 	}
+	if info != nil {
+		return callReturnsErrorType(call, info)
+	}
+	return isProbablyErrorReturning(call)
+}
+
+func callReturnsErrorType(call *ast.CallExpr, info *types.Info) bool {
+	tv, ok := info.Types[call]
+	if !ok || tv.Type == nil {
+		return false
+	}
+	if isGoErrorType(tv.Type) {
+		return true
+	}
+	if tuple, ok := tv.Type.(*types.Tuple); ok && tuple.Len() > 0 {
+		return isGoErrorType(tuple.At(tuple.Len() - 1).Type())
+	}
+	return false
+}
+
+func isGoErrorType(t types.Type) bool {
+	named, ok := t.(*types.Named)
+	if !ok {
+		return false
+	}
+	return named.Obj().Name() == "error" && named.Obj().Pkg() == nil
+}
+
+var likelyErrorFuncs = map[string]bool{
+	"Atoi": true, "Open": true, "Create": true, "Read": true, "Write": true,
+	"Exec": true, "Stat": true, "Chdir": true, "Mkdir": true, "MkdirAll": true,
+	"Remove": true, "RemoveAll": true, "Rename": true, "Chmod": true, "Chown": true,
+	"Parse": true, "Dial": true, "Listen": true, "Accept": true,
+}
+
+var likelyNonErrorFuncs = map[string]bool{
+	"Print": true, "Printf": true, "Println": true,
+	"Sprintf": true, "Log": true, "Logf": true, "Logln": true,
+}
+
+func isProbablyErrorReturning(call *ast.CallExpr) bool {
+	name := callName(call)
+	if likelyNonErrorFuncs[name] {
+		return false
+	}
+	if likelyErrorFuncs[name] {
+		return true
+	}
 	return true
+}
+
+func callName(call *ast.CallExpr) string {
+	switch f := call.Fun.(type) {
+	case *ast.Ident:
+		return f.Name
+	case *ast.SelectorExpr:
+		return f.Sel.Name
+	}
+	return ""
 }
 
 func isErrorType(expr ast.Expr) bool {

@@ -1,0 +1,80 @@
+{
+  "specversion": "0.1",
+  "id": "grp_full_001",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/conformance/valid-full",
+  "language": "go",
+  "goal": "Reduce cyclomatic complexity and fix lint issues in hot paths",
+  "risk": "medium",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "go.high-complexity",
+      "severity": "high",
+      "confidence": "high",
+      "message": "Function handleRequest has cyclomatic complexity 22",
+      "file": "internal/server/handler.go",
+      "line": 42,
+      "symbol": { "kind": "function", "name": "handleRequest" }
+    },
+    {
+      "id": "diag_002",
+      "code": "go.lint.unused-param",
+      "severity": "low",
+      "confidence": "medium",
+      "message": "Parameter ctx is unused in function doWork",
+      "file": "internal/worker/task.go",
+      "line": 15,
+      "symbol": { "kind": "function", "name": "doWork" }
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001",
+      "title": "Simplify branching in handleRequest",
+      "action": "Extract guard clauses and reduce nesting in handleRequest",
+      "target": { "file": "internal/server/handler.go" },
+      "risk": "medium",
+      "requires": ["diag_001"],
+      "verify": [
+        {
+          "command": "go test ./internal/server/...",
+          "required": true,
+          "source": "go",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "step_002",
+      "title": "Remove unused parameter in doWork",
+      "action": "Remove unused ctx parameter from doWork function signature",
+      "target": { "file": "internal/worker/task.go" },
+      "risk": "low",
+      "requires": ["diag_002"],
+      "verify": [
+        {
+          "command": "go vet ./internal/worker/...",
+          "required": false,
+          "source": "go",
+          "confidence": "medium"
+        }
+      ]
+    }
+  ],
+  "verification": [
+    {
+      "command": "go build ./...",
+      "required": true,
+      "source": "go",
+      "confidence": "high"
+    },
+    {
+      "command": "go test ./...",
+      "required": true,
+      "source": "go",
+      "confidence": "high"
+    }
+  ]
+}

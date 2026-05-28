@@ -1,0 +1,13 @@
+{
+  "specversion": "0.1",
+  "id": "grp_12345678",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/conformance/valid-minimal",
+  "language": "go",
+  "goal": "Improve code quality",
+  "risk": "low",
+  "diagnostics": [],
+  "steps": [],
+  "verification": []
+}

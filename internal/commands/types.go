@@ -9,6 +9,7 @@ import (
 	"github.com/canadian-ai/girl/internal/analyzer"
 	"github.com/canadian-ai/girl/internal/goanalysis"
 	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/shared"
 	"github.com/urfave/cli/v2"
 )
 
@@ -53,6 +54,16 @@ func stringFlag(c *cli.Context, name string, aliases ...string) string {
 	return c.String(name)
 }
 
+func HasGoMod(path string) bool {
+	info, err := os.Stat(filepath.Join(path, "go.mod"))
+	return err == nil && !info.IsDir()
+}
+
+func HasPackageJSON(path string) bool {
+	info, err := os.Stat(filepath.Join(path, "package.json"))
+	return err == nil && !info.IsDir()
+}
+
 func resolveLang(path string, lang string) string {
 	if lang != "auto" {
 		return lang
@@ -62,13 +73,26 @@ func resolveLang(path string, lang string) string {
 		return "ts"
 	}
 	if info.IsDir() {
-		goModInfo, err := os.Stat(filepath.Join(path, "go.mod"))
-		if err == nil && !goModInfo.IsDir() {
+		hasGoMod := HasGoMod(path)
+		hasPkgJSON := HasPackageJSON(path)
+
+		if hasGoMod && hasPkgJSON {
+			fmt.Fprintln(os.Stderr, "warning: mixed Go/TypeScript repo detected, use --lang go or --lang ts for precise analysis")
+		}
+
+		if hasGoMod {
 			return "go"
 		}
+
 		hasGo, hasTS := detectLangFiles(path)
 		if hasGo && !hasTS {
 			return "go"
+		}
+		if !hasGo && hasTS {
+			return "ts"
+		}
+		if hasGo && hasTS {
+			fmt.Fprintln(os.Stderr, "warning: mixed Go/TypeScript repo detected, use --lang go or --lang ts for precise analysis")
 		}
 		return "ts"
 	}
@@ -82,7 +106,13 @@ func detectLangFiles(path string) (bool, bool) {
 	hasGo := false
 	hasTS := false
 	err := filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
-		if err != nil || fi.IsDir() {
+		if err != nil {
+			return nil
+		}
+		if fi.IsDir() {
+			if p != path && shared.ShouldSkipDir(fi.Name()) {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if goanalysis.IsGoFile(p) {

@@ -1,0 +1,13 @@
+{
+  "specversion": "0.1",
+  "id": "grp_risk_test",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/conformance/invalid-risk",
+  "language": "go",
+  "goal": "Improve code quality",
+  "risk": "critical",
+  "diagnostics": [],
+  "steps": [],
+  "verification": []
+}
