@@ -37,31 +37,31 @@ func VerifyCommand() *cli.Command {
 				fmt.Printf("Package manager: %s\n", result.PackageManager)
 				fmt.Printf("Work directory: %s\n\n", result.WorkDir)
 
-			if len(result.Commands) > 0 {
-				fmt.Println("Available verification commands:")
-				for _, cmd := range result.Commands {
-					req := ""
-					if cmd.Required {
-						req = " [required]"
+				if len(result.Commands) > 0 {
+					fmt.Println("Available verification commands:")
+					for _, cmd := range result.Commands {
+						req := ""
+						if cmd.Required {
+							req = " [required]"
+						}
+						fmt.Printf("  ✓ %s (%s, %s)%s\n", cmd.Command, cmd.Source, cmd.Confidence, req)
 					}
-					fmt.Printf("  ✓ %s (%s, %s)%s\n", cmd.Command, cmd.Source, cmd.Confidence, req)
+				} else {
+					fmt.Println("No standard verification commands found.")
 				}
-			} else {
-				fmt.Println("No standard verification commands found.")
-			}
 
-			fmt.Println()
-			checks := []struct {
-				name string
-				val  bool
-			}{
-				{"TypeScript config", result.HasConfig},
-				{"Convex project", result.HasConvex},
-				{"Dockerfile", result.HasDocker},
-				{"CI workflow", result.HasCI},
-				{"golangci-lint", result.HasGolangCILint},
-				{"Makefile", result.HasMakefile},
-			}
+				fmt.Println()
+				checks := []struct {
+					name string
+					val  bool
+				}{
+					{"TypeScript config", result.HasConfig},
+					{"Convex project", result.HasConvex},
+					{"Dockerfile", result.HasDocker},
+					{"CI workflow", result.HasCI},
+					{"golangci-lint", result.HasGolangCILint},
+					{"Makefile", result.HasMakefile},
+				}
 				for _, c := range checks {
 					mark := "✗"
 					if c.val {

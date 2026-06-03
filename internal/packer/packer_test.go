@@ -85,8 +85,8 @@ func TestPacker_DiagnosticRanges(t *testing.T) {
 	p := NewPacker(5000)
 
 	tests := []struct {
-		name             string
-		diag             ir.Diagnostic
+		name               string
+		diag               ir.Diagnostic
 		wantStart, wantEnd int
 	}{
 		{
@@ -279,11 +279,11 @@ func TestPacker_DiagnosticSnippetsFallback(t *testing.T) {
 		},
 		Diagnostics: []ir.Diagnostic{
 			{
-				File:    tmpFile,
-				Line:    10,
-				EndLine: 15,
-				Code:    "E001",
-				Message: "test diagnostic",
+				File:     tmpFile,
+				Line:     10,
+				EndLine:  15,
+				Code:     "E001",
+				Message:  "test diagnostic",
 				Severity: ir.SeverityHigh,
 			},
 		},

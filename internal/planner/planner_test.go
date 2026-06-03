@@ -33,14 +33,14 @@ func TestPlanner_StepIDsDeterministic(t *testing.T) {
 	}
 
 	plan1 := p.GeneratePlan(PlanRequest{
-		Target:       "test",
-		Diagnostics:  diags,
-		Lang:         "go",
+		Target:      "test",
+		Diagnostics: diags,
+		Lang:        "go",
 	})
 	plan2 := p.GeneratePlan(PlanRequest{
-		Target:       "test",
-		Diagnostics:  diags,
-		Lang:         "go",
+		Target:      "test",
+		Diagnostics: diags,
+		Lang:        "go",
 	})
 
 	if len(plan1.Steps) != len(plan2.Steps) {
@@ -63,9 +63,9 @@ func TestPlanner_StepIDsUnique(t *testing.T) {
 	}
 
 	plan := p.GeneratePlan(PlanRequest{
-		Target:       "test",
-		Diagnostics:  diags,
-		Lang:         "go",
+		Target:      "test",
+		Diagnostics: diags,
+		Lang:        "go",
 	})
 
 	seen := map[string]bool{}

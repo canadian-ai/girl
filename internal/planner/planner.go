@@ -7,6 +7,7 @@ import (
 
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/recipes"
+	"github.com/canadian-ai/girl/internal/verification"
 )
 
 type Planner struct {
@@ -227,17 +228,5 @@ func isSlugSeparator(r rune) bool {
 }
 
 func (p *Planner) detectVerification(target string, lang string) []string {
-	if lang == "go" {
-		return []string{
-			"go build ./...",
-			"go vet ./...",
-			"go test ./...",
-		}
-	}
-	return []string{
-		"npm run typecheck",
-		"npm run lint",
-		"npm test",
-		"npm run build",
-	}
+	return verification.Commands(target)
 }

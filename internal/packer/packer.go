@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/verification"
 )
 
 type Packer struct {
@@ -29,6 +30,7 @@ type PackRequest struct {
 	Steps       []ir.GrpStep
 	TokenBudget int
 	PlanID      string
+	TargetPath  string
 	PrivacyMode string
 }
 
@@ -58,7 +60,7 @@ func (p *Packer) Pack(req PackRequest) (*ir.ContextPack, error) {
 	pack.TokenEstimate = budget - remaining
 
 	pack.Risks = collectRisks(req.Diagnostics, req.Steps)
-	pack.Verification = p.detectAvailableVerification()
+	pack.Verification = verification.Commands(req.TargetPath)
 
 	privacy := req.PrivacyMode
 	if privacy == "" {
@@ -306,34 +308,6 @@ func (p *Packer) createDiagnosticSnippet(readPath, relPath string, d ir.Diagnost
 		Content:   content,
 		Tokens:    tokens,
 	}
-}
-
-func (p *Packer) detectAvailableVerification() []string {
-	// TODO: this duplicates verifier logic — consolidate when extracting
-	// verification to a shared package
-	var cmds []string
-	checks := []string{"package.json"}
-	for _, c := range checks {
-		if statExists(c) {
-			cmds = append(cmds, "npm run typecheck", "npm run lint", "npm test", "npm run build")
-			break
-		}
-	}
-
-	goChecks := []string{"go.mod"}
-	for _, c := range goChecks {
-		if statExists(c) {
-			cmds = append(cmds, "go build ./...", "go vet ./...", "go test ./...")
-			break
-		}
-	}
-
-	return cmds
-}
-
-func statExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info != nil
 }
 
 func (p *Packer) applyPrivacy(mode string, pack *ir.ContextPack, files []*ir.FileIR) {

@@ -8,16 +8,16 @@ import (
 )
 
 var (
-	Version   = "0.1.0"
-	Commit    = "unknown"
-	BuiltAt   = "unknown"
+	Version    = "0.1.0"
+	Commit     = "unknown"
+	BuiltAt    = "unknown"
 	GrpVersion = "0.1"
 )
 
 type versionInfo struct {
-	Girl  string `json:"girl"`
-	Grp   string `json:"grp"`
-	Commit string `json:"commit"`
+	Girl    string `json:"girl"`
+	Grp     string `json:"grp"`
+	Commit  string `json:"commit"`
 	BuiltAt string `json:"builtAt"`
 }
 
@@ -27,10 +27,10 @@ func VersionCommand() *cli.Command {
 		Usage: "Print version information",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:  "output",
+				Name:    "output",
 				Aliases: []string{"o"},
-				Usage: "Output format: text (default), json",
-				Value: "text",
+				Usage:   "Output format: text (default), json",
+				Value:   "text",
 			},
 		},
 		Action: func(c *cli.Context) error {

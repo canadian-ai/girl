@@ -9,30 +9,5 @@
   "risk": "low",
   "diagnostics": [],
   "steps": [],
-  "verification": [
-    {
-      "command": "npm run typecheck",
-      "required": true,
-      "source": "binding-default",
-      "confidence": "medium"
-    },
-    {
-      "command": "npm run lint",
-      "required": true,
-      "source": "binding-default",
-      "confidence": "medium"
-    },
-    {
-      "command": "npm test",
-      "required": true,
-      "source": "binding-default",
-      "confidence": "medium"
-    },
-    {
-      "command": "npm run build",
-      "required": true,
-      "source": "binding-default",
-      "confidence": "medium"
-    }
-  ]
+  "verification": []
 }

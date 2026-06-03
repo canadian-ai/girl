@@ -7,6 +7,7 @@ import (
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/packer"
 	"github.com/canadian-ai/girl/internal/planner"
+	"github.com/canadian-ai/girl/pkg/grp"
 	"github.com/urfave/cli/v2"
 )
 
@@ -67,6 +68,7 @@ func PackCommand() *cli.Command {
 				Steps:       plan.Steps,
 				TokenBudget: c.Int("budget"),
 				PlanID:      plan.PlanID,
+				TargetPath:  path,
 				PrivacyMode: c.String("privacy"),
 			})
 			if err != nil {
@@ -77,7 +79,8 @@ func PackCommand() *cli.Command {
 			case "markdown":
 				printPackMarkdown(pack)
 			case "grp-context-json":
-				gcp := pkr.GrpContextPack(pack, plan.PlanID)
+				planID := canonicalGRPPlanID(plan, lang)
+				gcp := pkr.GrpContextPack(pack, planID)
 				printJSON(gcp)
 			default:
 				printJSON(pack)
@@ -86,6 +89,13 @@ func PackCommand() *cli.Command {
 			return nil
 		},
 	}
+}
+
+func canonicalGRPPlanID(plan *ir.GrpPlan, lang string) string {
+	gp := grp.FromIRPlan(plan)
+	gp.Language = lang
+	grp.NormalizePlan(gp)
+	return grp.ComputePlanID(gp)
 }
 
 func printPackMarkdown(pack *ir.ContextPack) {

@@ -198,24 +198,5 @@
       ]
     }
   ],
-  "verification": [
-    {
-      "command": "go build ./...",
-      "required": true,
-      "source": "binding-default",
-      "confidence": "medium"
-    },
-    {
-      "command": "go vet ./...",
-      "required": true,
-      "source": "binding-default",
-      "confidence": "medium"
-    },
-    {
-      "command": "go test ./...",
-      "required": true,
-      "source": "binding-default",
-      "confidence": "medium"
-    }
-  ]
+  "verification": []
 }

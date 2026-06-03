@@ -69,7 +69,7 @@ func PlanCommand() *cli.Command {
 				gp := grp.FromIRPlan(plan)
 				gp.Language = lang
 				grp.NormalizePlan(gp)
-				gp.ID = grp.ComputePlanID(gp)
+				gp.ID = canonicalGRPPlanID(plan, lang)
 				result := grp.ValidatePlan(gp)
 				if !result.Valid {
 					fmt.Fprintf(os.Stderr, "Warning: generated plan has validation issues:\n")
