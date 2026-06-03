@@ -296,6 +296,30 @@ func TestValidatePlanAbsoluteSubject(t *testing.T) {
 	}
 }
 
+func TestValidatePlanAbsoluteSubjectWindows(t *testing.T) {
+	p := validPlan()
+	p.Subject = "C:\\Users\\ola\\project"
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "subject", "absolute") {
+		t.Errorf("expected error for Windows absolute subject, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanAbsoluteSubjectUNC(t *testing.T) {
+	p := validPlan()
+	p.Subject = "\\\\server\\share\\repo"
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "subject", "absolute") {
+		t.Errorf("expected error for UNC absolute subject, got: %v", result.Errors)
+	}
+}
+
 func TestValidatePlanAbsoluteStepTarget(t *testing.T) {
 	p := validPlan()
 	p.Steps = []Step{
@@ -310,6 +334,40 @@ func TestValidatePlanAbsoluteStepTarget(t *testing.T) {
 	}
 	if !hasFieldMsg(result.Errors, "steps[0].target.file", "absolute") {
 		t.Errorf("expected error for absolute step target, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanAbsoluteStepTargetWindows(t *testing.T) {
+	p := validPlan()
+	p.Steps = []Step{
+		{
+			ID: "step_001", Title: "title", Action: "action",
+			Target: Target{File: "D:\\repo\\src\\App.tsx"}, Risk: SeverityLow,
+		},
+	}
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "steps[0].target.file", "absolute") {
+		t.Errorf("expected error for Windows absolute step target, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanAbsoluteStepTargetUNC(t *testing.T) {
+	p := validPlan()
+	p.Steps = []Step{
+		{
+			ID: "step_001", Title: "title", Action: "action",
+			Target: Target{File: "\\\\nas\\share\\projects\\file.go"}, Risk: SeverityLow,
+		},
+	}
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "steps[0].target.file", "absolute") {
+		t.Errorf("expected error for UNC absolute step target, got: %v", result.Errors)
 	}
 }
 
@@ -448,6 +506,17 @@ func TestConformanceInvalidStepRequires(t *testing.T) {
 	}
 	if !hasFieldMsg(result.Errors, "steps[0].requires", "unknown diagnostic") {
 		t.Errorf("expected error for unknown requires, got: %v", result.Errors)
+	}
+}
+
+func TestConformanceInvalidUnsupportedSpecVersion(t *testing.T) {
+	p := loadPlan(t, "invalid-unsupported-specversion")
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("invalid-unsupported-specversion expected Valid=false")
+	}
+	if !hasFieldMsg(result.Errors, "specversion", "9.9") {
+		t.Errorf("expected error for unsupported specversion, got: %v", result.Errors)
 	}
 }
 

@@ -179,3 +179,43 @@ func TestSlugTarget(t *testing.T) {
 		}
 	}
 }
+
+func TestFileSlug(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"handler.go", "handler"},
+		{"internal/server/handler.go", "handler"},
+		{"ui/dash.tsx", "dash"},
+		{"src/App.tsx", "app"},
+		{"path/to/file.test.ts", "filetest"},
+		{"", "target"},
+	}
+	for _, tc := range tests {
+		result := fileSlug(tc.input)
+		if result != tc.expected {
+			t.Errorf("fileSlug(%q) = %q, want %q", tc.input, result, tc.expected)
+		}
+	}
+}
+
+func TestPlannerStepIDsUseFileSlug(t *testing.T) {
+	p := NewPlanner()
+	diags := []ir.Diagnostic{
+		{Code: "go.long-function", Severity: ir.SeverityHigh, Symbol: "ProcessData", File: "handler.go", Message: "too long"},
+	}
+	plan := p.GeneratePlan(PlanRequest{
+		Target:      "test",
+		Diagnostics: diags,
+		Lang:        "go",
+	})
+	if len(plan.Steps) == 0 {
+		t.Fatal("expected at least 1 step")
+	}
+	for _, s := range plan.Steps {
+		if s.ID == "" {
+			t.Errorf("step ID should not be empty")
+		}
+	}
+}

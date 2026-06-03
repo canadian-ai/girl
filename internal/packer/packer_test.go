@@ -314,6 +314,76 @@ func TestPacker_DiagnosticSnippetsFallback(t *testing.T) {
 	}
 }
 
+func TestRedactPath(t *testing.T) {
+	tests := []struct {
+		path     string
+		homeDir  string
+		expected string
+	}{
+		{"/home/user/project/src/app.ts", "", "<redacted>/src/app.ts"},
+		{"/tmp/x.ts", "", "<redacted>/tmp/x.ts"},
+		{"src/app.ts", "", "src/app.ts"},
+		{"relative/path/file.go", "", "relative/path/file.go"},
+	}
+	for _, tc := range tests {
+		got := redactPath(tc.path, tc.homeDir)
+		if got != tc.expected {
+			t.Errorf("redactPath(%q, %q) = %q, want %q", tc.path, tc.homeDir, got, tc.expected)
+		}
+	}
+}
+
+func TestRedactPathHomeDirRelative(t *testing.T) {
+	got := redactPath("users/ola/project/file.ts", "users/ola")
+	if got != "~/project/file.ts" {
+		t.Errorf("expected ~/project/file.ts, got %q", got)
+	}
+}
+
+func TestSanitizePublicPath(t *testing.T) {
+	tests := []struct {
+		path     string
+		expected string
+	}{
+		{"src/app.ts", "src/app.ts"},
+		{"src/private/api.ts", "src/synthetic/api.ts"},
+		{"internal/config/secret.key", "internal/config/synthetic.key"},
+		{"components/private/routes.ts", "components/synthetic/routes.ts"},
+	}
+	for _, tc := range tests {
+		got := sanitizePublicPath(tc.path)
+		if got != tc.expected {
+			t.Errorf("sanitizePublicPath(%q) = %q, want %q", tc.path, got, tc.expected)
+		}
+	}
+}
+
+func TestRedactContent(t *testing.T) {
+	tests := []struct {
+		input string
+	}{
+		{"secret = \"sk-test1234567890abcdefghij\""},
+		{"Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0"},
+		{"API_KEY=abcdefghijklmnopqrstuvwxyz1234"},
+		{"contact user@example.com for access"},
+		{"PASSWORD=supersecretvalue123"},
+	}
+	for _, tc := range tests {
+		got := redactContent(tc.input)
+		if got == tc.input {
+			t.Errorf("redactContent(%q) did not redact anything", tc.input)
+		}
+	}
+}
+
+func TestRedactContentPreservesNormalCode(t *testing.T) {
+	input := `func add(a, b int) int { return a + b }`
+	got := redactContent(input)
+	if got != input {
+		t.Errorf("redactContent should not modify normal code: %q -> %q", input, got)
+	}
+}
+
 func TestPacker_DiagnosticCountsAndTopCodes(t *testing.T) {
 	p := NewPacker(5000)
 	pack, err := p.Pack(PackRequest{

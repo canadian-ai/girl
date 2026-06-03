@@ -151,4 +151,20 @@ func err(field, msg string) ValidationError {
 func validRisk(s string) bool    { return s == "low" || s == "medium" || s == "high" }
 func validSeverity(s string) bool { return s == "low" || s == "medium" || s == "high" }
 func validConfidence(s string) bool { return s == "low" || s == "medium" || s == "high" }
-func isAbsolute(s string) bool   { return strings.HasPrefix(s, "/") }
+func isAbsolute(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	if s[0] == '/' {
+		return true
+	}
+	if len(s) >= 3 && s[0] == '\\' && s[1] == '\\' {
+		return true
+	}
+	if len(s) >= 3 && isAlpha(s[0]) && s[1] == ':' && (s[2] == '\\' || s[2] == '/') {
+		return true
+	}
+	return false
+}
+
+func isAlpha(c byte) bool { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') }

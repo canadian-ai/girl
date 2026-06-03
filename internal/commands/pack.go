@@ -38,6 +38,11 @@ func PackCommand() *cli.Command {
 				Value:   "json",
 			},
 			&cli.StringFlag{
+				Name:    "output-file",
+				Aliases: []string{"f"},
+				Usage:   "Write context pack to file (e.g., .grp/context-pack.json)",
+			},
+			&cli.StringFlag{
 				Name:  "lang",
 				Usage: "Language mode: auto (default), go, ts",
 				Value: "auto",
@@ -75,14 +80,26 @@ func PackCommand() *cli.Command {
 				return fmt.Errorf("packing failed: %w", err)
 			}
 
+			outputFile := c.String("output-file")
+
 			switch stringFlag(c, "output", "o") {
 			case "markdown":
 				printPackMarkdown(pack)
 			case "grp-context-json":
 				planID := canonicalGRPPlanID(plan, lang)
 				gcp := pkr.GrpContextPack(pack, planID)
+				if outputFile != "" {
+					if err := writeJSONFile(outputFile, gcp); err != nil {
+						return fmt.Errorf("write context pack: %w", err)
+					}
+				}
 				printJSON(gcp)
 			default:
+				if outputFile != "" {
+					if err := writeJSONFile(outputFile, pack); err != nil {
+						return fmt.Errorf("write context pack: %w", err)
+					}
+				}
 				printJSON(pack)
 			}
 

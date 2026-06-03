@@ -184,9 +184,11 @@ GRP Core is a minimal plan envelope. The full specification is in `docs/spec/`:
 - **[Steps](docs/spec/steps.md)** — step shape, ID rules, execution modes
 - **[Verification](docs/spec/verification.md)** — verification shape, types, detection rules
 - **[Extensions](docs/spec/extensions.md)** — extension system, `requiredExtensions`, namespacing
+- **[Lifecycle](docs/spec/lifecycle.md)** — artifact model: plan, context pack, verification result
 - **[Conformance](docs/spec/conformance.md)** — Core and Binding conformance levels
 - **[Schemas](schemas/grp-plan.v0.1.schema.json)** — JSON Schema files for Plan, Diagnostic, Step, Verification
 - **[Examples](examples/grp/)** — minimal, GRP-Go, and GRP-React example plans
+- **[Real Refactors](examples/real-refactors/)** — Go and React before/after refactoring demos with GRP plans, context packs, and verification
 - **[Namespaces](docs/namespaces.md)** — diagnostic and recipe naming conventions
 
 A minimal GRP plan:

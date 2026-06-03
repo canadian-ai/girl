@@ -191,10 +191,20 @@ func (p *Planner) assignStepIDs(plan *ir.GrpPlan) {
 	})
 
 	for i, s := range plan.Steps {
-		slug := slugTarget(s.Action)
+		slug := fileSlug(s.File)
 		id := fmt.Sprintf("step_%03d_%s_%s", i+1, s.Recipe, slug)
 		plan.Steps[i].ID = id
 	}
+}
+
+func fileSlug(file string) string {
+	if idx := strings.LastIndex(file, "/"); idx >= 0 {
+		file = file[idx+1:]
+	}
+	if idx := strings.LastIndex(file, "."); idx >= 0 {
+		file = file[:idx]
+	}
+	return slugTarget(file)
 }
 
 func slugTarget(s string) string {

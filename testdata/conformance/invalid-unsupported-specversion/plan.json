@@ -1,0 +1,13 @@
+{
+  "specversion": "9.9",
+  "id": "grp_test",
+  "type": "dev.refactor.plan",
+  "source": "test",
+  "subject": ".",
+  "language": "go",
+  "goal": "test",
+  "risk": "low",
+  "diagnostics": [],
+  "steps": [],
+  "verification": []
+}

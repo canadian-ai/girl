@@ -21,4 +21,5 @@ type Result struct {
 	HasCI           bool      `json:"hasCI"`
 	HasGolangCILint bool      `json:"hasGolangCILint,omitempty"`
 	HasMakefile     bool      `json:"hasMakefile,omitempty"`
+	PlanID          string    `json:"planId,omitempty"`
 }

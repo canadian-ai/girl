@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -321,9 +322,11 @@ func (p *Packer) applyPrivacy(mode string, pack *ir.ContextPack, files []*ir.Fil
 		}
 		for i, s := range pack.Summaries {
 			pack.Summaries[i].Path = redactPath(s.Path, homeDir)
+			pack.Summaries[i].Summary = redactContent(s.Summary)
 		}
 		for i, sn := range pack.SelectedSnippets {
 			pack.SelectedSnippets[i].File = redactPath(sn.File, homeDir)
+			pack.SelectedSnippets[i].Content = redactContent(sn.Content)
 		}
 	case "public":
 		for i, f := range pack.Files {
@@ -357,13 +360,38 @@ func sanitizePublicPath(path string) string {
 	parts := strings.Split(cleaned, string(filepath.Separator))
 	var filtered []string
 	for _, p := range parts {
-		if strings.Contains(p, "private") || strings.Contains(p, "secret") || strings.Contains(p, "internal") {
-			filtered = append(filtered, "synthetic")
-		} else {
-			filtered = append(filtered, p)
+		replaced := p
+		if strings.Contains(replaced, "private") || strings.Contains(replaced, "secret") {
+			replaced = strings.NewReplacer("private", "synthetic", "secret", "synthetic").Replace(replaced)
 		}
+		filtered = append(filtered, replaced)
 	}
 	return strings.Join(filtered, string(filepath.Separator))
+}
+
+var sensitivePatterns = []struct {
+	pattern string
+	repl    string
+}{
+	// OpenAI / Anthropic API keys
+	{`sk-[a-zA-Z0-9]{20,}`, "sk-<redacted>"},
+	{`sk-ant-[a-zA-Z0-9]{20,}`, "sk-ant-<redacted>"},
+	// Bearer tokens
+	{`Bearer [a-zA-Z0-9\-._~+/=]{20,}`, "Bearer <redacted>"},
+	// Generic API keys in assignments (allow = or : after key name)
+	{`(?i)api[_\-]?key[=:]\s*['"]?[a-zA-Z0-9]{16,}['"]?`, "API_KEY=<redacted>"},
+	// .env / env-var secret patterns
+	{`(?i)(secret|password|token|api_key)[=:]\s*['"]?[a-zA-Z0-9]{8,}['"]?`, "$1=<redacted>"},
+	// Private email addresses
+	{`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}`, "<email-redacted>"},
+}
+
+func redactContent(s string) string {
+	for _, sp := range sensitivePatterns {
+		re := regexp.MustCompile(sp.pattern)
+		s = re.ReplaceAllString(s, sp.repl)
+	}
+	return s
 }
 
 func (p *Packer) GrpContextPack(pack *ir.ContextPack, planID string) *ir.GrpContextPack {

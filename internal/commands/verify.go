@@ -19,6 +19,15 @@ func VerifyCommand() *cli.Command {
 				Usage:   "Output format: json (default), text",
 				Value:   "json",
 			},
+			&cli.StringFlag{
+				Name:    "output-file",
+				Aliases: []string{"f"},
+				Usage:   "Write verification result to file (e.g., .grp/verification.json)",
+			},
+			&cli.StringFlag{
+				Name:  "plan-id",
+				Usage: "Plan ID to attach to the verification result",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			path := c.Args().First()
@@ -30,6 +39,17 @@ func VerifyCommand() *cli.Command {
 			result, err := v.Verify(path)
 			if err != nil {
 				return fmt.Errorf("verification failed: %w", err)
+			}
+
+			if planID := c.String("plan-id"); planID != "" {
+				result.PlanID = planID
+			}
+
+			outputFile := c.String("output-file")
+			if outputFile != "" {
+				if err := writeJSONFile(outputFile, result); err != nil {
+					return fmt.Errorf("write verification: %w", err)
+				}
 			}
 
 			switch stringFlag(c, "output", "o") {
@@ -62,12 +82,12 @@ func VerifyCommand() *cli.Command {
 					{"golangci-lint", result.HasGolangCILint},
 					{"Makefile", result.HasMakefile},
 				}
-				for _, c := range checks {
+				for _, ch := range checks {
 					mark := "✗"
-					if c.val {
+					if ch.val {
 						mark = "✓"
 					}
-					fmt.Printf("  %s %s\n", mark, c.name)
+					fmt.Printf("  %s %s\n", mark, ch.name)
 				}
 			default:
 				printJSON(result)
