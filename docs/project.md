@@ -46,36 +46,13 @@ Issues: `#23`–`#28`
 
 ## Issue Index
 
-| # | Title | Milestone |
-|---|-------|-----------|
-| 2 | Add GRP Core v0.1 spec skeleton | GRP Core v0.1 |
-| 3 | Add GRP diagnostics spec | GRP Core v0.1 |
-| 4 | Add GRP steps spec | GRP Core v0.1 |
-| 5 | Add GRP verification spec | GRP Core v0.1 |
-| 6 | Add extensions and conformance specs | GRP Core v0.1 |
-| 7 | Add GRP JSON schemas | GRP Core v0.1 |
-| 8 | Add example GRP plans | GRP Core v0.1 |
-| 9 | Add pkg/grp protocol types | GRP Core v0.1 |
-| 10 | Add pkg/grp structural validation | GRP Core v0.1 |
-| 11 | Add deterministic GRP normalization | GRP Core v0.1 |
-| 12 | Add girl plan --output grp-json | GRP Core v0.1 |
-| 13 | Replace timestamp plan IDs with content-derived IDs | GRP Core v0.1 |
-| 14 | Add girl validate command | GRP Core v0.1 |
-| 15 | Add GRP validation and determinism tests | GRP Core v0.1 |
-| 16 | Update README with GRP vs GIRL product boundary | GRP Core v0.1 |
-| 17 | Document Go binding diagnostics | Bindings v0.1 |
-| 18 | Document Go binding recipes | Bindings v0.1 |
-| 19 | Document Go binding verification | Bindings v0.1 |
-| 20 | Document TypeScript binding diagnostics and recipes | Bindings v0.1 |
-| 21 | Document React binding diagnostics and recipes | Bindings v0.1 |
-| 22 | Improve package-manager and script-based verification detection | Bindings v0.1 |
-| 29 | Document future tool binding model | Bindings v0.1 |
-| 23 | Add grp-context-json output for girl pack | Context + Trust |
-| 24 | Add context pack privacy modes | Context + Trust |
-| 25 | Add budget-aware snippet selection tiers | Context + Trust |
-| 26 | Add GitHub Actions CI | Context + Trust |
-| 27 | Add golden GRP plan tests | Context + Trust |
-| 28 | Add dogfooding case study | Context + Trust |
+All items completed. Remaining work tracked via Production release milestone.
+
+| # | Title | Milestone | Status |
+|---|-------|-----------|--------|
+| 2-16 | GRP Core v0.1 (spec, schemas, types, CLI, tests) | GRP Core v0.1 | Done |
+| 17-22, 29 | Bindings v0.1 (Go, TS, React docs + verification) | Bindings v0.1 | Done |
+| 23-28 | Context + Trust (pack, privacy, budget, CI, goldens, case study) | Context + Trust | Done |
 
 ## Labels
 

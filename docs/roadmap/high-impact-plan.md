@@ -13,9 +13,11 @@ Productionize core        | DONE          | May 22-23
 Parser robustness         | DONE          | May 24
 SARIF + packer + gov      | DONE          | May 25
 Dogfood recursion         | DONE          | May 26
-GRP Core v0.1             | IN PROGRESS   | May 26 - Jun 1
-Bindings v0.1             | PLANNED       | Jun 2 - Jun 8
-Context + Trust           | PLANNED       | Jun 9 - Jun 15
+GRP Core v0.1             | DONE          | May 26 - Jun 1
+Bindings v0.1             | DONE          | Jun 2 - Jun 8
+Context + Trust           | DONE          | Jun 9 - Jun 15
+Tree-sitter parser        | DONE          | Jun 15
+CI pipeline               | DONE          | Jun 15
 Production release        | PLANNED       | Jun 16+
 
 ```
@@ -67,33 +69,15 @@ Production release        | PLANNED       | Jun 16+
 
 ### May 26 - Jun 1: GRP Core v0.1 (+15 issues)
 
-GitHub project column: **GRP Core v0.1**
-
-Protocol standard work that makes GRP a real specification:
-
-- **Spec docs** (`spec/`): core plan envelope, diagnostic shape, step shape, verification shape, extension rules, conformance levels
-- **JSON schemas** (`schemas/`): plan, diagnostic, step, verification
-- **Example plans** (`examples/grp/`): minimal, Go, React
-- **Public types** (`pkg/grp/`): Plan, Diagnostic, Step, Verification, Span, Symbol, Target, Execution
-- **GRP normalization**: deterministic sorting, content-hash plan IDs, stable diagnostic IDs (`diag_001`), step `requires` linking
-- **CLI**: `girl plan --output grp-json`, `girl validate`
-- **Tests**: determinism, schema validation, round-trip
+**Done.** Protocol standard complete.
 
 Issues: [#2](https://github.com/canadian-ai/girl/issues/2) - [#16](https://github.com/canadian-ai/girl/issues/16)
 
-## Planned
+## Completed
 
 ### Jun 2 - Jun 8: Bindings v0.1 (+7 issues)
 
-GitHub project column: **Bindings v0.1**
-
-Language binding documentation that maps specific languages/frameworks into GRP:
-
-- **GRP-Go**: diagnostics, recipes, verification docs (`bindings/go/`)
-- **GRP-TypeScript**: diagnostics, recipes, verification docs (`bindings/typescript/`)
-- **GRP-React**: diagnostics, recipes, verification docs (`bindings/react/`)
-- **Future Tool Bindings**: GritQL, Tree-sitter, OpenRewrite, ESLint, SARIF, LSP (`docs/bindings/tool-bindings.md`)
-- **Verification detection**: package-manager-aware (npm/pnpm/yarn/bun), package.json script discovery, confidence levels
+**Done.** Full binding docs for Go, TypeScript, React including diagnostics, recipes, verification.
 
 Issues: [#17](https://github.com/canadian-ai/girl/issues/17) - [#22](https://github.com/canadian-ai/girl/issues/22), [#29](https://github.com/canadian-ai/girl/issues/29)
 
@@ -110,18 +94,17 @@ React defines framework-specific diagnostics on top of TS analysis.
 
 ### Jun 9 - Jun 15: Context + Trust (+6 issues)
 
-GitHub project column: **Context + Trust**
-
-Production-hardening for reliable agent use:
-
-- **Context pack GRP format**: `girl pack --output grp-context-json`
-- **Privacy modes**: `--privacy private|redacted|public`
-- **Budget tiers**: 4k, 8k, 16k, 32k snippet selection
-- **CI**: GitHub Actions workflow
-- **Golden tests**: deterministic GRP output fixtures
-- **Dogfooding case study**: documented results
+**Done.** Privacy modes, budget tiers, CI pipeline, golden tests, dogfooding case study all complete.
 
 Issues: [#23](https://github.com/canadian-ai/girl/issues/23) - [#28](https://github.com/canadian-ai/girl/issues/28)
+
+### Jun 15: Tree-sitter TSX parser replacement
+
+**Done.** Replaced both the hand-rolled tokenizer (`internal/parsertsx/`) and the regex-based production parser (`internal/parser/`) with a single tree-sitter-based parser. See commit for details.
+
+### Jun 15: CI pipeline
+
+**Done.** GitHub Actions CI with CGo-enabled build, vet, and test.
 
 ### Jun 16+: Production release
 
@@ -147,13 +130,14 @@ go build ./... && go vet ./... && go test ./...  # all pass
 
 ## Key Metric
 
-| Metric | May 19 | May 26 | Target |
-|--------|--------|--------|--------|
-| GIRL self-diagnostics | 38 | 0 | 0 |
-| Tests passing | 30 | 141 | 200+ |
-| Go packages analyzed | 0 | 2 | 3 |
-| TS/React packages analyzed | 2 | 2 | 3 |
-| Language bindings documented | 0 | 0 | 3 (GRP-Go, GRP-TypeScript, GRP-React) |
-| CI | none | none | green |
-| GRP conformance level | 0 | 2 | 3 |
-| Dogfooded | no | yes | continuous |
+| Metric | May 19 | May 26 | Jun 15 | Target |
+|--------|--------|--------|--------|--------|
+| GIRL self-diagnostics | 38 | 0 | 0 | 0 |
+| Tests passing | 30 | 141 | ~175 | 200+ |
+| Go packages analyzed | 0 | 2 | 2 | 3 |
+| TS/React packages analyzed | 2 | 2 | 2 | 3 |
+| Language bindings documented | 0 | 0 | 3 | 3 (GRP-Go, GRP-TypeScript, GRP-React) |
+| CI | none | none | green | green |
+| GRP conformance level | 0 | 2 | 3 | 3 |
+| Dogfooded | no | yes | yes | continuous |
+| Parser quality | regex | regex | tree-sitter | tree-sitter |
