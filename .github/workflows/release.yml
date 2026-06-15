@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v0.1.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -30,10 +36,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build girl
         run: go build -o girl ./cmd/girl/
@@ -47,14 +64,34 @@ jobs:
       - name: Compute checksum
         run: sha256sum girl > girl.sha256
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
-          body_path: .github/release-template.md
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          files: |
-            girl
-            girl.sha256
+      - name: Create Release via gh
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          NOTES=$(cat <<-EOF
+          # GIRL ${TAG}
+
+          **Grammar-Informed Refactoring Language** for AI coding agents.
+
+          ### Linux (amd64)
+          \`\`\`bash
+          curl -LO https://github.com/canadian-ai/girl/releases/download/\${TAG}/girl
+          chmod +x girl
+          sudo mv girl /usr/local/bin/
+          \`\`\`
+
+          ### Build from source
+          \`\`\`bash
+          go install github.com/canadian-ai/girl/cmd/girl@\${TAG}
+          \`\`\`
+
+          Requires Go 1.25+ and a C compiler (for tree-sitter).
+
+          See [CHANGELOG.md](https://github.com/canadian-ai/girl/blob/master/CHANGELOG.md) for full release notes.
+          EOF
+          )
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --notes "${NOTES}" \
+            girl girl.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
