@@ -32,7 +32,7 @@ func NewEngine(opts ...*Thresholds) *RecipeEngine {
 			&ExtractCustomHook{thresholds: t},
 			&ReduceStateVars{thresholds: t},
 			&ConsolidateEffects{thresholds: t},
-			&AddPropTypes{},
+			&AddPropTypes{thresholds: t},
 		},
 	}
 }
@@ -209,7 +209,9 @@ func (r *ConsolidateEffects) GenerateStep(diag ir.Diagnostic) ir.GrpStep {
 	}
 }
 
-type AddPropTypes struct{}
+type AddPropTypes struct {
+	thresholds *Thresholds
+}
 
 func (r *AddPropTypes) ID() string          { return "react.add-prop-types" }
 func (r *AddPropTypes) Description() string { return "Add TypeScript interfaces for component props" }
@@ -225,7 +227,7 @@ func (r *AddPropTypes) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) {
 			break
 		}
 	}
-	if !hasTypes && comp.Lines > 30 {
+	if !hasTypes && comp.Lines > r.thresholds.UntypedPropsMinLines {
 		return &RecipeMatch{
 			RecipeID:    r.ID(),
 			Description: r.Description(),

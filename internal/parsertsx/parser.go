@@ -424,21 +424,43 @@ func (p *Parser) findComponentMatches(qs *querySet, root *sitter.Node, data []by
 		if val == nil || val.Type() != "call_expression" {
 			continue
 		}
-		funcArg := val.NamedChild(0)
+
+		callee := val.ChildByFieldName("function")
+		if callee == nil {
+			continue
+		}
+		calleeText := string(data[callee.StartByte():callee.EndByte()])
+		isMemo := calleeText == "React.memo" || calleeText == "memo"
+		isForwardRef := calleeText == "React.forwardRef" || calleeText == "forwardRef"
+		if !isMemo && !isForwardRef {
+			continue
+		}
+
+		args := val.ChildByFieldName("arguments")
+		if args == nil {
+			continue
+		}
+		var funcArg *sitter.Node
+		for i := 0; i < int(args.NamedChildCount()); i++ {
+			c := args.NamedChild(i)
+			if c.Type() == "arrow_function" || c.Type() == "function_expression" {
+				funcArg = c
+				break
+			}
+		}
 		if funcArg == nil {
 			continue
 		}
-		if funcArg.Type() == "arrow_function" || funcArg.Type() == "function_expression" {
-			body := funcArg.ChildByFieldName("body")
-			params := funcArg.ChildByFieldName("parameters")
-			if body != nil && params != nil && body.Type() == "statement_block" {
-				matches = append(matches, componentMatch{
-					name:    name,
-					body:    body,
-					params:  params,
-					isArrow: funcArg.Type() == "arrow_function",
-				})
-			}
+
+		body := funcArg.ChildByFieldName("body")
+		params := funcArg.ChildByFieldName("parameters")
+		if body != nil && params != nil && body.Type() == "statement_block" {
+			matches = append(matches, componentMatch{
+				name:    name,
+				body:    body,
+				params:  params,
+				isArrow: funcArg.Type() == "arrow_function",
+			})
 		}
 	}
 
@@ -768,7 +790,16 @@ func countLoopsInNode(body *sitter.Node, data []byte) int {
 		if n.Type() == "call_expression" {
 			fn := n.ChildByFieldName("function")
 			if fn != nil {
-				switch string(data[fn.StartByte():fn.EndByte()]) {
+				var fnName string
+				if fn.Type() == "member_expression" {
+					prop := fn.ChildByFieldName("property")
+					if prop != nil {
+						fnName = string(data[prop.StartByte():prop.EndByte()])
+					}
+				} else {
+					fnName = string(data[fn.StartByte():fn.EndByte()])
+				}
+				switch fnName {
 				case "map", "forEach", "filter", "reduce":
 					count++
 				}

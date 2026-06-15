@@ -75,6 +75,60 @@ func TestResolveLang_ExplicitTS(t *testing.T) {
 	}
 }
 
+func TestResolveLang_AutoTSXFile(t *testing.T) {
+	dir := t.TempDir()
+	tsxFile := filepath.Join(dir, "app.tsx")
+	os.WriteFile(tsxFile, []byte("const x = 1"), 0644)
+	lang := resolveLang(tsxFile, "auto")
+	if lang != "typescript" {
+		t.Errorf("expected 'typescript' for .tsx file auto-detection, got %q", lang)
+	}
+}
+
+func TestResolveLang_AutoJSFile(t *testing.T) {
+	dir := t.TempDir()
+	jsFile := filepath.Join(dir, "app.js")
+	os.WriteFile(jsFile, []byte("const x = 1"), 0644)
+	lang := resolveLang(jsFile, "auto")
+	if lang != "typescript" {
+		t.Errorf("expected 'typescript' for .js file auto-detection, got %q", lang)
+	}
+}
+
+func TestResolveLang_AutoJSXFile(t *testing.T) {
+	dir := t.TempDir()
+	jsxFile := filepath.Join(dir, "app.jsx")
+	os.WriteFile(jsxFile, []byte("const x = 1"), 0644)
+	lang := resolveLang(jsxFile, "auto")
+	if lang != "typescript" {
+		t.Errorf("expected 'typescript' for .jsx file auto-detection, got %q", lang)
+	}
+}
+
+func TestResolveLang_CanonicalValues(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"go", "go"},
+		{"ts", "typescript"},
+		{"tsx", "typescriptreact"},
+		{"js", "javascript"},
+		{"jsx", "javascriptreact"},
+		{"typescript", "typescript"},
+		{"typescriptreact", "typescriptreact"},
+		{"javascript", "javascript"},
+		{"javascriptreact", "javascriptreact"},
+	}
+	for _, tt := range tests {
+		got := resolveLang(".", tt.input)
+		if got != tt.want {
+			t.Errorf("resolveLang(., %q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+
 func TestHasGoMod(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0644)

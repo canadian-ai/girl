@@ -262,15 +262,33 @@ func TestReactMemo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// NOTE: React.memo detection has a known limitation — the parser looks for
-	// the first named child of the call_expression (which is the callee, not the
-	// function argument). This test documents current behavior.
-	if len(fir.Components) == 0 {
-		t.Log("React.memo not detected (known limitation)")
-		return
+	if len(fir.Components) != 1 {
+		t.Fatalf("expected 1 component, got %d", len(fir.Components))
 	}
 	if fir.Components[0].Name != "Memoized" {
 		t.Errorf("expected Memoized, got %s", fir.Components[0].Name)
+	}
+	if fir.Components[0].Kind != ir.ComponentKindArrow {
+		t.Errorf("expected arrow kind, got %s", fir.Components[0].Kind)
+	}
+}
+
+func TestReactMemoNamedFunction(t *testing.T) {
+	dir := t.TempDir()
+	content := `const MemoizedNamed = React.memo(function Inner() {
+  return <section/>;
+});`
+	path := writeFile(t, dir, "memo_named.tsx", content)
+
+	fir, err := New().ParseFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fir.Components) != 1 {
+		t.Fatalf("expected 1 component, got %d", len(fir.Components))
+	}
+	if fir.Components[0].Name != "MemoizedNamed" {
+		t.Errorf("expected MemoizedNamed, got %s", fir.Components[0].Name)
 	}
 }
 
@@ -384,11 +402,8 @@ func TestLoopCount(t *testing.T) {
 	if len(fir.Components) != 1 {
 		t.Fatalf("expected 1 component, got %d", len(fir.Components))
 	}
-	// NOTE: loop counter uses ChildByFieldName("function") which for method
-	// calls like items.map returns the member expression, not "map". Known
-	// limitation.
-	if fir.Components[0].LoopCount == 0 {
-		t.Log("items.map not counted as loop (known limitation — method calls)")
+	if fir.Components[0].LoopCount < 1 {
+		t.Errorf("expected LoopCount >= 1 (items.map), got %d", fir.Components[0].LoopCount)
 	}
 }
 
@@ -591,9 +606,9 @@ func TestTemplateLiteralAttr(t *testing.T) {
 	}
 }
 
-func TestForwardRef(t *testing.T) {
+func TestForwardRefComponent(t *testing.T) {
 	dir := t.TempDir()
-	content := `const FancyInput = React.forwardRef<HTMLInputElement, Props>((props, ref) => {
+	content := `const Input = forwardRef<HTMLInputElement, Props>((props, ref) => {
   return <input ref={ref} />;
 });`
 	path := writeFile(t, dir, "forwardref.tsx", content)
@@ -602,10 +617,75 @@ func TestForwardRef(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// forwardRef is not detected by current queries (different call_expression
-	// structure). This just verifies no crash.
-	if len(fir.Components) > 0 {
-		t.Logf("forwardRef component was detected (name=%s) — queries may have been updated", fir.Components[0].Name)
+	if len(fir.Components) != 1 {
+		t.Fatalf("expected 1 component, got %d", len(fir.Components))
+	}
+	if fir.Components[0].Name != "Input" {
+		t.Errorf("expected Input, got %s", fir.Components[0].Name)
+	}
+}
+
+func TestForwardRefReactComponent(t *testing.T) {
+	dir := t.TempDir()
+	content := `const Input = React.forwardRef<HTMLInputElement, Props>(function InputInner(props, ref) {
+  return <input ref={ref} />;
+});`
+	path := writeFile(t, dir, "forwardref_react.tsx", content)
+
+	fir, err := New().ParseFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fir.Components) != 1 {
+		t.Fatalf("expected 1 component, got %d", len(fir.Components))
+	}
+	if fir.Components[0].Name != "Input" {
+		t.Errorf("expected Input, got %s", fir.Components[0].Name)
+	}
+	if fir.Components[0].Kind != ir.ComponentKindFunction {
+		t.Errorf("expected function kind, got %s", fir.Components[0].Kind)
+	}
+}
+
+func TestOptionalChainingJSX(t *testing.T) {
+	dir := t.TempDir()
+	content := `function OptionalComp({ user }) {
+  return <div>{user?.profile?.name}</div>;
+}`
+	path := writeFile(t, dir, "optchain_jsx.tsx", content)
+
+	fir, err := New().ParseFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fir.Components) != 1 {
+		t.Fatalf("expected 1 component, got %d", len(fir.Components))
+	}
+	if fir.Components[0].Name != "OptionalComp" {
+		t.Errorf("expected OptionalComp, got %s", fir.Components[0].Name)
+	}
+	if fir.Components[0].EndLine <= fir.Components[0].StartLine {
+		t.Error("component body bounds are not sane: EndLine <= StartLine")
+	}
+}
+
+func TestTemplateLiteralJSX(t *testing.T) {
+	dir := t.TempDir()
+	content := "function TemplateAttrComp({ id }) {\n  return <div className={`card-${id}`} data-id={`${id}`} />;\n}"
+	path := writeFile(t, dir, "templit_jsx.tsx", content)
+
+	fir, err := New().ParseFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fir.Components) != 1 {
+		t.Fatalf("expected 1 component, got %d", len(fir.Components))
+	}
+	if fir.Components[0].Name != "TemplateAttrComp" {
+		t.Errorf("expected TemplateAttrComp, got %s", fir.Components[0].Name)
+	}
+	if fir.Components[0].EndLine <= fir.Components[0].StartLine {
+		t.Error("component body bounds are not sane: EndLine <= StartLine")
 	}
 }
 

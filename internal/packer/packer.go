@@ -16,13 +16,18 @@ import (
 
 type Packer struct {
 	MaxTokens int
+	estimator tokens.Estimator
 }
 
-func NewPacker(maxTokens int) *Packer {
+func NewPacker(maxTokens int, opts ...tokens.Estimator) *Packer {
 	if maxTokens <= 0 {
 		maxTokens = 12000
 	}
-	return &Packer{MaxTokens: maxTokens}
+	var est tokens.Estimator = tokens.NewHeuristicEstimator()
+	if len(opts) > 0 && opts[0] != nil {
+		est = opts[0]
+	}
+	return &Packer{MaxTokens: maxTokens, estimator: est}
 }
 
 type PackRequest struct {
@@ -235,8 +240,7 @@ func (p *Packer) createSnippet(readPath, relPath string, comp ir.ComponentIR, bu
 	snippetLines := lines[comp.StartLine-1 : comp.EndLine]
 	content := strings.Join(snippetLines, "\n")
 
-	est := tokens.NewHeuristicEstimator()
-	snipTokens := est.Estimate(content)
+	snipTokens := p.estimator.Estimate(content)
 
 	if snipTokens > budget {
 		maxChars := budget * 3
@@ -294,8 +298,7 @@ func (p *Packer) createDiagnosticSnippet(readPath, relPath string, d ir.Diagnost
 	hash := sha256.Sum256([]byte(content))
 	content = fmt.Sprintf("// contentHash: %x\n%s", hash[:8], content)
 
-	est := tokens.NewHeuristicEstimator()
-	snipTokens := est.Estimate(content)
+	snipTokens := p.estimator.Estimate(content)
 	if snipTokens > budget {
 		maxChars := budget * 3
 		if maxChars < 200 {
