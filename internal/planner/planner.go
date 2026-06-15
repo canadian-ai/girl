@@ -7,6 +7,7 @@ import (
 
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/recipes"
+	"github.com/canadian-ai/girl/internal/tokens"
 	"github.com/canadian-ai/girl/internal/verification"
 )
 
@@ -235,9 +236,10 @@ func isSlugSeparator(r rune) bool {
 }
 
 func estimateTokens(steps []ir.GrpStep) int {
+	est := tokens.NewHeuristicEstimator()
 	total := 0
 	for _, s := range steps {
-		total += len(s.Action) / 3
+		total += est.Estimate(s.Action)
 	}
 	return total
 }

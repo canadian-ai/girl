@@ -1,30 +1,29 @@
 # GIRL
 
-**Grammar-Informed Refactoring Language** for AI coding agents.
+**Grammar-Informed Refactoring Language** — a CLI for analyzing code and
+generating GRP refactoring plans.
 
-> **GRP Core** is the envelope. Bindings define how specific languages, frameworks, and tools speak it.
->
-> **GIRL** is the first reference implementation of GRP, starting with Go, TypeScript, and React bindings.
+> **GRP** (Green Refactoring Protocol) is the protocol/schema for structured,
+> source-grounded refactoring plans. **GIRL** is the reference CLI
+> implementation of GRP, starting with Go, TypeScript, and React bindings.
 
 GIRL analyzes code, detects refactoring opportunities, and generates structured
-GRP (Grammar Refactoring Protocol) plans that make agent refactoring safe,
-repeatable, and token-efficient.
+GRP plans that make agent refactoring safe, repeatable, and token-efficient.
 
 ## Design Philosophy
 
-GRP does not care how you parse code.
-GRP only cares that you can describe the refactor clearly.
-
-GIRL is not a parser, linter, codemod engine, or AI agent. It is the handoff protocol between them.
+GRP is language-agnostic. GIRL uses tree-sitter for TypeScript/React/JavaScript
+parsing and `go/ast` for Go analysis. These choices are implementation details —
+GRP plans are parser-independent.
 
 ## GRP vs GIRL
 
 | | GRP | GIRL |
 |---|---|---|
-| **Role** | Minimal protocol for source-grounded refactoring plans | First reference implementation of GRP |
-| **Scope** | Plan envelope, diagnostics, steps, verification | Go and TypeScript analyzers, recipe engine, CLI |
-| **Extensible** | Yes — binding namespaced codes like `go.*`, `react.*` | Yes — register new recipes and diagnostics |
-| **Language** | Language-agnostic | Focused on Go and TypeScript/React |
+| **Role** | Protocol/schema for source-grounded refactoring plans | Reference CLI implementation of GRP |
+| **Scope** | Plan envelope, diagnostics, steps, verification | Analyzers (go/ast, tree-sitter), recipe engine, CLI |
+| **Extensible** | Via binding namespaced codes (`go.*`, `react.*`) | Register recipes and diagnostics in code |
+| **Language** | Language-agnostic | Go (go/ast), TypeScript/React (tree-sitter) |
 
 **Non-goals for GRP Core:**
 - parser or AST format
@@ -39,7 +38,7 @@ Binding maturity is tracked in [docs/bindings/maturity.md](docs/bindings/maturit
 
 ```txt
 Source code
-  -> language/tool-specific analyzer
+  -> analyzer (go/ast for Go, tree-sitter + sitter queries for TS/JS/TSX/JSX)
   -> binding maps findings into GRP diagnostics
   -> GRP plan
   -> GIRL context pack
@@ -51,7 +50,7 @@ Source code
 
 - **Prompt-based refactoring** is vague and unpredictable.
 - **AST-only tools** are rigid and miss semantic intent.
-- **GIRL** combines grammar rules, code structure, semantic analysis, and
+- **GIRL** combines tree-sitter grammar queries, code structure analysis, and
   verification into a compact protocol for AI agents.
 
 ## Quick Start
@@ -117,6 +116,9 @@ Creates a token-budgeted context pack optimized for AI coding agents.
 Includes file summaries, selected component snippets, diagnostics, steps,
 risks, and verification commands.
 
+Token estimation is heuristic (`len(text)/3`). A real tokenizer (tiktoken,
+tokenizers) can be swapped in via the `tokens.Estimator` interface.
+
 ### `girl validate`
 
 Validates a GRP plan JSON file against the core requirements:
@@ -130,7 +132,9 @@ Detects available verification commands for a project by inspecting
 
 ## GIRL Recipes
 
-Recipes are the unit of refactoring knowledge:
+Recipes are the unit of refactoring knowledge. Thresholds (lines, counts) are
+configured in Go code via `internal/recipes.Thresholds` and its
+`DefaultThresholds()` function — not YAML or config files.
 
 - `react.split-large-component` — Split components by responsibility boundary
 - `react.extract-repeated-jsx` — Extract repeated JSX into reusable components
@@ -217,7 +221,6 @@ See [Namespaces](docs/namespaces.md) for the complete namespace convention.
 ## Future Tool Bindings (post-v0.1)
 
 - GritQL binding
-- Tree-sitter binding
 - OpenRewrite binding
 - ESLint binding
 - SARIF binding
@@ -247,12 +250,10 @@ Or via the GIRL skill:
 
 ```txt
 source code
-  -> Go parser (AST analysis)
-  -> visitor pattern (responsibility detection)
-  -> recipe engine (pattern matching)
+  -> analyzers (go/ast for Go, tree-sitter for TS/JS/TSX/JSX)
+  -> recipe engine (pattern matching with code-configured thresholds)
   -> GRP plan generator (structured plan)
-  -> context packer (token-optimized agent input)
-  -> agent coding harness (safe apply)
+  -> context packer (token-optimized agent input with heuristic estimator)
   -> verification (typecheck/lint/test)
 ```
 

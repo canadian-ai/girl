@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/lang"
 	"github.com/canadian-ai/girl/internal/planner"
 	"github.com/canadian-ai/girl/pkg/grp"
 	"github.com/urfave/cli/v2"
@@ -46,8 +47,8 @@ func PlanCommand() *cli.Command {
 		},
 		Action: func(c *cli.Context) error {
 			path := commandPath(c)
-			lang := resolveLang(path, c.String("lang"))
-			result, err := analyzePath(path, lang)
+			langName := resolveLang(path, c.String("lang"))
+			result, err := analyzePath(path, langName)
 			if err != nil {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
@@ -59,7 +60,7 @@ func PlanCommand() *cli.Command {
 				Recipe:      c.String("recipe"),
 				Diagnostics: result.Diagnostics,
 				Files:       result.Files,
-				Lang:        lang,
+				Lang:        langName,
 			})
 
 			switch stringFlag(c, "output", "o") {
@@ -67,9 +68,9 @@ func PlanCommand() *cli.Command {
 				printPlanMarkdown(plan)
 			case "grp-json":
 				gp := grp.FromIRPlan(plan)
-				gp.Language = lang
+				gp.Language = lang.Resolve(langName)
 				grp.NormalizePlan(gp)
-				gp.ID = canonicalGRPPlanID(plan, lang)
+				gp.ID = canonicalGRPPlanID(plan, langName)
 				result := grp.ValidatePlan(gp)
 				if !result.Valid {
 					fmt.Fprintf(os.Stderr, "Warning: generated plan has validation issues:\n")

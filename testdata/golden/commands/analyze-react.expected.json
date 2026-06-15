@@ -1,0 +1,207 @@
+{
+  "files": [
+    {
+      "path": "testdata/golden/commands/simple-react/App.tsx",
+      "language": "typescriptreact",
+      "lines": 48,
+      "components": [
+        {
+          "name": "App",
+          "filePath": "testdata/golden/commands/simple-react/App.tsx",
+          "kind": "function",
+          "startLine": 3,
+          "endLine": 47,
+          "lines": 45,
+          "hooks": [
+            {
+              "name": "useState",
+              "line": 4,
+              "args": [
+                "0"
+              ],
+              "depsCount": 0
+            },
+            {
+              "name": "useState",
+              "line": 5,
+              "args": [
+                "''"
+              ],
+              "depsCount": 0
+            },
+            {
+              "name": "useState",
+              "line": 6,
+              "args": [
+                "[]"
+              ],
+              "depsCount": 0
+            },
+            {
+              "name": "useState",
+              "line": 7,
+              "args": [
+                "false"
+              ],
+              "depsCount": 0
+            },
+            {
+              "name": "useState",
+              "line": 8,
+              "args": [
+                "''"
+              ],
+              "depsCount": 0
+            },
+            {
+              "name": "useEffect",
+              "line": 10,
+              "args": [
+                "() =\u003e {\n    document.title = `Count: ${count}`;\n  }, [count]"
+              ],
+              "depsCount": 0
+            },
+            {
+              "name": "useEffect",
+              "line": 14,
+              "args": [
+                "() =\u003e {\n    setLoading(true);\n    fetch(`/api/items?q=${search}`)\n      .then((r) =\u003e r.json())\n      .then((data) =\u003e {\n        setItems(data);\n        setLoading(false);\n      })\n      .catch(() =\u003e setLoading(false));\n  }, [search]"
+              ],
+              "depsCount": 0
+            },
+            {
+              "name": "useEffect",
+              "line": 25,
+              "args": [
+                "() =\u003e {\n    console.log('items updated:', items.length);\n  }, [items]"
+              ],
+              "depsCount": 0
+            }
+          ],
+          "jsxBlocks": [],
+          "props": [],
+          "stateVars": [
+            {
+              "name": "count",
+              "line": 4,
+              "hasUpdater": true
+            },
+            {
+              "name": "text",
+              "line": 5,
+              "hasUpdater": true
+            },
+            {
+              "name": "items",
+              "line": 6,
+              "hasUpdater": true
+            },
+            {
+              "name": "loading",
+              "line": 7,
+              "hasUpdater": true
+            },
+            {
+              "name": "search",
+              "line": 8,
+              "hasUpdater": true
+            }
+          ],
+          "effects": [
+            {
+              "name": "useEffect",
+              "line": 10,
+              "depsCount": 0,
+              "isAsync": false,
+              "hasReturn": false
+            },
+            {
+              "name": "useEffect",
+              "line": 14,
+              "depsCount": 0,
+              "isAsync": false,
+              "hasReturn": false
+            },
+            {
+              "name": "useEffect",
+              "line": 25,
+              "depsCount": 0,
+              "isAsync": false,
+              "hasReturn": false
+            }
+          ],
+          "eventHandlers": [],
+          "imports": null,
+          "exports": [
+            {
+              "name": "App",
+              "default": false
+            }
+          ],
+          "childComponents": null,
+          "hasKeyDown": false,
+          "hasAnalytics": false,
+          "conditionalCount": 0,
+          "loopCount": 0
+        }
+      ],
+      "hooks": null,
+      "imports": [
+        {
+          "source": "react",
+          "names": [
+            "useState",
+            "useEffect"
+          ],
+          "default": "React"
+        }
+      ]
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "react.mixed-responsibilities",
+      "severity": "medium",
+      "message": "Component \"App\" has ~3 detected responsibilities",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "line": 0,
+      "component": "App",
+      "suggestion": "Separate concerns by splitting this component. Responsibilities: state management, side effects, event handling, analytics.",
+      "kind": "component",
+      "symbol": "App"
+    },
+    {
+      "code": "react.too-many-effects",
+      "severity": "medium",
+      "message": "Component \"App\" has 3 useEffect calls (limit: 2)",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "line": 0,
+      "component": "App",
+      "suggestion": "Consider consolidating effects or moving side-effect logic into custom hooks.",
+      "kind": "component",
+      "symbol": "App"
+    },
+    {
+      "code": "react.too-many-state-vars",
+      "severity": "medium",
+      "message": "Component \"App\" has 5 state variables (limit: 4)",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "line": 0,
+      "component": "App",
+      "suggestion": "Consider using useReducer or extracting related state into a custom hook.",
+      "kind": "component",
+      "symbol": "App"
+    },
+    {
+      "code": "react.too-many-hooks",
+      "severity": "low",
+      "message": "Component \"App\" has 8 hooks (limit: 5)",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "line": 0,
+      "component": "App",
+      "suggestion": "Extract related hooks into custom hooks using the Extract Custom Hook recipe.",
+      "kind": "component",
+      "symbol": "App"
+    }
+  ]
+}

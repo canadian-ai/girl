@@ -20,14 +20,18 @@ type Recipe interface {
 	GenerateStep(diag ir.Diagnostic) ir.GrpStep
 }
 
-func NewEngine() *RecipeEngine {
+func NewEngine(opts ...*Thresholds) *RecipeEngine {
+	t := DefaultThresholds()
+	if len(opts) > 0 && opts[0] != nil {
+		t = opts[0]
+	}
 	return &RecipeEngine{
 		recipes: []Recipe{
-			&SplitLargeComponent{},
-			&ExtractRepeatedJSX{},
-			&ExtractCustomHook{},
-			&ReduceStateVars{},
-			&ConsolidateEffects{},
+			&SplitLargeComponent{thresholds: t},
+			&ExtractRepeatedJSX{thresholds: t},
+			&ExtractCustomHook{thresholds: t},
+			&ReduceStateVars{thresholds: t},
+			&ConsolidateEffects{thresholds: t},
 			&AddPropTypes{},
 		},
 	}
@@ -52,13 +56,15 @@ func (e *RecipeEngine) GenerateStep(recipeID string, diag ir.Diagnostic) ir.GrpS
 	return ir.GrpStep{}
 }
 
-type SplitLargeComponent struct{}
+type SplitLargeComponent struct {
+	thresholds *Thresholds
+}
 
 func (r *SplitLargeComponent) ID() string          { return "react.split-large-component" }
 func (r *SplitLargeComponent) Description() string { return "Split a large component into smaller focused components" }
 
 func (r *SplitLargeComponent) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) {
-	if comp.Lines < 200 {
+	if comp.Lines < r.thresholds.LargeComponentLines {
 		return nil, false
 	}
 	return &RecipeMatch{
@@ -78,7 +84,9 @@ func (r *SplitLargeComponent) GenerateStep(diag ir.Diagnostic) ir.GrpStep {
 	}
 }
 
-type ExtractRepeatedJSX struct{}
+type ExtractRepeatedJSX struct {
+	thresholds *Thresholds
+}
 
 func (r *ExtractRepeatedJSX) ID() string          { return "react.extract-repeated-jsx" }
 func (r *ExtractRepeatedJSX) Description() string { return "Extract repeated JSX blocks into a reusable component" }
@@ -89,7 +97,7 @@ func (r *ExtractRepeatedJSX) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) 
 		counts[b.Element]++
 	}
 	for _, count := range counts {
-		if count >= 3 {
+		if count >= r.thresholds.RepeatedJSXCount {
 			return &RecipeMatch{
 				RecipeID:    r.ID(),
 				Description: r.Description(),
@@ -110,13 +118,15 @@ func (r *ExtractRepeatedJSX) GenerateStep(diag ir.Diagnostic) ir.GrpStep {
 	}
 }
 
-type ExtractCustomHook struct{}
+type ExtractCustomHook struct {
+	thresholds *Thresholds
+}
 
 func (r *ExtractCustomHook) ID() string          { return "react.extract-custom-hook" }
 func (r *ExtractCustomHook) Description() string { return "Extract related hook logic into a custom hook" }
 
 func (r *ExtractCustomHook) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) {
-	if len(comp.Hooks) > 5 || (len(comp.Effects) > 1 && len(comp.StateVars) > 2) {
+	if len(comp.Hooks) > r.thresholds.MaxHooksPerComponent || (len(comp.Effects) > 1 && len(comp.StateVars) > 2) {
 		return &RecipeMatch{
 			RecipeID:    r.ID(),
 			Description: r.Description(),
@@ -143,13 +153,15 @@ func (r *ExtractCustomHook) GenerateStep(diag ir.Diagnostic) ir.GrpStep {
 	}
 }
 
-type ReduceStateVars struct{}
+type ReduceStateVars struct {
+	thresholds *Thresholds
+}
 
 func (r *ReduceStateVars) ID() string          { return "react.reduce-state-vars" }
 func (r *ReduceStateVars) Description() string { return "Consolidate multiple state variables into a reducer or grouped state" }
 
 func (r *ReduceStateVars) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) {
-	if len(comp.StateVars) > 4 {
+	if len(comp.StateVars) > r.thresholds.MaxStateVars {
 		return &RecipeMatch{
 			RecipeID:    r.ID(),
 			Description: r.Description(),
@@ -169,13 +181,15 @@ func (r *ReduceStateVars) GenerateStep(diag ir.Diagnostic) ir.GrpStep {
 	}
 }
 
-type ConsolidateEffects struct{}
+type ConsolidateEffects struct {
+	thresholds *Thresholds
+}
 
 func (r *ConsolidateEffects) ID() string          { return "react.consolidate-effects" }
 func (r *ConsolidateEffects) Description() string { return "Consolidate multiple useEffect calls" }
 
 func (r *ConsolidateEffects) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) {
-	if len(comp.Effects) > 2 {
+	if len(comp.Effects) > r.thresholds.MaxEffects {
 		return &RecipeMatch{
 			RecipeID:    r.ID(),
 			Description: r.Description(),

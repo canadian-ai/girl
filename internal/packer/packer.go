@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/tokens"
 	"github.com/canadian-ai/girl/internal/verification"
 )
 
@@ -234,15 +235,16 @@ func (p *Packer) createSnippet(readPath, relPath string, comp ir.ComponentIR, bu
 	snippetLines := lines[comp.StartLine-1 : comp.EndLine]
 	content := strings.Join(snippetLines, "\n")
 
-	tokens := len(content) / 3
+	est := tokens.NewHeuristicEstimator()
+	snipTokens := est.Estimate(content)
 
-	if tokens > budget {
+	if snipTokens > budget {
 		maxChars := budget * 3
 		if maxChars < 200 {
 			maxChars = 200
 		}
 		content = content[:maxChars] + "\n// ... truncated to fit budget"
-		tokens = budget
+		snipTokens = budget
 	}
 
 	return &ir.Snippet{
@@ -250,7 +252,7 @@ func (p *Packer) createSnippet(readPath, relPath string, comp ir.ComponentIR, bu
 		StartLine: comp.StartLine,
 		EndLine:   comp.EndLine,
 		Content:   content,
-		Tokens:    tokens,
+		Tokens:    snipTokens,
 	}
 }
 
@@ -292,14 +294,15 @@ func (p *Packer) createDiagnosticSnippet(readPath, relPath string, d ir.Diagnost
 	hash := sha256.Sum256([]byte(content))
 	content = fmt.Sprintf("// contentHash: %x\n%s", hash[:8], content)
 
-	tokens := len(content) / 3
-	if tokens > budget {
+	est := tokens.NewHeuristicEstimator()
+	snipTokens := est.Estimate(content)
+	if snipTokens > budget {
 		maxChars := budget * 3
 		if maxChars < 200 {
 			maxChars = 200
 		}
 		content = content[:maxChars] + "\n// ... truncated"
-		tokens = budget
+		snipTokens = budget
 	}
 
 	return &ir.Snippet{
@@ -307,7 +310,7 @@ func (p *Packer) createDiagnosticSnippet(readPath, relPath string, d ir.Diagnost
 		StartLine: startLine,
 		EndLine:   endLine,
 		Content:   content,
-		Tokens:    tokens,
+		Tokens:    snipTokens,
 	}
 }
 

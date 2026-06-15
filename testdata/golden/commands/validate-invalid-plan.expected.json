@@ -1,0 +1,75 @@
+{
+  "valid": false,
+  "errors": [
+    {
+      "field": "id",
+      "message": "must not be empty",
+      "severity": "error"
+    },
+    {
+      "field": "type",
+      "message": "must not be empty",
+      "severity": "error"
+    },
+    {
+      "field": "source",
+      "message": "must not be empty",
+      "severity": "error"
+    },
+    {
+      "field": "subject",
+      "message": "must not be empty",
+      "severity": "error"
+    },
+    {
+      "field": "language",
+      "message": "must not be empty",
+      "severity": "error"
+    },
+    {
+      "field": "goal",
+      "message": "must not be empty",
+      "severity": "error"
+    },
+    {
+      "field": "diagnostics[0].id",
+      "message": "must not be empty",
+      "severity": "error"
+    },
+    {
+      "field": "diagnostics[0].code",
+      "message": "must not be empty",
+      "severity": "error"
+    },
+    {
+      "field": "diagnostics[0].message",
+      "message": "must not be empty",
+      "severity": "error"
+    },
+    {
+      "field": "diagnostics[0].file",
+      "message": "must not be empty",
+      "severity": "error"
+    },
+    {
+      "field": "steps[0].id",
+      "message": "must not be empty",
+      "severity": "error"
+    },
+    {
+      "field": "steps[0].title",
+      "message": "must not be empty",
+      "severity": "error"
+    },
+    {
+      "field": "steps[0].action",
+      "message": "must not be empty",
+      "severity": "error"
+    },
+    {
+      "field": "steps[0].target.file",
+      "message": "must not be empty",
+      "severity": "error"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import (
 	"github.com/canadian-ai/girl/internal/analyzer"
 	"github.com/canadian-ai/girl/internal/goanalysis"
 	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/lang"
 	"github.com/canadian-ai/girl/internal/shared"
 	"github.com/urfave/cli/v2"
 )
@@ -65,13 +66,13 @@ func HasPackageJSON(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
-func resolveLang(path string, lang string) string {
-	if lang != "auto" {
-		return lang
+func resolveLang(path string, langStr string) string {
+	if langStr != "auto" {
+		return lang.Resolve(langStr)
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return "ts"
+		return lang.Resolve("ts")
 	}
 	if info.IsDir() {
 		hasGoMod := HasGoMod(path)
@@ -82,25 +83,25 @@ func resolveLang(path string, lang string) string {
 		}
 
 		if hasGoMod {
-			return "go"
+			return lang.Go
 		}
 
 		hasGo, hasTS := detectLangFiles(path)
 		if hasGo && !hasTS {
-			return "go"
+			return lang.Go
 		}
 		if !hasGo && hasTS {
-			return "ts"
+			return lang.TypeScript
 		}
 		if hasGo && hasTS {
 			fmt.Fprintln(os.Stderr, "warning: mixed Go/TypeScript repo detected, use --lang go or --lang ts for precise analysis")
 		}
-		return "ts"
+		return lang.TypeScript
 	}
 	if goanalysis.IsGoFile(path) {
-		return "go"
+		return lang.Go
 	}
-	return "ts"
+	return lang.TypeScript
 }
 
 func detectLangFiles(path string) (bool, bool) {

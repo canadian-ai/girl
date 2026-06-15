@@ -1,0 +1,171 @@
+{
+  "specversion": "0.1",
+  "id": "grp_b3fcaa13",
+  "type": "dev.refactor.plan",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/golden/commands/simple-react",
+  "language": "ts",
+  "goal": "Improve code quality",
+  "risk": "medium",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "react.mixed-responsibilities",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Component \"App\" has ~3 detected responsibilities",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "symbol": {
+        "kind": "component",
+        "name": "App"
+      }
+    },
+    {
+      "id": "diag_002",
+      "code": "react.too-many-effects",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Component \"App\" has 3 useEffect calls (limit: 2)",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "symbol": {
+        "kind": "component",
+        "name": "App"
+      }
+    },
+    {
+      "id": "diag_003",
+      "code": "react.too-many-state-vars",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Component \"App\" has 5 state variables (limit: 4)",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "symbol": {
+        "kind": "component",
+        "name": "App"
+      }
+    },
+    {
+      "id": "diag_004",
+      "code": "react.too-many-hooks",
+      "severity": "low",
+      "confidence": "high",
+      "message": "Component \"App\" has 8 hooks (limit: 5)",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "symbol": {
+        "kind": "component",
+        "name": "App"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_react.too-many-effects_app",
+      "recipe": "react.consolidate-effects",
+      "title": "react.consolidate-effects",
+      "action": "Consolidate useEffect calls in App",
+      "target": {
+        "file": "testdata/golden/commands/simple-react/App.tsx"
+      },
+      "risk": "medium",
+      "requires": [
+        "diag_002"
+      ],
+      "verify": [
+        {
+          "command": "typecheck",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "tests",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "step_002_react.too-many-state-vars_app",
+      "recipe": "react.reduce-state-vars",
+      "title": "react.reduce-state-vars",
+      "action": "Consolidate state variables in App using useReducer",
+      "target": {
+        "file": "testdata/golden/commands/simple-react/App.tsx"
+      },
+      "risk": "medium",
+      "requires": [
+        "diag_003"
+      ],
+      "verify": [
+        {
+          "command": "typecheck",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "tests",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "step_003_react.mixed-responsibilities_app",
+      "recipe": "react.split-large-component",
+      "title": "react.split-large-component",
+      "action": "Separate concerns in App by extracting non-UI logic",
+      "target": {
+        "file": "testdata/golden/commands/simple-react/App.tsx"
+      },
+      "risk": "medium",
+      "requires": [
+        "diag_001"
+      ],
+      "verify": [
+        {
+          "command": "typecheck",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "tests",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "step_004_react.too-many-hooks_app",
+      "recipe": "react.extract-custom-hook",
+      "title": "react.extract-custom-hook",
+      "action": "Extract hooks from App into custom hooks",
+      "target": {
+        "file": "testdata/golden/commands/simple-react/App.tsx"
+      },
+      "risk": "low",
+      "requires": [
+        "diag_004"
+      ],
+      "verify": [
+        {
+          "command": "typecheck",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "tests",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    }
+  ],
+  "verification": []
+}

@@ -61,7 +61,7 @@ implementation that produced it.
 | `type` | string | Plan type discriminator, e.g. `"dev.refactor.plan"` |
 | `source` | string | Producer identifier, e.g. `"github.com/canadian-ai/girl"` |
 | `subject` | string | Repo-relative target path |
-| `language` | string | Language tag: `"go"`, `"ts"`, `"js"`, or `"auto"` |
+| `language` | string | Language tag: `"go"`, `"typescript"`, `"typescriptreact"`, `"javascript"`, `"javascriptreact"`, or `"auto"` |
 | `goal` | string | Description of what the refactor achieves |
 | `risk` | string | One of: `"low"`, `"medium"`, `"high"` |
 | `diagnostics` | array | Array of [Diagnostic](#diagnostic) objects |
@@ -89,7 +89,7 @@ A **binding** maps a language, framework, or tool into GRP by defining:
 - **Recipe identifiers** — namespaced actions like `go.extract-function`
 - **Verification rules** — repo-native commands for that ecosystem
 - **Parser/analyzer choices** — GRP does not mandate a parser; each binding
-  selects its own (e.g. `go/parser`, TypeScript Compiler API, Tree-sitter)
+  selects its own (e.g. `go/parser` for Go, tree-sitter for TS/React in GIRL)
 
 Bindings use the extension system to carry binding-specific metadata.
 Consumers that do not support a given binding MUST ignore its extension fields.
@@ -101,13 +101,13 @@ Consumers that do not support a given binding MUST ignore its extension fields.
 - Verification: `go test ./...`, `go vet ./...`, `go build ./...`
 
 ### GRP-TypeScript
-- Analyzer: TypeScript Compiler API, ts-morph, Tree-sitter, or Babel/SWC
+- Analyzer: TypeScript Compiler API, ts-morph, or tree-sitter
 - Diagnostics: `ts.large-function`, `ts.complex-conditional`, `ts.unsafe-any`,
   `ts.large-file`, `ts.duplicated-logic`
 - Verification: TypeScript compiler check, tsconfig lint rules
 
 ### GRP-React
-- Framework binding layered on TS/JS analysis
+- Framework binding layered on TS/JS analysis (tree-sitter in GIRL)
 - Diagnostics: `react.large-component`, `react.too-many-hooks`,
   `react.repeated-jsx`, `react.mixed-responsibilities`
 - Recipes: `react.split-large-component`, `react.extract-repeated-jsx`,
