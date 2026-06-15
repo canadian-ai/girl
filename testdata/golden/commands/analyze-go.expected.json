@@ -1,0 +1,39 @@
+{
+  "files": [
+    {
+      "path": "testdata/golden/commands/simple-go/main.go",
+      "language": "go",
+      "lines": 119,
+      "components": null,
+      "hooks": null,
+      "imports": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "go.deep-nesting",
+      "severity": "low",
+      "message": "Function complexFunc has nesting depth 5 (limit: 4)",
+      "file": "testdata/golden/commands/simple-go/main.go",
+      "line": 105,
+      "suggestion": "Extract inner logic into helper functions or use guard clauses to flatten.",
+      "kind": "function",
+      "symbol": "complexFunc"
+    },
+    {
+      "code": "go.long-function",
+      "severity": "low",
+      "message": "Function longFunc in \"testdata/golden/commands/simple-go/main.go\" is 94 lines (limit: 80)",
+      "file": "testdata/golden/commands/simple-go/main.go",
+      "line": 10,
+      "suggestion": "Extract smaller helper functions or simplify the logic. Aim for functions under 50 lines.",
+      "kind": "function",
+      "symbol": "longFunc",
+      "endLine": 103,
+      "span": {
+        "startLine": 10,
+        "endLine": 103
+      }
+    }
+  ]
+}

@@ -15,65 +15,102 @@ import (
 	"github.com/smacker/go-tree-sitter/typescript/typescript"
 
 	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/lang"
 )
 
-type Parser struct {
-	initOnce sync.Once
-	tsxLang  *sitter.Language
-	tsLang   *sitter.Language
-	jsLang   *sitter.Language
-
-	importQ    *sitter.Query
-	importDefQ *sitter.Query
-	importNsQ  *sitter.Query
+type querySet struct {
+	importQ     *sitter.Query
+	importDefQ  *sitter.Query
+	importNsQ   *sitter.Query
 	importTypeQ *sitter.Query
-	compFuncQ  *sitter.Query
-	compArrowQ *sitter.Query
+	compFuncQ   *sitter.Query
+	compArrowQ  *sitter.Query
 	compFnExprQ *sitter.Query
-	compMemoQ  *sitter.Query
-	hookQ      *sitter.Query
-	stateVarQ  *sitter.Query
-	jsxElemQ   *sitter.Query
-	jsxSelfQ   *sitter.Query
-	handlerQ   *sitter.Query
-	exportQ    *sitter.Query
-	exportDefQ *sitter.Query
+	compMemoQ   *sitter.Query
+	hookQ       *sitter.Query
+	stateVarQ   *sitter.Query
+	jsxElemQ    *sitter.Query
+	jsxSelfQ    *sitter.Query
+	handlerQ    *sitter.Query
+	exportQ     *sitter.Query
+	exportDefQ  *sitter.Query
+}
+
+type Parser struct {
+	initOnce    sync.Once
+	tsxLang     *sitter.Language
+	tsLang      *sitter.Language
+	jsLang      *sitter.Language
+
+	querySets   map[*sitter.Language]*querySet
+	querySetsMu sync.Mutex
 }
 
 func New() *Parser {
 	return &Parser{}
 }
 
-func (p *Parser) lazyInit() *sitter.Query {
+func (p *Parser) lazyInit() {
 	p.initOnce.Do(func() {
 		p.tsxLang = tsx.GetLanguage()
 		p.tsLang = typescript.GetLanguage()
 		p.jsLang = javascript.GetLanguage()
-
-		lang := p.tsxLang
-		p.importQ = p.comp(lang, `(import_statement (import_clause (named_imports (import_specifier name: (identifier) @import_name)) (identifier)? @import_default) source: (string (string_fragment) @import_source)) @import_full`)
-		p.importDefQ = p.comp(lang, `(import_statement (import_clause (identifier) @import_default) source: (string (string_fragment) @import_source)) @import_full`)
-		p.importNsQ = p.comp(lang, `(import_statement (import_clause (namespace_import) @import_ns) source: (string (string_fragment) @import_source)) @import_full`)
-		p.importTypeQ = p.comp(lang, `(import_statement "type" (import_clause (named_imports (import_specifier name: (identifier) @import_name))) source: (string (string_fragment) @import_source)) @import_full`)
-		p.compFuncQ = p.comp(lang, `(function_declaration name: (identifier) @comp_name) @comp_func`)
-		p.compArrowQ = p.comp(lang, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (arrow_function))) @comp_arrow`)
-		p.compFnExprQ = p.comp(lang, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (function_expression))) @comp_fn_expr`)
-		p.compMemoQ = p.comp(lang, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (call_expression function: (_) @memo_func))) @comp_memo`)
-		p.hookQ = p.comp(lang, `(call_expression function: (identifier) @hook_name arguments: (arguments) @hook_args) @hook_call`)
-		p.stateVarQ = p.comp(lang, `(variable_declarator name: (array_pattern (identifier) @state_name (identifier) @state_setter) value: (call_expression function: (identifier) @state_fn arguments: (arguments (_)?))) @state_decl`)
-		p.jsxElemQ = p.comp(lang, `(jsx_element open_tag: (jsx_opening_element (identifier) @jsx_tag)) @jsx_elem`)
-		p.jsxSelfQ = p.comp(lang, `(jsx_self_closing_element (identifier) @jsx_tag) @jsx_self`)
-		p.handlerQ = p.comp(lang, `(variable_declarator name: (identifier) @handler_name) @handler_decl`)
-		p.exportQ = p.comp(lang, `(export_statement declaration: (_) @export_decl) @export_stmt`)
-		p.exportDefQ = p.comp(lang, `(export_statement "default" declaration: (_) @export_default_decl) @export_default`)
+		p.querySets = make(map[*sitter.Language]*querySet)
 	})
-	return p.importQ
+}
+
+func (p *Parser) buildQuerySet(lang *sitter.Language) *querySet {
+	return &querySet{
+		importQ:     p.comp(lang, `(import_statement (import_clause (named_imports (import_specifier name: (identifier) @import_name)) (identifier)? @import_default) source: (string (string_fragment) @import_source)) @import_full`),
+		importDefQ:  p.comp(lang, `(import_statement (import_clause (identifier) @import_default) source: (string (string_fragment) @import_source)) @import_full`),
+		importNsQ:   p.comp(lang, `(import_statement (import_clause (namespace_import) @import_ns) source: (string (string_fragment) @import_source)) @import_full`),
+		importTypeQ: p.compOrNil(lang, `(import_statement "type" (import_clause (named_imports (import_specifier name: (identifier) @import_name))) source: (string (string_fragment) @import_source)) @import_full`),
+		compFuncQ:   p.comp(lang, `(function_declaration name: (identifier) @comp_name) @comp_func`),
+		compArrowQ:  p.comp(lang, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (arrow_function))) @comp_arrow`),
+		compFnExprQ: p.comp(lang, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (function_expression))) @comp_fn_expr`),
+		compMemoQ:   p.comp(lang, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (call_expression function: (_) @memo_func))) @comp_memo`),
+		hookQ:       p.comp(lang, `(call_expression function: (identifier) @hook_name arguments: (arguments) @hook_args) @hook_call`),
+		stateVarQ:   p.comp(lang, `(variable_declarator name: (array_pattern (identifier) @state_name (identifier) @state_setter) value: (call_expression function: (identifier) @state_fn arguments: (arguments (_)?))) @state_decl`),
+		jsxElemQ:    p.compOrNil(lang, `(jsx_element open_tag: (jsx_opening_element (identifier) @jsx_tag)) @jsx_elem`),
+		jsxSelfQ:    p.compOrNil(lang, `(jsx_self_closing_element (identifier) @jsx_tag) @jsx_self`),
+		handlerQ:    p.comp(lang, `(variable_declarator name: (identifier) @handler_name) @handler_decl`),
+		exportQ:     p.comp(lang, `(export_statement declaration: (_) @export_decl) @export_stmt`),
+		exportDefQ:  p.comp(lang, `(export_statement "default" declaration: (_) @export_default_decl) @export_default`),
+	}
+}
+
+func (p *Parser) getOrBuildQuerySet(lang *sitter.Language) *querySet {
+	p.lazyInit()
+	p.querySetsMu.Lock()
+	defer p.querySetsMu.Unlock()
+	if qs, ok := p.querySets[lang]; ok {
+		return qs
+	}
+	qs := p.buildQuerySet(lang)
+	p.querySets[lang] = qs
+	return qs
+}
+
+func (p *Parser) querySetFor(path string) (*querySet, error) {
+	lang, err := p.grammarFor(path)
+	if err != nil {
+		return nil, err
+	}
+	return p.getOrBuildQuerySet(lang), nil
 }
 
 func (p *Parser) comp(lang *sitter.Language, pattern string) *sitter.Query {
 	q, err := sitter.NewQuery([]byte(pattern), lang)
 	if err != nil {
 		panic(fmt.Sprintf("invalid tree-sitter query: %v", err))
+	}
+	return q
+}
+
+func (p *Parser) compOrNil(lang *sitter.Language, pattern string) *sitter.Query {
+	q, err := sitter.NewQuery([]byte(pattern), lang)
+	if err != nil {
+		return nil
 	}
 	return q
 }
@@ -95,6 +132,11 @@ func (p *Parser) grammarFor(path string) (*sitter.Language, error) {
 
 func (p *Parser) ParseFile(path string) (*ir.FileIR, error) {
 	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	qs, err := p.querySetFor(path)
 	if err != nil {
 		return nil, err
 	}
@@ -121,8 +163,8 @@ func (p *Parser) ParseFile(path string) (*ir.FileIR, error) {
 		Imports:    nil,
 	}
 
-	fir.Imports = p.extractImports(root, data)
-	comps, hooks := p.extractComponents(root, data, path)
+	fir.Imports = p.extractImports(qs, root, data)
+	comps, hooks := p.extractComponents(qs, root, data, path)
 	fir.Components = comps
 	fir.Hooks = hooks
 
@@ -185,18 +227,21 @@ func isParseableExt(path string) bool {
 func languageTag(path string) string {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".tsx":
-		return "typescriptreact"
+		return lang.TypeScriptReact
 	case ".ts":
-		return "typescript"
+		return lang.TypeScript
 	case ".jsx":
-		return "javascriptreact"
+		return lang.JavaScriptReact
 	case ".js":
-		return "javascript"
+		return lang.JavaScript
 	}
 	return "unknown"
 }
 
 func (p *Parser) execQuery(q *sitter.Query, node *sitter.Node, data []byte) []*sitter.QueryMatch {
+	if q == nil {
+		return nil
+	}
 	cursor := sitter.NewQueryCursor()
 	cursor.Exec(q, node)
 	var matches []*sitter.QueryMatch
@@ -230,8 +275,7 @@ func captureContent(m *sitter.QueryMatch, q *sitter.Query, name string, data []b
 	return string(data[n.StartByte():n.EndByte()])
 }
 
-func (p *Parser) extractImports(root *sitter.Node, data []byte) []ir.ImportIR {
-	p.lazyInit()
+func (p *Parser) extractImports(qs *querySet, root *sitter.Node, data []byte) []ir.ImportIR {
 	imports := []ir.ImportIR{}
 	seen := map[string]int{}
 
@@ -262,27 +306,27 @@ func (p *Parser) extractImports(root *sitter.Node, data []byte) []ir.ImportIR {
 		}
 	}
 
-	for _, m := range p.execQuery(p.importQ, root, data) {
-		source := captureContent(m, p.importQ, "import_source", data)
-		def := captureContent(m, p.importQ, "import_default", data)
-		name := captureContent(m, p.importQ, "import_name", data)
+	for _, m := range p.execQuery(qs.importQ, root, data) {
+		source := captureContent(m, qs.importQ, "import_source", data)
+		def := captureContent(m, qs.importQ, "import_default", data)
+		name := captureContent(m, qs.importQ, "import_name", data)
 		merge(source, def, name)
 	}
 
-	for _, m := range p.execQuery(p.importDefQ, root, data) {
-		source := captureContent(m, p.importDefQ, "import_source", data)
-		def := captureContent(m, p.importDefQ, "import_default", data)
+	for _, m := range p.execQuery(qs.importDefQ, root, data) {
+		source := captureContent(m, qs.importDefQ, "import_source", data)
+		def := captureContent(m, qs.importDefQ, "import_default", data)
 		merge(source, def, "")
 	}
 
-	for _, m := range p.execQuery(p.importNsQ, root, data) {
-		source := captureContent(m, p.importNsQ, "import_source", data)
+	for _, m := range p.execQuery(qs.importNsQ, root, data) {
+		source := captureContent(m, qs.importNsQ, "import_source", data)
 		merge(source, "", "")
 	}
 
-	for _, m := range p.execQuery(p.importTypeQ, root, data) {
-		source := captureContent(m, p.importTypeQ, "import_source", data)
-		name := captureContent(m, p.importTypeQ, "import_name", data)
+	for _, m := range p.execQuery(qs.importTypeQ, root, data) {
+		source := captureContent(m, qs.importTypeQ, "import_source", data)
+		name := captureContent(m, qs.importTypeQ, "import_name", data)
 		merge(source, "", name)
 	}
 
@@ -296,15 +340,15 @@ type componentMatch struct {
 	isArrow bool
 }
 
-func (p *Parser) findComponentMatches(root *sitter.Node, data []byte) []componentMatch {
+func (p *Parser) findComponentMatches(qs *querySet, root *sitter.Node, data []byte) []componentMatch {
 	var matches []componentMatch
 
-	for _, m := range p.execQuery(p.compFuncQ, root, data) {
-		name := captureContent(m, p.compFuncQ, "comp_name", data)
+	for _, m := range p.execQuery(qs.compFuncQ, root, data) {
+		name := captureContent(m, qs.compFuncQ, "comp_name", data)
 		if !isComponentName(name) {
 			continue
 		}
-		fn := captureByName(m, p.compFuncQ, "comp_func")
+		fn := captureByName(m, qs.compFuncQ, "comp_func")
 		body := fn.ChildByFieldName("body")
 		params := fn.ChildByFieldName("parameters")
 		if body == nil || params == nil {
@@ -318,12 +362,12 @@ func (p *Parser) findComponentMatches(root *sitter.Node, data []byte) []componen
 		})
 	}
 
-	for _, m := range p.execQuery(p.compArrowQ, root, data) {
-		name := captureContent(m, p.compArrowQ, "comp_name", data)
+	for _, m := range p.execQuery(qs.compArrowQ, root, data) {
+		name := captureContent(m, qs.compArrowQ, "comp_name", data)
 		if !isComponentName(name) {
 			continue
 		}
-		decl := captureByName(m, p.compArrowQ, "comp_arrow")
+		decl := captureByName(m, qs.compArrowQ, "comp_arrow")
 		arrow := findChildByType(decl, "arrow_function")
 		if arrow == nil {
 			continue
@@ -343,12 +387,12 @@ func (p *Parser) findComponentMatches(root *sitter.Node, data []byte) []componen
 		}
 	}
 
-	for _, m := range p.execQuery(p.compFnExprQ, root, data) {
-		name := captureContent(m, p.compFnExprQ, "comp_name", data)
+	for _, m := range p.execQuery(qs.compFnExprQ, root, data) {
+		name := captureContent(m, qs.compFnExprQ, "comp_name", data)
 		if !isComponentName(name) {
 			continue
 		}
-		decl := captureByName(m, p.compFnExprQ, "comp_fn_expr")
+		decl := captureByName(m, qs.compFnExprQ, "comp_fn_expr")
 		fn := findChildByType(decl, "function_expression")
 		if fn == nil {
 			continue
@@ -366,12 +410,12 @@ func (p *Parser) findComponentMatches(root *sitter.Node, data []byte) []componen
 		})
 	}
 
-	for _, m := range p.execQuery(p.compMemoQ, root, data) {
-		name := captureContent(m, p.compMemoQ, "comp_name", data)
+	for _, m := range p.execQuery(qs.compMemoQ, root, data) {
+		name := captureContent(m, qs.compMemoQ, "comp_name", data)
 		if !isComponentName(name) {
 			continue
 		}
-		decl := captureByName(m, p.compMemoQ, "comp_memo")
+		decl := captureByName(m, qs.compMemoQ, "comp_memo")
 		vd := decl.NamedChild(0)
 		if vd == nil || vd.Type() != "variable_declarator" {
 			continue
@@ -433,9 +477,9 @@ func findChildByType(n *sitter.Node, typ string) *sitter.Node {
 	return nil
 }
 
-func (p *Parser) extractComponents(root *sitter.Node, data []byte, path string) ([]ir.ComponentIR, []ir.HookIR) {
-	matches := p.findComponentMatches(root, data)
-	exportedNames := p.exportedFunctionNames(root, data)
+func (p *Parser) extractComponents(qs *querySet, root *sitter.Node, data []byte, path string) ([]ir.ComponentIR, []ir.HookIR) {
+	matches := p.findComponentMatches(qs, root, data)
+	exportedNames := p.exportedFunctionNames(qs, root, data)
 
 	components := make([]ir.ComponentIR, 0, len(matches))
 	var topHooks []ir.HookIR
@@ -488,11 +532,11 @@ func (p *Parser) extractComponents(root *sitter.Node, data []byte, path string) 
 
 		bodyData := data[m.body.StartByte():m.body.EndByte()]
 
-		comp.Hooks = p.extractHooksInRange(m.body, data)
-		comp.StateVars = p.extractStateVarsInRange(m.body, data)
+		comp.Hooks = p.extractHooksInRange(qs, m.body, data)
+		comp.StateVars = p.extractStateVarsInRange(qs, m.body, data)
 		comp.Effects = extractEffectsFromHooks(comp.Hooks)
-		comp.JSXBlocks = p.extractJSXInRange(m.body, data)
-		comp.EventHandlers = p.extractEventHandlersInRange(m.body, data)
+		comp.JSXBlocks = p.extractJSXInRange(qs, m.body, data)
+		comp.EventHandlers = p.extractEventHandlersInRange(qs, m.body, data)
 		comp.HasKeyDown = hasKeyDownPattern(bodyData)
 		comp.HasAnalytics = hasAnalyticsPattern(bodyData)
 		comp.ConditionalCount = countConditionalsInNode(m.body, data)
@@ -501,15 +545,15 @@ func (p *Parser) extractComponents(root *sitter.Node, data []byte, path string) 
 		components = append(components, comp)
 	}
 
-	topHooks = p.extractTopLevelHooks(root, data, components)
+	topHooks = p.extractTopLevelHooks(qs, root, data, components)
 
 	return components, topHooks
 }
 
-func (p *Parser) extractHooksInRange(body *sitter.Node, data []byte) []ir.HookIR {
+func (p *Parser) extractHooksInRange(qs *querySet, body *sitter.Node, data []byte) []ir.HookIR {
 	hooks := []ir.HookIR{}
-	for _, m := range p.execQuery(p.hookQ, body, data) {
-		nameNode := captureByName(m, p.hookQ, "hook_name")
+	for _, m := range p.execQuery(qs.hookQ, body, data) {
+		nameNode := captureByName(m, qs.hookQ, "hook_name")
 		if nameNode == nil {
 			continue
 		}
@@ -518,7 +562,7 @@ func (p *Parser) extractHooksInRange(body *sitter.Node, data []byte) []ir.HookIR
 			continue
 		}
 		line := int(nameNode.StartPoint().Row) + 1
-		argsNode := captureByName(m, p.hookQ, "hook_args")
+		argsNode := captureByName(m, qs.hookQ, "hook_args")
 		var args []string
 		if argsNode != nil && argsNode.NamedChildCount() > 0 {
 			argStr := strings.TrimSpace(string(data[argsNode.StartByte()+1 : argsNode.EndByte()-1]))
@@ -535,16 +579,16 @@ func (p *Parser) extractHooksInRange(body *sitter.Node, data []byte) []ir.HookIR
 	return hooks
 }
 
-func (p *Parser) extractStateVarsInRange(body *sitter.Node, data []byte) []ir.StateVarIR {
+func (p *Parser) extractStateVarsInRange(qs *querySet, body *sitter.Node, data []byte) []ir.StateVarIR {
 	vars := []ir.StateVarIR{}
-	for _, m := range p.execQuery(p.stateVarQ, body, data) {
-		fnName := captureContent(m, p.stateVarQ, "state_fn", data)
+	for _, m := range p.execQuery(qs.stateVarQ, body, data) {
+		fnName := captureContent(m, qs.stateVarQ, "state_fn", data)
 		if fnName != "useState" {
 			continue
 		}
-		name := captureContent(m, p.stateVarQ, "state_name", data)
-		setter := captureContent(m, p.stateVarQ, "state_setter", data)
-		nameNode := captureByName(m, p.stateVarQ, "state_name")
+		name := captureContent(m, qs.stateVarQ, "state_name", data)
+		setter := captureContent(m, qs.stateVarQ, "state_setter", data)
+		nameNode := captureByName(m, qs.stateVarQ, "state_name")
 		if nameNode == nil {
 			continue
 		}
@@ -571,27 +615,27 @@ func extractEffectsFromHooks(hooks []ir.HookIR) []ir.EffectIR {
 	return effects
 }
 
-func (p *Parser) extractJSXInRange(body *sitter.Node, data []byte) []ir.JSXBlockIR {
+func (p *Parser) extractJSXInRange(qs *querySet, body *sitter.Node, data []byte) []ir.JSXBlockIR {
 	blocks := []ir.JSXBlockIR{}
 
-	for _, m := range p.execQuery(p.jsxElemQ, body, data) {
-		tag := captureContent(m, p.jsxElemQ, "jsx_tag", data)
+	for _, m := range p.execQuery(qs.jsxElemQ, body, data) {
+		tag := captureContent(m, qs.jsxElemQ, "jsx_tag", data)
 		if !isJSXComponentName(tag) {
 			continue
 		}
-		line := int(captureByName(m, p.jsxElemQ, "jsx_tag").StartPoint().Row) + 1
+		line := int(captureByName(m, qs.jsxElemQ, "jsx_tag").StartPoint().Row) + 1
 		blocks = append(blocks, ir.JSXBlockIR{
 			Element: tag,
 			Line:    line,
 		})
 	}
 
-	for _, m := range p.execQuery(p.jsxSelfQ, body, data) {
-		tag := captureContent(m, p.jsxSelfQ, "jsx_tag", data)
+	for _, m := range p.execQuery(qs.jsxSelfQ, body, data) {
+		tag := captureContent(m, qs.jsxSelfQ, "jsx_tag", data)
 		if !isJSXComponentName(tag) {
 			continue
 		}
-		line := int(captureByName(m, p.jsxSelfQ, "jsx_tag").StartPoint().Row) + 1
+		line := int(captureByName(m, qs.jsxSelfQ, "jsx_tag").StartPoint().Row) + 1
 		blocks = append(blocks, ir.JSXBlockIR{
 			Element: tag,
 			Line:    line,
@@ -601,16 +645,16 @@ func (p *Parser) extractJSXInRange(body *sitter.Node, data []byte) []ir.JSXBlock
 	return blocks
 }
 
-func (p *Parser) extractEventHandlersInRange(body *sitter.Node, data []byte) []ir.EventHandlerIR {
+func (p *Parser) extractEventHandlersInRange(qs *querySet, body *sitter.Node, data []byte) []ir.EventHandlerIR {
 	handlers := []ir.EventHandlerIR{}
-	for _, m := range p.execQuery(p.handlerQ, body, data) {
-		name := captureContent(m, p.handlerQ, "handler_name", data)
+	for _, m := range p.execQuery(qs.handlerQ, body, data) {
+		name := captureContent(m, qs.handlerQ, "handler_name", data)
 		if name == "" {
 			continue
 		}
 		if strings.HasPrefix(name, "handle") || strings.HasPrefix(name, "on") ||
 			strings.HasSuffix(name, "Handler") {
-			line := int(captureByName(m, p.handlerQ, "handler_name").StartPoint().Row) + 1
+			line := int(captureByName(m, qs.handlerQ, "handler_name").StartPoint().Row) + 1
 			handlers = append(handlers, ir.EventHandlerIR{
 				Name: name,
 				Line: line,
@@ -766,7 +810,7 @@ func hasAnalyticsPattern(content []byte) bool {
 	return false
 }
 
-func (p *Parser) extractTopLevelHooks(root *sitter.Node, data []byte, components []ir.ComponentIR) []ir.HookIR {
+func (p *Parser) extractTopLevelHooks(qs *querySet, root *sitter.Node, data []byte, components []ir.ComponentIR) []ir.HookIR {
 	var hooks []ir.HookIR
 
 	compLines := make(map[int]bool)
@@ -778,8 +822,8 @@ func (p *Parser) extractTopLevelHooks(root *sitter.Node, data []byte, components
 
 	seen := make(map[string]bool)
 
-	for _, m := range p.execQuery(p.hookQ, root, data) {
-		nameNode := captureByName(m, p.hookQ, "hook_name")
+	for _, m := range p.execQuery(qs.hookQ, root, data) {
+		nameNode := captureByName(m, qs.hookQ, "hook_name")
 		if nameNode == nil {
 			continue
 		}
@@ -799,7 +843,7 @@ func (p *Parser) extractTopLevelHooks(root *sitter.Node, data []byte, components
 		}
 		seen[key] = true
 
-		argsNode := captureByName(m, p.hookQ, "hook_args")
+		argsNode := captureByName(m, qs.hookQ, "hook_args")
 		var args []string
 		if argsNode != nil && argsNode.NamedChildCount() > 0 {
 			argStr := strings.TrimSpace(string(data[argsNode.StartByte()+1 : argsNode.EndByte()-1]))
@@ -818,11 +862,11 @@ func (p *Parser) extractTopLevelHooks(root *sitter.Node, data []byte, components
 	return hooks
 }
 
-func (p *Parser) exportedFunctionNames(root *sitter.Node, data []byte) []string {
+func (p *Parser) exportedFunctionNames(qs *querySet, root *sitter.Node, data []byte) []string {
 	var names []string
 
-	for _, m := range p.execQuery(p.exportQ, root, data) {
-		decl := captureByName(m, p.exportQ, "export_decl")
+	for _, m := range p.execQuery(qs.exportQ, root, data) {
+		decl := captureByName(m, qs.exportQ, "export_decl")
 		if decl == nil {
 			continue
 		}
@@ -847,8 +891,8 @@ func (p *Parser) exportedFunctionNames(root *sitter.Node, data []byte) []string 
 		}
 	}
 
-	for _, m := range p.execQuery(p.exportDefQ, root, data) {
-		decl := captureByName(m, p.exportDefQ, "export_default_decl")
+	for _, m := range p.execQuery(qs.exportDefQ, root, data) {
+		decl := captureByName(m, qs.exportDefQ, "export_default_decl")
 		if decl == nil {
 			continue
 		}

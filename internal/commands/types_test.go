@@ -19,8 +19,8 @@ func TestResolveLang_PackageJSON(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0644)
 	lang := resolveLang(dir, "auto")
-	if lang != "ts" {
-		t.Errorf("expected 'ts', got %q", lang)
+	if lang != "typescript" {
+		t.Errorf("expected 'typescript', got %q", lang)
 	}
 }
 
@@ -56,8 +56,8 @@ func TestResolveLang_AutoOnTSFile(t *testing.T) {
 	tsFile := filepath.Join(dir, "app.ts")
 	os.WriteFile(tsFile, []byte("const x = 1"), 0644)
 	lang := resolveLang(tsFile, "auto")
-	if lang != "ts" {
-		t.Errorf("expected 'ts' for .ts file, got %q", lang)
+	if lang != "typescript" {
+		t.Errorf("expected 'typescript' for .ts file, got %q", lang)
 	}
 }
 
@@ -70,8 +70,8 @@ func TestResolveLang_ExplicitLang(t *testing.T) {
 
 func TestResolveLang_ExplicitTS(t *testing.T) {
 	lang := resolveLang(".", "ts")
-	if lang != "ts" {
-		t.Errorf("expected 'ts' (explicit), got %q", lang)
+	if lang != "typescript" {
+		t.Errorf("expected 'typescript' (explicit), got %q", lang)
 	}
 }
 

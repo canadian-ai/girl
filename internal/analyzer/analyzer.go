@@ -364,12 +364,4 @@ func relPath(path string) string {
 	return rel
 }
 
-type TokenEstimator struct{}
 
-func NewTokenEstimator() *TokenEstimator {
-	return &TokenEstimator{}
-}
-
-func (e *TokenEstimator) Estimate(content string) int {
-	return len(content) / 3
-}

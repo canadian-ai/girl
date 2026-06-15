@@ -1,0 +1,83 @@
+{
+  "specversion": "0.1",
+  "type": "dev.refactor.context",
+  "planId": "grp_4078977c",
+  "budget": {
+    "maxTokens": 4000,
+    "estimatedTokens": 510
+  },
+  "goal": "Improve code quality",
+  "diagnostics": [
+    {
+      "code": "go.deep-nesting",
+      "severity": "low",
+      "message": "Function complexFunc has nesting depth 5 (limit: 4)",
+      "file": "testdata/golden/commands/simple-go/main.go",
+      "line": 105,
+      "suggestion": "Extract inner logic into helper functions or use guard clauses to flatten.",
+      "kind": "function",
+      "symbol": "complexFunc"
+    },
+    {
+      "code": "go.long-function",
+      "severity": "low",
+      "message": "Function longFunc in \"testdata/golden/commands/simple-go/main.go\" is 94 lines (limit: 80)",
+      "file": "testdata/golden/commands/simple-go/main.go",
+      "line": 10,
+      "suggestion": "Extract smaller helper functions or simplify the logic. Aim for functions under 50 lines.",
+      "kind": "function",
+      "symbol": "longFunc",
+      "endLine": 103,
+      "span": {
+        "startLine": 10,
+        "endLine": 103
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_go.extract-function_main",
+      "recipe": "go.extract-function",
+      "action": "Extract smaller functions from longFunc",
+      "file": "testdata/golden/commands/simple-go/main.go",
+      "risk": "low",
+      "verify": [
+        "go build ./...",
+        "go vet ./...",
+        "go test ./..."
+      ]
+    },
+    {
+      "id": "step_002_go.flatten-nesting_main",
+      "recipe": "go.flatten-nesting",
+      "action": "Reduce nesting depth in complexFunc by extracting helper functions",
+      "file": "testdata/golden/commands/simple-go/main.go",
+      "risk": "low",
+      "verify": [
+        "go build ./...",
+        "go vet ./...",
+        "go test ./..."
+      ]
+    }
+  ],
+  "files": [
+    "testdata/golden/commands/simple-go/main.go"
+  ],
+  "snippets": [
+    {
+      "file": "testdata/golden/commands/simple-go/main.go",
+      "startLine": 105,
+      "endLine": 115,
+      "content": "// contentHash: 178afd888bb0341c\nfunc complexFunc(a, b, c, d, e int) int {\n\tif a \u003e 0 {\n\t\tif b \u003e a {\n\t\t\tif c \u003e b {\n\t\t\t\tif d \u003e c {\n\t\t\t\t\tif e \u003e d {\n\t\t\t\t\t\treturn a + b + c + d + e\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}",
+      "tokens": 65
+    },
+    {
+      "file": "testdata/golden/commands/simple-go/main.go",
+      "startLine": 10,
+      "endLine": 103,
+      "content": "// contentHash: c293023a6a10f7fc\nfunc longFunc() int {\n\tresult := 0\n\tresult += 1\n\tresult += 2\n\tresult += 3\n\tresult += 4\n\tresult += 5\n\tresult += 6\n\tresult += 7\n\tresult += 8\n\tresult += 9\n\tresult += 10\n\tresult += 11\n\tresult += 12\n\tresult += 13\n\tresult += 14\n\tresult += 15\n\tresult += 16\n\tresult += 17\n\tresult += 18\n\tresult += 19\n\tresult += 20\n\tresult += 21\n\tresult += 22\n\tresult += 23\n\tresult += 24\n\tresult += 25\n\tresult += 26\n\tresult += 27\n\tresult += 28\n\tresult += 29\n\tresult += 30\n\tresult += 31\n\tresult += 32\n\tresult += 33\n\tresult += 34\n\tresult += 35\n\tresult += 36\n\tresult += 37\n\tresult += 38\n\tresult += 39\n\tresult += 40\n\tresult += 41\n\tresult += 42\n\tresult += 43\n\tresult += 44\n\tresult += 45\n\tresult += 46\n\tresult += 47\n\tresult += 48\n\tresult += 49\n\tresult += 50\n\tresult += 51\n\tresult += 52\n\tresult += 53\n\tresult += 54\n\tresult += 55\n\tresult += 56\n\tresult += 57\n\tresult += 58\n\tresult += 59\n\tresult += 60\n\tresult += 61\n\tresult += 62\n\tresult += 63\n\tresult += 64\n\tresult += 65\n\tresult += 66\n\tresult += 67\n\tresult += 68\n\tresult += 69\n\tresult += 70\n\tresult += 71\n\tresult += 72\n\tresult += 73\n\tresult += 74\n\tresult += 75\n\tresult += 76\n\tresult += 77\n\tresult += 78\n\tresult += 79\n\tresult += 80\n\tresult += 81\n\tresult += 82\n\tresult += 83\n\tresult += 84\n\tresult += 85\n\tresult += 86\n\tresult += 87\n\tresult += 88\n\tresult += 89\n\tresult += 90\n\treturn result\n}",
+      "tokens": 445
+    }
+  ],
+  "verification": []
+}

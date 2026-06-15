@@ -1,0 +1,115 @@
+{
+  "specversion": "0.1",
+  "type": "dev.refactor.context",
+  "planId": "grp_b3fcaa13",
+  "budget": {
+    "maxTokens": 4000,
+    "estimatedTokens": 359
+  },
+  "goal": "Improve code quality",
+  "diagnostics": [
+    {
+      "code": "react.mixed-responsibilities",
+      "severity": "medium",
+      "message": "Component \"App\" has ~3 detected responsibilities",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "line": 0,
+      "component": "App",
+      "suggestion": "Separate concerns by splitting this component. Responsibilities: state management, side effects, event handling, analytics.",
+      "kind": "component",
+      "symbol": "App"
+    },
+    {
+      "code": "react.too-many-effects",
+      "severity": "medium",
+      "message": "Component \"App\" has 3 useEffect calls (limit: 2)",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "line": 0,
+      "component": "App",
+      "suggestion": "Consider consolidating effects or moving side-effect logic into custom hooks.",
+      "kind": "component",
+      "symbol": "App"
+    },
+    {
+      "code": "react.too-many-state-vars",
+      "severity": "medium",
+      "message": "Component \"App\" has 5 state variables (limit: 4)",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "line": 0,
+      "component": "App",
+      "suggestion": "Consider using useReducer or extracting related state into a custom hook.",
+      "kind": "component",
+      "symbol": "App"
+    },
+    {
+      "code": "react.too-many-hooks",
+      "severity": "low",
+      "message": "Component \"App\" has 8 hooks (limit: 5)",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "line": 0,
+      "component": "App",
+      "suggestion": "Extract related hooks into custom hooks using the Extract Custom Hook recipe.",
+      "kind": "component",
+      "symbol": "App"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_react.consolidate-effects_app",
+      "recipe": "react.consolidate-effects",
+      "action": "Consolidate useEffect calls in App",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "risk": "medium",
+      "verify": [
+        "typecheck",
+        "tests"
+      ]
+    },
+    {
+      "id": "step_002_react.reduce-state-vars_app",
+      "recipe": "react.reduce-state-vars",
+      "action": "Consolidate state variables in App using useReducer",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "risk": "medium",
+      "verify": [
+        "typecheck",
+        "tests"
+      ]
+    },
+    {
+      "id": "step_003_react.split-large-component_app",
+      "recipe": "react.split-large-component",
+      "action": "Separate concerns in App by extracting non-UI logic",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "risk": "medium",
+      "verify": [
+        "typecheck",
+        "tests"
+      ]
+    },
+    {
+      "id": "step_004_react.extract-custom-hook_app",
+      "recipe": "react.extract-custom-hook",
+      "action": "Extract hooks from App into custom hooks",
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "risk": "low",
+      "verify": [
+        "typecheck",
+        "tests"
+      ]
+    }
+  ],
+  "files": [
+    "testdata/golden/commands/simple-react/App.tsx"
+  ],
+  "snippets": [
+    {
+      "file": "testdata/golden/commands/simple-react/App.tsx",
+      "startLine": 3,
+      "endLine": 47,
+      "content": "export function App() {\n  const [count, setCount] = useState(0);\n  const [text, setText] = useState('');\n  const [items, setItems] = useState\u003cstring[]\u003e([]);\n  const [loading, setLoading] = useState(false);\n  const [search, setSearch] = useState('');\n\n  useEffect(() =\u003e {\n    document.title = `Count: ${count}`;\n  }, [count]);\n\n  useEffect(() =\u003e {\n    setLoading(true);\n    fetch(`/api/items?q=${search}`)\n      .then((r) =\u003e r.json())\n      .then((data) =\u003e {\n        setItems(data);\n        setLoading(false);\n      })\n      .catch(() =\u003e setLoading(false));\n  }, [search]);\n\n  useEffect(() =\u003e {\n    console.log('items updated:', items.length);\n  }, [items]);\n\n  return (\n    \u003cdiv\u003e\n      \u003ch1\u003eApp\u003c/h1\u003e\n      \u003cinput\n        value={search}\n        onChange={(e) =\u003e setSearch(e.target.value)}\n        placeholder=\"Search...\"\n      /\u003e\n      \u003cp\u003eCount: {count}\u003c/p\u003e\n      \u003cbutton onClick={() =\u003e setCount((c) =\u003e c + 1)}\u003e+\u003c/button\u003e\n      {loading \u0026\u0026 \u003cp\u003eLoading...\u003c/p\u003e}\n      \u003cul\u003e\n        {items.map((item) =\u003e (\n          \u003cli key={item}\u003e{item}\u003c/li\u003e\n        ))}\n      \u003c/ul\u003e\n    \u003c/div\u003e\n  );\n}",
+      "tokens": 359
+    }
+  ],
+  "verification": []
+}

@@ -27,7 +27,7 @@ Language binding documentation that maps specific languages/frameworks into GRP:
 - **GRP-TypeScript** — TypeScript diagnostics, recipes, verification (`bindings/typescript/`)
 - **GRP-React** — React diagnostics, recipes, verification (`bindings/react/`)
 - Verification detection improvements (package manager, script discovery)
-- **Future Tool Bindings** — GritQL, Tree-sitter, OpenRewrite, ESLint, SARIF, LSP
+- **Future Tool Bindings** — GritQL, OpenRewrite, ESLint, SARIF, LSP
 
 Issues: `#17`–`#22`
 
@@ -47,6 +47,16 @@ Issues: `#23`–`#28`
 ## Issue Index
 
 All items completed. Remaining work tracked via Production release milestone.
+
+## Implementation Notes
+
+- **Parsing**: Go analysis uses `go/ast` + `go/types`. TypeScript/React/JS
+  analysis uses tree-sitter (`github.com/smacker/go-tree-sitter`) with sitter
+  query patterns for component/hook/state/JSX detection.
+- **Token estimation**: Heuristic `len(text)/3`. The `tokens.Estimator`
+  interface in `internal/tokens/` allows swapping in a real tokenizer.
+- **Recipe thresholds**: Configured in Go code via `internal/recipes.Thresholds`
+  and `DefaultThresholds()`. No YAML files.
 
 | # | Title | Milestone | Status |
 |---|-------|-----------|--------|
