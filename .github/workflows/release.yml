@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 env:
   CGO_ENABLED: "1"
@@ -64,6 +65,23 @@ jobs:
       - name: Compute checksum
         run: sha256sum girl > girl.sha256
 
+      - name: Build Docker image
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          REPO="ghcr.io/${{ github.repository }}"
+          cat > Dockerfile.release << 'DOCKEREOF'
+          FROM alpine:3.21
+          RUN apk add --no-cache ca-certificates
+          COPY girl /usr/local/bin/girl
+          ENTRYPOINT ["/usr/local/bin/girl"]
+          DOCKEREOF
+          docker build -f Dockerfile.release -t "${REPO}:${TAG}" -t "${REPO}:latest" .
+
+      - name: Push Docker image to ghcr.io
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker push --all-tags "ghcr.io/${{ github.repository }}"
+
       - name: Create Release via gh
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
@@ -73,18 +91,23 @@ jobs:
           **Grammar-Informed Refactoring Language** for AI coding agents.
 
           ### Linux (amd64)
-          \`\`\`bash
-          curl -LO https://github.com/canadian-ai/girl/releases/download/\${TAG}/girl
+          \`\`\`
+          curl -LO https://github.com/canadian-ai/girl/releases/download/${TAG}/girl
           chmod +x girl
           sudo mv girl /usr/local/bin/
           \`\`\`
 
           ### Build from source
-          \`\`\`bash
-          go install github.com/canadian-ai/girl/cmd/girl@\${TAG}
+          \`\`\`
+          go install github.com/canadian-ai/girl/cmd/girl@${TAG}
           \`\`\`
 
           Requires Go 1.25+ and a C compiler (for tree-sitter).
+
+          ### Checksums
+          \`\`\`
+          $(cat girl.sha256)
+          \`\`\`
 
           See [CHANGELOG.md](https://github.com/canadian-ai/girl/blob/master/CHANGELOG.md) for full release notes.
           EOF
