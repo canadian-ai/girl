@@ -82,6 +82,12 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker push --all-tags "ghcr.io/${{ github.repository }}"
 
+      - name: Make package public
+        run: |
+          PACKAGE_NAME="${GITHUB_REPOSITORY#canadian-ai/}"
+          gh api --method PATCH "/user/packages/container/${PACKAGE_NAME}/visibility" \
+            -f visibility="public" || true
+
       - name: Create Release via gh
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
