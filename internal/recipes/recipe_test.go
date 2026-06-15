@@ -93,6 +93,107 @@ func TestThresholds_CustomValuesUsed(t *testing.T) {
 	}
 }
 
+func TestAddPropTypes_DefaultThreshold_Match(t *testing.T) {
+	comp := &ir.ComponentIR{
+		Name:  "UntypedBig",
+		Lines: 31,
+		Props: []ir.PropIR{
+			{Name: "title", Type: ""},
+		},
+	}
+	engine := NewEngine()
+	matches := engine.Match(comp)
+	found := false
+	for _, m := range matches {
+		if m.RecipeID == "react.add-prop-types" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected add-prop-types match for untyped 31-line component with props")
+	}
+}
+
+func TestAddPropTypes_DefaultThreshold_NoMatchBelow(t *testing.T) {
+	comp := &ir.ComponentIR{
+		Name:  "UntypedSmall",
+		Lines: 30,
+		Props: []ir.PropIR{
+			{Name: "title", Type: ""},
+		},
+	}
+	engine := NewEngine()
+	matches := engine.Match(comp)
+	for _, m := range matches {
+		if m.RecipeID == "react.add-prop-types" {
+			t.Error("expected no add-prop-types match for 30-line untyped component")
+		}
+	}
+}
+
+func TestAddPropTypes_CustomThreshold(t *testing.T) {
+	comp := &ir.ComponentIR{
+		Name:  "CustomThreshold",
+		Lines: 11,
+		Props: []ir.PropIR{
+			{Name: "title", Type: ""},
+		},
+	}
+	low := &Thresholds{
+		LargeComponentLines:  200,
+		RepeatedJSXCount:     3,
+		MaxHooksPerComponent: 5,
+		MaxStateVars:         4,
+		MaxEffects:           2,
+		UntypedPropsMinLines: 10,
+	}
+	engine := NewEngine(low)
+	matches := engine.Match(comp)
+	found := false
+	for _, m := range matches {
+		if m.RecipeID == "react.add-prop-types" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected add-prop-types match with UntypedPropsMinLines=10 and comp.Lines=11")
+	}
+}
+
+func TestAddPropTypes_TypedPropsNoMatch(t *testing.T) {
+	comp := &ir.ComponentIR{
+		Name:  "TypedBig",
+		Lines: 100,
+		Props: []ir.PropIR{
+			{Name: "title", Type: "string"},
+		},
+	}
+	engine := NewEngine()
+	matches := engine.Match(comp)
+	for _, m := range matches {
+		if m.RecipeID == "react.add-prop-types" {
+			t.Error("expected no add-prop-types match for typed props even above threshold")
+		}
+	}
+}
+
+func TestAddPropTypes_NoPropsNoMatch(t *testing.T) {
+	comp := &ir.ComponentIR{
+		Name:  "NoProps",
+		Lines: 200,
+		Props: []ir.PropIR{},
+	}
+	engine := NewEngine()
+	matches := engine.Match(comp)
+	for _, m := range matches {
+		if m.RecipeID == "react.add-prop-types" {
+			t.Error("expected no add-prop-types match for component with no props")
+		}
+	}
+}
+
 func TestThresholds_NilDefaults(t *testing.T) {
 	comp := &ir.ComponentIR{
 		Name:      "TestComponent",

@@ -6,6 +6,7 @@ type Thresholds struct {
 	MaxHooksPerComponent int
 	MaxStateVars         int
 	MaxEffects           int
+	UntypedPropsMinLines int
 }
 
 func DefaultThresholds() *Thresholds {
@@ -15,5 +16,6 @@ func DefaultThresholds() *Thresholds {
 		MaxHooksPerComponent: 5,
 		MaxStateVars:         4,
 		MaxEffects:           2,
+		UntypedPropsMinLines: 30,
 	}
 }
