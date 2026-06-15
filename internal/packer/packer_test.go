@@ -10,6 +10,18 @@ import (
 	"github.com/canadian-ai/girl/internal/ir"
 )
 
+type fakeEstimator struct {
+	tokens int
+}
+
+func (e fakeEstimator) Estimate(string) int {
+	return e.tokens
+}
+
+func (e fakeEstimator) EstimateBytes([]byte) int {
+	return e.tokens
+}
+
 func TestPacker_PacksEmptyRequest(t *testing.T) {
 	p := NewPacker(1000)
 	pack, err := p.Pack(PackRequest{
@@ -217,6 +229,43 @@ func TestPacker_TokenBudget_LargeComponent(t *testing.T) {
 	}
 	if !strings.Contains(snippet.Content, "truncated") {
 		t.Error("expected truncated content for oversized component")
+	}
+}
+
+func TestPacker_UsesInjectedEstimator(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "component.tsx")
+	content := strings.Join([]string{
+		"function App() {",
+		"  return <div>Hello</div>;",
+		"}",
+	}, "\n")
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	p := NewPacker(5000, fakeEstimator{tokens: 42})
+	pack, err := p.Pack(PackRequest{
+		Goal: "test",
+		Files: []*ir.FileIR{
+			{
+				Path:     tmpFile,
+				Language: "typescriptreact",
+				Lines:    3,
+				Components: []ir.ComponentIR{
+					{Name: "App", StartLine: 1, EndLine: 3, Lines: 3},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pack.SelectedSnippets) != 1 {
+		t.Fatalf("expected 1 snippet, got %d", len(pack.SelectedSnippets))
+	}
+	if pack.SelectedSnippets[0].Tokens != 42 {
+		t.Errorf("expected injected estimator token count 42, got %d", pack.SelectedSnippets[0].Tokens)
 	}
 }
 

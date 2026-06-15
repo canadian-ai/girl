@@ -37,10 +37,10 @@ type querySet struct {
 }
 
 type Parser struct {
-	initOnce    sync.Once
-	tsxLang     *sitter.Language
-	tsLang      *sitter.Language
-	jsLang      *sitter.Language
+	initOnce sync.Once
+	tsxLang  *sitter.Language
+	tsLang   *sitter.Language
+	jsLang   *sitter.Language
 
 	querySets   map[*sitter.Language]*querySet
 	querySetsMu sync.Mutex
@@ -502,6 +502,7 @@ func findChildByType(n *sitter.Node, typ string) *sitter.Node {
 func (p *Parser) extractComponents(qs *querySet, root *sitter.Node, data []byte, path string) ([]ir.ComponentIR, []ir.HookIR) {
 	matches := p.findComponentMatches(qs, root, data)
 	exportedNames := p.exportedFunctionNames(qs, root, data)
+	defaultExportedNames := p.defaultExportedFunctionNames(qs, root, data)
 
 	components := make([]ir.ComponentIR, 0, len(matches))
 	var topHooks []ir.HookIR
@@ -519,32 +520,40 @@ func (p *Parser) extractComponents(qs *querySet, root *sitter.Node, data []byte,
 				break
 			}
 		}
+		isDefaultExport := false
+		for _, e := range defaultExportedNames {
+			if e == m.name {
+				isDefaultExport = true
+				isExport = true
+				break
+			}
+		}
 
 		comp := ir.ComponentIR{
-			Name:           m.name,
-			FilePath:       path,
-			Kind:           kind,
-			StartLine:      int(m.body.StartPoint().Row) + 1,
-			EndLine:        int(m.body.EndPoint().Row) + 1,
-			Lines:          int(m.body.EndPoint().Row-m.body.StartPoint().Row) + 1,
-			Hooks:          nil,
-			JSXBlocks:      nil,
-			Props:          nil,
-			StateVars:      nil,
-			Effects:        nil,
-			EventHandlers:  nil,
-			Imports:        nil,
-			Exports:        nil,
-			HasKeyDown:     false,
-			HasAnalytics:   false,
+			Name:             m.name,
+			FilePath:         path,
+			Kind:             kind,
+			StartLine:        int(m.body.StartPoint().Row) + 1,
+			EndLine:          int(m.body.EndPoint().Row) + 1,
+			Lines:            int(m.body.EndPoint().Row-m.body.StartPoint().Row) + 1,
+			Hooks:            nil,
+			JSXBlocks:        nil,
+			Props:            nil,
+			StateVars:        nil,
+			Effects:          nil,
+			EventHandlers:    nil,
+			Imports:          nil,
+			Exports:          nil,
+			HasKeyDown:       false,
+			HasAnalytics:     false,
 			ConditionalCount: 0,
-			LoopCount:      0,
+			LoopCount:        0,
 		}
 
 		if isExport {
 			comp.Exports = append(comp.Exports, ir.ExportIR{
 				Name:    m.name,
-				Default: false,
+				Default: isDefaultExport,
 			})
 		}
 
@@ -921,6 +930,38 @@ func (p *Parser) exportedFunctionNames(qs *querySet, root *sitter.Node, data []b
 			}
 		}
 	}
+
+	for _, m := range p.execQuery(qs.exportDefQ, root, data) {
+		decl := captureByName(m, qs.exportDefQ, "export_default_decl")
+		if decl == nil {
+			continue
+		}
+		nameNode := decl.ChildByFieldName("name")
+		if nameNode != nil {
+			names = append(names, string(data[nameNode.StartByte():nameNode.EndByte()]))
+			continue
+		}
+		if decl.NamedChildCount() > 0 {
+			first := decl.NamedChild(0)
+			if first.Type() == "lexical_declaration" {
+				for i := 0; i < int(first.NamedChildCount()); i++ {
+					vd := first.NamedChild(i)
+					if vd.Type() == "variable_declarator" {
+						n := vd.ChildByFieldName("name")
+						if n != nil {
+							names = append(names, string(data[n.StartByte():n.EndByte()]))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return names
+}
+
+func (p *Parser) defaultExportedFunctionNames(qs *querySet, root *sitter.Node, data []byte) []string {
+	var names []string
 
 	for _, m := range p.execQuery(qs.exportDefQ, root, data) {
 		decl := captureByName(m, qs.exportDefQ, "export_default_decl")

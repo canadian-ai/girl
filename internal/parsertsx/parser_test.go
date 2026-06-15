@@ -98,8 +98,9 @@ func TestDefaultExport(t *testing.T) {
 	if len(comp.Exports) != 1 {
 		t.Fatalf("expected 1 export, got %d", len(comp.Exports))
 	}
-	// NOTE: parser does not currently distinguish default vs named exports;
-	// comp.Exports[0].Default will be false.
+	if comp.Exports[0].Name != "DefaultComp" || !comp.Exports[0].Default {
+		t.Errorf("unexpected default export: %+v", comp.Exports[0])
+	}
 }
 
 func TestHooksAndState(t *testing.T) {

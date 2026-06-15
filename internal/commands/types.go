@@ -101,7 +101,18 @@ func resolveLang(path string, langStr string) string {
 	if goanalysis.IsGoFile(path) {
 		return lang.Go
 	}
-	return lang.TypeScript
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".ts":
+		return lang.TypeScript
+	case ".tsx":
+		return lang.TypeScriptReact
+	case ".js":
+		return lang.JavaScript
+	case ".jsx":
+		return lang.JavaScriptReact
+	default:
+		return lang.TypeScript
+	}
 }
 
 func detectLangFiles(path string) (bool, bool) {

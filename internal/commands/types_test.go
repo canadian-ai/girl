@@ -80,8 +80,8 @@ func TestResolveLang_AutoTSXFile(t *testing.T) {
 	tsxFile := filepath.Join(dir, "app.tsx")
 	os.WriteFile(tsxFile, []byte("const x = 1"), 0644)
 	lang := resolveLang(tsxFile, "auto")
-	if lang != "typescript" {
-		t.Errorf("expected 'typescript' for .tsx file auto-detection, got %q", lang)
+	if lang != "typescriptreact" {
+		t.Errorf("expected 'typescriptreact' for .tsx file auto-detection, got %q", lang)
 	}
 }
 
@@ -90,8 +90,8 @@ func TestResolveLang_AutoJSFile(t *testing.T) {
 	jsFile := filepath.Join(dir, "app.js")
 	os.WriteFile(jsFile, []byte("const x = 1"), 0644)
 	lang := resolveLang(jsFile, "auto")
-	if lang != "typescript" {
-		t.Errorf("expected 'typescript' for .js file auto-detection, got %q", lang)
+	if lang != "javascript" {
+		t.Errorf("expected 'javascript' for .js file auto-detection, got %q", lang)
 	}
 }
 
@@ -100,8 +100,8 @@ func TestResolveLang_AutoJSXFile(t *testing.T) {
 	jsxFile := filepath.Join(dir, "app.jsx")
 	os.WriteFile(jsxFile, []byte("const x = 1"), 0644)
 	lang := resolveLang(jsxFile, "auto")
-	if lang != "typescript" {
-		t.Errorf("expected 'typescript' for .jsx file auto-detection, got %q", lang)
+	if lang != "javascriptreact" {
+		t.Errorf("expected 'javascriptreact' for .jsx file auto-detection, got %q", lang)
 	}
 }
 
@@ -127,7 +127,6 @@ func TestResolveLang_CanonicalValues(t *testing.T) {
 		}
 	}
 }
-
 
 func TestHasGoMod(t *testing.T) {
 	dir := t.TempDir()
