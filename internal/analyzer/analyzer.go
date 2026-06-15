@@ -10,7 +10,7 @@ import (
 	"unicode"
 
 	"github.com/canadian-ai/girl/internal/ir"
-	"github.com/canadian-ai/girl/internal/parser"
+	"github.com/canadian-ai/girl/internal/parsertsx"
 	"github.com/canadian-ai/girl/internal/visitor"
 )
 
@@ -40,7 +40,7 @@ func DefaultConfig() *Config {
 
 type Analyzer struct {
 	config *Config
-	parser parser.Parser
+	parser *parsertsx.Parser
 }
 
 func NewAnalyzer(config *Config) *Analyzer {
@@ -49,7 +49,7 @@ func NewAnalyzer(config *Config) *Analyzer {
 	}
 	return &Analyzer{
 		config: config,
-		parser: parser.NewSimpleParser(),
+		parser: parsertsx.New(),
 	}
 }
 
@@ -106,16 +106,19 @@ func (a *Analyzer) detectSmells(files []*ir.FileIR) []ir.Diagnostic {
 		diags = append(diags, a.detectMissingPropTypes(f)...)
 	}
 
-	sort.Slice(diags, func(i, j int) bool {
-		severityOrder := map[ir.Severity]int{
-			ir.SeverityHigh:   0,
-			ir.SeverityMedium: 1,
-			ir.SeverityLow:    2,
-		}
+	sort.SliceStable(diags, func(i, j int) bool {
 		if diags[i].Severity != diags[j].Severity {
+			severityOrder := map[ir.Severity]int{
+				ir.SeverityHigh:   0,
+				ir.SeverityMedium: 1,
+				ir.SeverityLow:    2,
+			}
 			return severityOrder[diags[i].Severity] < severityOrder[diags[j].Severity]
 		}
-		return diags[i].Code < diags[j].Code
+		if diags[i].Code != diags[j].Code {
+			return diags[i].Code < diags[j].Code
+		}
+		return diags[i].Message < diags[j].Message
 	})
 
 	return diags

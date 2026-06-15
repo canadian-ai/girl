@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/node"
 	"github.com/canadian-ai/girl/internal/parsertsx"
 	"github.com/urfave/cli/v2"
@@ -91,10 +92,11 @@ func RefsCommand() *cli.Command {
 func collectNodes(path string, kind node.NodeKind) ([]nodeSummary, error) {
 	var rows []nodeSummary
 	err := walkTSX(path, func(file string) error {
-		g, err := parsertsx.New().ParseFile(file)
+		fir, err := parsertsx.New().ParseFile(file)
 		if err != nil {
-			return err
+			return nil
 		}
+		g := node.BuildFromIR([]*ir.FileIR{fir})
 		for _, n := range g.AllNodes() {
 			if kind != "" && n.Kind() != kind {
 				continue
@@ -121,12 +123,16 @@ func collectNodes(path string, kind node.NodeKind) ([]nodeSummary, error) {
 func collectRefs(path, symbol string) ([]refSummary, error) {
 	var rows []refSummary
 	err := walkTSX(path, func(file string) error {
-		g, err := parsertsx.New().ParseFile(file)
+		fir, err := parsertsx.New().ParseFile(file)
 		if err != nil {
-			return err
+			return nil
 		}
+		g := node.BuildFromIR([]*ir.FileIR{fir})
 		for _, n := range g.AllNodesOfKind(node.KindReference) {
-			ref := n.(*node.ReferenceNode)
+			ref, ok := n.(*node.ReferenceNode)
+			if !ok {
+				continue
+			}
 			if symbol != "" && ref.Name() != symbol {
 				continue
 			}

@@ -166,12 +166,14 @@ See `docs/roadmap/high-impact-plan.md` for the full timeline.
 | Dogfood recursion (0 GIRL self-diagnostics) | **Done** | May 26 |
 | GRP Core v0.1 — spec, schemas, pkg/grp, grp-json, validate | **Done** | May 26 - Jun 1 |
 | GRP-Go binding v0.1 | **Done** | Jun 2 - Jun 8 |
-| GRP-TypeScript binding v0.1 | **In progress** | Jun 2 - Jun 8 |
-| GRP-React binding v0.1 | **In progress** | Jun 2 - Jun 8 |
-| GIRL context packs | **Done** | Jun 9 - Jun 15 |
+| GRP-TypeScript binding v0.1 | **Done** | Jun 2 - Jun 8 |
+| GRP-React binding v0.1 | **Done** | Jun 2 - Jun 8 |
+| GIRL context packs (privacy modes, budget tiers) | **Done** | Jun 9 - Jun 15 |
 | Repo-native verification | **Done** | Jun 9 - Jun 15 |
 | Golden tests and conformance | **Done** | Jun 9 - Jun 15 |
 | LICENSE and NOTICE (Apache 2.0, branding reservations) | **Done** | Jun 14 |
+| Tree-sitter TSX parser replacement | **Done** | Jun 15 |
+| CI pipeline (CGo-enabled build, vet, test) | **Done** | Jun 15 |
 | Production release | **Planned** | Jun 16+ |
 
 Track via [GitHub Project](https://github.com/orgs/canadian-ai/projects/6) or see `docs/project.md` for issue details.

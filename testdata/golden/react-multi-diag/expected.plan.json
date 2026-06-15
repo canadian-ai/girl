@@ -1,6 +1,6 @@
 {
   "specversion": "0.1",
-  "id": "grp_32e8cb11",
+  "id": "grp_dac14707",
   "type": "dev.refactor.plan",
   "source": "github.com/canadian-ai/girl",
   "subject": "testdata/golden/react-multi-diag/input",
@@ -10,6 +10,24 @@
   "diagnostics": [
     {
       "id": "diag_001",
+      "code": "react.large-component",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Component \"Dashboard\" is 323 lines (limit: 200)",
+      "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "span": {
+        "startLine": 38,
+        "endLine": 360
+      },
+      "line": 38,
+      "endLine": 360,
+      "symbol": {
+        "kind": "component",
+        "name": "Dashboard"
+      }
+    },
+    {
+      "id": "diag_002",
       "code": "react.mixed-responsibilities",
       "severity": "medium",
       "confidence": "high",
@@ -21,7 +39,7 @@
       }
     },
     {
-      "id": "diag_002",
+      "id": "diag_003",
       "code": "react.too-many-effects",
       "severity": "medium",
       "confidence": "high",
@@ -33,7 +51,7 @@
       }
     },
     {
-      "id": "diag_003",
+      "id": "diag_004",
       "code": "react.too-many-state-vars",
       "severity": "medium",
       "confidence": "high",
@@ -45,29 +63,11 @@
       }
     },
     {
-      "id": "diag_004",
-      "code": "react.large-component",
-      "severity": "low",
-      "confidence": "high",
-      "message": "Component \"Dashboard\" is 220 lines (limit: 200)",
-      "file": "testdata/golden/react-multi-diag/input/App.tsx",
-      "span": {
-        "startLine": 38,
-        "endLine": 257
-      },
-      "line": 38,
-      "endLine": 257,
-      "symbol": {
-        "kind": "component",
-        "name": "Dashboard"
-      }
-    },
-    {
       "id": "diag_005",
       "code": "react.complex-conditionals",
       "severity": "low",
       "confidence": "high",
-      "message": "Component \"Dashboard\" has 16 conditional expressions (limit: 5)",
+      "message": "Component \"Dashboard\" has 15 conditional expressions (limit: 5)",
       "file": "testdata/golden/react-multi-diag/input/App.tsx",
       "symbol": {
         "kind": "component",
@@ -88,10 +88,22 @@
     },
     {
       "id": "diag_007",
+      "code": "react.repeated-jsx",
+      "severity": "low",
+      "confidence": "high",
+      "message": "JSX element \u003cSection\u003e repeated 3 times in component \"Dashboard\"",
+      "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "symbol": {
+        "kind": "component",
+        "name": "Dashboard"
+      }
+    },
+    {
+      "id": "diag_008",
       "code": "react.too-many-hooks",
       "severity": "low",
       "confidence": "high",
-      "message": "Component \"Dashboard\" has 13 hooks (limit: 5)",
+      "message": "Component \"Dashboard\" has 19 hooks (limit: 5)",
       "file": "testdata/golden/react-multi-diag/input/App.tsx",
       "symbol": {
         "kind": "component",
@@ -110,7 +122,7 @@
       },
       "risk": "medium",
       "requires": [
-        "diag_002"
+        "diag_003"
       ],
       "verify": [
         {
@@ -137,7 +149,7 @@
       },
       "risk": "medium",
       "requires": [
-        "diag_003"
+        "diag_004"
       ],
       "verify": [
         {
@@ -164,6 +176,33 @@
       },
       "risk": "medium",
       "requires": [
+        "diag_002"
+      ],
+      "verify": [
+        {
+          "command": "typecheck",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        },
+        {
+          "command": "tests",
+          "required": true,
+          "source": "binding-default",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "step_004_react.large-component_dashboard",
+      "recipe": "react.split-large-component",
+      "title": "react.split-large-component",
+      "action": "Split Dashboard (testdata/golden/react-multi-diag/input/App.tsx) into smaller focused components",
+      "target": {
+        "file": "testdata/golden/react-multi-diag/input/App.tsx"
+      },
+      "risk": "medium",
+      "requires": [
         "diag_001"
       ],
       "verify": [
@@ -182,7 +221,7 @@
       ]
     },
     {
-      "id": "step_004_react.too-many-hooks_dashboard",
+      "id": "step_005_react.too-many-hooks_dashboard",
       "recipe": "react.extract-custom-hook",
       "title": "react.extract-custom-hook",
       "action": "Extract hooks from Dashboard into custom hooks",
@@ -191,7 +230,7 @@
       },
       "risk": "low",
       "requires": [
-        "diag_007"
+        "diag_008"
       ],
       "verify": [
         {
@@ -209,7 +248,7 @@
       ]
     },
     {
-      "id": "step_005_react.repeated-jsx_dashboard",
+      "id": "step_006_react.repeated-jsx_dashboard",
       "recipe": "react.extract-repeated-jsx",
       "title": "react.extract-repeated-jsx",
       "action": "Extract repeated JSX in Dashboard into a reusable component",
@@ -236,16 +275,16 @@
       ]
     },
     {
-      "id": "step_006_react.large-component_dashboard",
-      "recipe": "react.split-large-component",
-      "title": "react.split-large-component",
-      "action": "Split Dashboard (testdata/golden/react-multi-diag/input/App.tsx) into smaller focused components",
+      "id": "step_007_react.repeated-jsx_dashboard",
+      "recipe": "react.extract-repeated-jsx",
+      "title": "react.extract-repeated-jsx",
+      "action": "Extract repeated JSX in Dashboard into a reusable component",
       "target": {
         "file": "testdata/golden/react-multi-diag/input/App.tsx"
       },
       "risk": "low",
       "requires": [
-        "diag_004"
+        "diag_007"
       ],
       "verify": [
         {
@@ -255,7 +294,7 @@
           "confidence": "medium"
         },
         {
-          "command": "tests",
+          "command": "lint",
           "required": true,
           "source": "binding-default",
           "confidence": "medium"

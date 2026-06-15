@@ -1,483 +1,877 @@
 package parsertsx
 
 import (
+	"bytes"
+	"context"
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 
-	"github.com/canadian-ai/girl/internal/node"
+	sitter "github.com/smacker/go-tree-sitter"
+	"github.com/smacker/go-tree-sitter/javascript"
+	"github.com/smacker/go-tree-sitter/typescript/tsx"
+	"github.com/smacker/go-tree-sitter/typescript/typescript"
+
+	"github.com/canadian-ai/girl/internal/ir"
 )
 
-type Parser struct{}
+type Parser struct {
+	initOnce sync.Once
+	tsxLang  *sitter.Language
+	tsLang   *sitter.Language
+	jsLang   *sitter.Language
+
+	importQ    *sitter.Query
+	importDefQ *sitter.Query
+	importNsQ  *sitter.Query
+	importTypeQ *sitter.Query
+	compFuncQ  *sitter.Query
+	compArrowQ *sitter.Query
+	compFnExprQ *sitter.Query
+	compMemoQ  *sitter.Query
+	hookQ      *sitter.Query
+	stateVarQ  *sitter.Query
+	jsxElemQ   *sitter.Query
+	jsxSelfQ   *sitter.Query
+	handlerQ   *sitter.Query
+	exportQ    *sitter.Query
+	exportDefQ *sitter.Query
+}
 
 func New() *Parser {
 	return &Parser{}
 }
 
-func (p *Parser) ParseFile(path string) (*node.NodeGraph, error) {
+func (p *Parser) lazyInit() *sitter.Query {
+	p.initOnce.Do(func() {
+		p.tsxLang = tsx.GetLanguage()
+		p.tsLang = typescript.GetLanguage()
+		p.jsLang = javascript.GetLanguage()
+
+		lang := p.tsxLang
+		p.importQ = p.comp(lang, `(import_statement (import_clause (named_imports (import_specifier name: (identifier) @import_name)) (identifier)? @import_default) source: (string (string_fragment) @import_source)) @import_full`)
+		p.importDefQ = p.comp(lang, `(import_statement (import_clause (identifier) @import_default) source: (string (string_fragment) @import_source)) @import_full`)
+		p.importNsQ = p.comp(lang, `(import_statement (import_clause (namespace_import) @import_ns) source: (string (string_fragment) @import_source)) @import_full`)
+		p.importTypeQ = p.comp(lang, `(import_statement "type" (import_clause (named_imports (import_specifier name: (identifier) @import_name))) source: (string (string_fragment) @import_source)) @import_full`)
+		p.compFuncQ = p.comp(lang, `(function_declaration name: (identifier) @comp_name) @comp_func`)
+		p.compArrowQ = p.comp(lang, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (arrow_function))) @comp_arrow`)
+		p.compFnExprQ = p.comp(lang, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (function_expression))) @comp_fn_expr`)
+		p.compMemoQ = p.comp(lang, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (call_expression function: (_) @memo_func))) @comp_memo`)
+		p.hookQ = p.comp(lang, `(call_expression function: (identifier) @hook_name arguments: (arguments) @hook_args) @hook_call`)
+		p.stateVarQ = p.comp(lang, `(variable_declarator name: (array_pattern (identifier) @state_name (identifier) @state_setter) value: (call_expression function: (identifier) @state_fn arguments: (arguments (_)?))) @state_decl`)
+		p.jsxElemQ = p.comp(lang, `(jsx_element open_tag: (jsx_opening_element (identifier) @jsx_tag)) @jsx_elem`)
+		p.jsxSelfQ = p.comp(lang, `(jsx_self_closing_element (identifier) @jsx_tag) @jsx_self`)
+		p.handlerQ = p.comp(lang, `(variable_declarator name: (identifier) @handler_name) @handler_decl`)
+		p.exportQ = p.comp(lang, `(export_statement declaration: (_) @export_decl) @export_stmt`)
+		p.exportDefQ = p.comp(lang, `(export_statement "default" declaration: (_) @export_default_decl) @export_default`)
+	})
+	return p.importQ
+}
+
+func (p *Parser) comp(lang *sitter.Language, pattern string) *sitter.Query {
+	q, err := sitter.NewQuery([]byte(pattern), lang)
+	if err != nil {
+		panic(fmt.Sprintf("invalid tree-sitter query: %v", err))
+	}
+	return q
+}
+
+func (p *Parser) grammarFor(path string) (*sitter.Language, error) {
+	p.lazyInit()
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".tsx":
+		return p.tsxLang, nil
+	case ".ts":
+		return p.tsLang, nil
+	case ".jsx", ".js":
+		return p.jsLang, nil
+	default:
+		return nil, fmt.Errorf("unsupported file extension: %s", ext)
+	}
+}
+
+func (p *Parser) ParseFile(path string) (*ir.FileIR, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	content := string(data)
-	g := node.NewNodeGraph()
-	root := node.NewRootNode(g.NextID("root"))
-	root.SetFile(path)
-	g.AddNode(root)
-	g.SetFileNode(path, root.ID())
-	parseFileContent(g, root, content, path)
-	g.SetChildren(root.ID(), root.Children())
-	return g, nil
-}
 
-type tokenizer struct {
-	src  []rune
-	pos  int
-	line int
-	col  int
-}
-
-type token struct {
-	kind  tokenKind
-	value string
-	line  int
-	col   int
-}
-
-type tokenKind int
-
-const (
-	tokEOF tokenKind = iota
-	tokIdent
-	tokString
-	tokNumber
-	tokLParen
-	tokRParen
-	tokLBrace
-	tokRBrace
-	tokLBracket
-	tokRBracket
-	tokLAngle
-	tokRAngle
-	tokComma
-	tokDot
-	tokColon
-	tokSemicolon
-	tokArrow
-	tokEquals
-	tokAsterisk
-	tokAmpersand
-	tokPipe
-	tokQuestion
-	tokBang
-	tokSlash
-	tokMinus
-	tokPlus
-	tokBacktick
-	tokAt
-	tokHash
-	tokNewline
-	tokKeyword
-	tokJSXString
-	tokJSXIdent
-	tokJSXBrace
-	tokTemplateStart
-	tokTemplateEnd
-	tokTemplateMid
-)
-
-var keywords = map[string]bool{
-	"import": true, "export": true, "default": true, "from": true,
-	"function": true, "const": true, "let": true, "var": true,
-	"return": true, "if": true, "else": true, "for": true, "while": true,
-	"do": true, "switch": true, "case": true, "break": true,
-	"continue": true, "new": true, "delete": true, "typeof": true,
-	"async": true, "await": true, "yield": true, "class": true,
-	"extends": true, "implements": true, "interface": true, "type": true,
-	"enum": true, "as": true, "in": true, "of": true, "try": true,
-	"catch": true, "finally": true, "throw": true, "this": true,
-	"super": true, "true": true, "false": true, "null": true,
-	"undefined": true, "void": true, "declare": true, "namespace": true,
-}
-
-func newTokenizer(src string) *tokenizer {
-	return &tokenizer{
-		src:  []rune(src),
-		pos:  0,
-		line: 1,
-		col:  1,
+	lang, err := p.grammarFor(path)
+	if err != nil {
+		return nil, err
 	}
-}
 
-func (t *tokenizer) peek() rune {
-	if t.pos >= len(t.src) {
-		return 0
+	sp := sitter.NewParser()
+	sp.SetLanguage(lang)
+	tree, err := sp.ParseCtx(context.Background(), nil, data)
+	if err != nil {
+		return nil, fmt.Errorf("parse error: %w", err)
 	}
-	return t.src[t.pos]
-}
+	root := tree.RootNode()
 
-func (t *tokenizer) peekN(n int) string {
-	if t.pos+n > len(t.src) {
-		return ""
+	fir := &ir.FileIR{
+		Path:       path,
+		Language:   languageTag(path),
+		Lines:      bytes.Count(data, []byte{'\n'}) + 1,
+		Components: nil,
+		Hooks:      nil,
+		Imports:    nil,
 	}
-	return string(t.src[t.pos : t.pos+n])
+
+	fir.Imports = p.extractImports(root, data)
+	comps, hooks := p.extractComponents(root, data, path)
+	fir.Components = comps
+	fir.Hooks = hooks
+
+	return fir, nil
 }
 
-func (t *tokenizer) advance() rune {
-	ch := t.src[t.pos]
-	t.pos++
-	if ch == '\n' {
-		t.line++
-		t.col = 1
-	} else {
-		t.col++
+func (p *Parser) ParseDir(dir string, excludeDirs []string) ([]*ir.FileIR, error) {
+	p.lazyInit()
+	excludeMap := make(map[string]bool)
+	for _, d := range excludeDirs {
+		excludeMap[d] = true
 	}
-	return ch
+	var results []*ir.FileIR
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() && path != dir {
+			base := filepath.Base(path)
+			if isSkippedDir(base) || excludeMap[base] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if !isParseableExt(path) {
+			return nil
+		}
+		fir, err := p.ParseFile(path)
+		if err != nil {
+			return nil
+		}
+		results = append(results, fir)
+		return nil
+	})
+	return results, err
 }
 
-func (t *tokenizer) skipWhitespace() {
-	for t.pos < len(t.src) {
-		ch := t.src[t.pos]
-		if ch == ' ' || ch == '\t' || ch == '\r' {
-			t.pos++
-			t.col++
-		} else if ch == '\n' {
-			return
-		} else {
+func isSkippedDir(name string) bool {
+	if strings.HasPrefix(name, ".") {
+		return true
+	}
+	switch name {
+	case "node_modules", "dist", "build", ".next", "coverage":
+		return true
+	}
+	return false
+}
+
+func isParseableExt(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".tsx", ".ts", ".jsx", ".js":
+		return true
+	}
+	return false
+}
+
+func languageTag(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".tsx":
+		return "typescriptreact"
+	case ".ts":
+		return "typescript"
+	case ".jsx":
+		return "javascriptreact"
+	case ".js":
+		return "javascript"
+	}
+	return "unknown"
+}
+
+func (p *Parser) execQuery(q *sitter.Query, node *sitter.Node, data []byte) []*sitter.QueryMatch {
+	cursor := sitter.NewQueryCursor()
+	cursor.Exec(q, node)
+	var matches []*sitter.QueryMatch
+	for {
+		m, ok := cursor.NextMatch()
+		if !ok {
 			break
 		}
+		m = cursor.FilterPredicates(m, data)
+		if len(m.Captures) > 0 {
+			matches = append(matches, m)
+		}
 	}
+	return matches
 }
 
-func (t *tokenizer) skipComment() {
-	if t.peekN(2) == "//" {
-		for t.pos < len(t.src) && t.src[t.pos] != '\n' {
-			t.pos++
+func captureByName(m *sitter.QueryMatch, q *sitter.Query, name string) *sitter.Node {
+	for _, c := range m.Captures {
+		if q.CaptureNameForId(c.Index) == name {
+			return c.Node
 		}
-		return
 	}
-	if t.peekN(2) == "/*" {
-		t.pos += 2
-		for t.pos+1 < len(t.src) {
-			if t.src[t.pos] == '*' && t.src[t.pos+1] == '/' {
-				t.pos += 2
-				return
+	return nil
+}
+
+func captureContent(m *sitter.QueryMatch, q *sitter.Query, name string, data []byte) string {
+	n := captureByName(m, q, name)
+	if n == nil {
+		return ""
+	}
+	return string(data[n.StartByte():n.EndByte()])
+}
+
+func (p *Parser) extractImports(root *sitter.Node, data []byte) []ir.ImportIR {
+	p.lazyInit()
+	imports := []ir.ImportIR{}
+	seen := map[string]int{}
+
+	merge := func(source string, name string, named string) {
+		if source == "" {
+			return
+		}
+		idx, ok := seen[source]
+		if !ok {
+			idx = len(imports)
+			seen[source] = idx
+			imports = append(imports, ir.ImportIR{Source: source})
+		}
+		if name != "" && imports[idx].Default == "" {
+			imports[idx].Default = name
+		}
+		if named != "" {
+			found := false
+			for _, n := range imports[idx].Names {
+				if n == named {
+					found = true
+					break
+				}
 			}
-			if t.src[t.pos] == '\n' {
-				t.line++
+			if !found {
+				imports[idx].Names = append(imports[idx].Names, named)
 			}
-			t.pos++
 		}
 	}
-}
 
-func isIdentStart(ch rune) bool {
-	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_' || ch == '$'
-}
-
-func isIdentPart(ch rune) bool {
-	return isIdentStart(ch) || (ch >= '0' && ch <= '9')
-}
-
-func (t *tokenizer) readIdent() string {
-	start := t.pos
-	for t.pos < len(t.src) && isIdentPart(t.src[t.pos]) {
-		t.pos++
+	for _, m := range p.execQuery(p.importQ, root, data) {
+		source := captureContent(m, p.importQ, "import_source", data)
+		def := captureContent(m, p.importQ, "import_default", data)
+		name := captureContent(m, p.importQ, "import_name", data)
+		merge(source, def, name)
 	}
-	return string(t.src[start:t.pos])
+
+	for _, m := range p.execQuery(p.importDefQ, root, data) {
+		source := captureContent(m, p.importDefQ, "import_source", data)
+		def := captureContent(m, p.importDefQ, "import_default", data)
+		merge(source, def, "")
+	}
+
+	for _, m := range p.execQuery(p.importNsQ, root, data) {
+		source := captureContent(m, p.importNsQ, "import_source", data)
+		merge(source, "", "")
+	}
+
+	for _, m := range p.execQuery(p.importTypeQ, root, data) {
+		source := captureContent(m, p.importTypeQ, "import_source", data)
+		name := captureContent(m, p.importTypeQ, "import_name", data)
+		merge(source, "", name)
+	}
+
+	return imports
 }
 
-func (t *tokenizer) readString(quote rune) string {
-	start := t.pos
-	t.pos++
-	for t.pos < len(t.src) {
-		ch := t.src[t.pos]
-		if ch == '\\' {
-			t.pos += 2
+type componentMatch struct {
+	name    string
+	body    *sitter.Node
+	params  *sitter.Node
+	isArrow bool
+}
+
+func (p *Parser) findComponentMatches(root *sitter.Node, data []byte) []componentMatch {
+	var matches []componentMatch
+
+	for _, m := range p.execQuery(p.compFuncQ, root, data) {
+		name := captureContent(m, p.compFuncQ, "comp_name", data)
+		if !isComponentName(name) {
 			continue
 		}
-		if ch == quote {
-			t.pos++
-			return string(t.src[start:t.pos])
-		}
-		if ch == '\n' {
-			return string(t.src[start:t.pos])
-		}
-		t.pos++
-	}
-	return string(t.src[start:t.pos])
-}
-
-func (t *tokenizer) readNumber() string {
-	start := t.pos
-	for t.pos < len(t.src) && isNumberRune(t.src[t.pos]) {
-		t.pos++
-	}
-	return string(t.src[start:t.pos])
-}
-
-func isNumberRune(ch rune) bool {
-	return (ch >= '0' && ch <= '9') || ch == '.' || ch == 'x' || ch == 'X' ||
-		(ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')
-}
-
-func (t *tokenizer) skipToNewline() {
-	for t.pos < len(t.src) && t.src[t.pos] != '\n' {
-		t.pos++
-	}
-}
-
-func parseFileContent(g *node.NodeGraph, root *node.RootNode, content string, path string) {
-	lines := strings.Split(content, "\n")
-	tz := newTokenizer(content)
-	ctx := parseContext{g: g, root: root, content: content, lines: lines, path: path}
-	var imports []string
-
-	for tz.pos < len(tz.src) {
-		if consumeTrivia(tz) {
+		fn := captureByName(m, p.compFuncQ, "comp_func")
+		body := fn.ChildByFieldName("body")
+		params := fn.ChildByFieldName("parameters")
+		if body == nil || params == nil {
 			continue
 		}
-		if parseTopLevelStatement(&ctx, tz, &imports) {
+		matches = append(matches, componentMatch{
+			name:    name,
+			body:    body,
+			params:  params,
+			isArrow: false,
+		})
+	}
+
+	for _, m := range p.execQuery(p.compArrowQ, root, data) {
+		name := captureContent(m, p.compArrowQ, "comp_name", data)
+		if !isComponentName(name) {
 			continue
 		}
-		tz.pos++
+		decl := captureByName(m, p.compArrowQ, "comp_arrow")
+		arrow := findChildByType(decl, "arrow_function")
+		if arrow == nil {
+			continue
+		}
+		body := arrow.ChildByFieldName("body")
+		params := arrow.ChildByFieldName("parameters")
+		if body == nil || params == nil {
+			continue
+		}
+		if body.Type() == "statement_block" {
+			matches = append(matches, componentMatch{
+				name:    name,
+				body:    body,
+				params:  params,
+				isArrow: true,
+			})
+		}
 	}
+
+	for _, m := range p.execQuery(p.compFnExprQ, root, data) {
+		name := captureContent(m, p.compFnExprQ, "comp_name", data)
+		if !isComponentName(name) {
+			continue
+		}
+		decl := captureByName(m, p.compFnExprQ, "comp_fn_expr")
+		fn := findChildByType(decl, "function_expression")
+		if fn == nil {
+			continue
+		}
+		body := fn.ChildByFieldName("body")
+		params := fn.ChildByFieldName("parameters")
+		if body == nil || params == nil {
+			continue
+		}
+		matches = append(matches, componentMatch{
+			name:    name,
+			body:    body,
+			params:  params,
+			isArrow: false,
+		})
+	}
+
+	for _, m := range p.execQuery(p.compMemoQ, root, data) {
+		name := captureContent(m, p.compMemoQ, "comp_name", data)
+		if !isComponentName(name) {
+			continue
+		}
+		decl := captureByName(m, p.compMemoQ, "comp_memo")
+		vd := decl.NamedChild(0)
+		if vd == nil || vd.Type() != "variable_declarator" {
+			continue
+		}
+		val := vd.ChildByFieldName("value")
+		if val == nil || val.Type() != "call_expression" {
+			continue
+		}
+		funcArg := val.NamedChild(0)
+		if funcArg == nil {
+			continue
+		}
+		if funcArg.Type() == "arrow_function" || funcArg.Type() == "function_expression" {
+			body := funcArg.ChildByFieldName("body")
+			params := funcArg.ChildByFieldName("parameters")
+			if body != nil && params != nil && body.Type() == "statement_block" {
+				matches = append(matches, componentMatch{
+					name:    name,
+					body:    body,
+					params:  params,
+					isArrow: funcArg.Type() == "arrow_function",
+				})
+			}
+		}
+	}
+
+	return matches
 }
 
-type parseContext struct {
-	g       *node.NodeGraph
-	root    *node.RootNode
-	content string
-	lines   []string
-	path    string
-}
-
-func consumeTrivia(tz *tokenizer) bool {
-	tz.skipWhitespace()
-	if tz.pos >= len(tz.src) {
+func isComponentName(name string) bool {
+	if len(name) == 0 {
 		return false
 	}
-	if tz.peek() == '\n' {
-		tz.pos++
-		tz.line++
-		tz.col = 1
-		return true
+	first := name[0]
+	return first >= 'A' && first <= 'Z'
+}
+
+func isJSXComponentName(name string) bool {
+	if len(name) == 0 {
+		return false
 	}
-	if tz.peekN(2) == "//" || tz.peekN(2) == "/*" {
-		tz.skipComment()
-		return true
+	if name[0] >= 'a' && name[0] <= 'z' {
+		return false
+	}
+	return true
+}
+
+func findChildByType(n *sitter.Node, typ string) *sitter.Node {
+	for i := 0; i < int(n.NamedChildCount()); i++ {
+		c := n.NamedChild(i)
+		if c.Type() == typ {
+			return c
+		}
+		r := findChildByType(c, typ)
+		if r != nil {
+			return r
+		}
+	}
+	return nil
+}
+
+func (p *Parser) extractComponents(root *sitter.Node, data []byte, path string) ([]ir.ComponentIR, []ir.HookIR) {
+	matches := p.findComponentMatches(root, data)
+	exportedNames := p.exportedFunctionNames(root, data)
+
+	components := make([]ir.ComponentIR, 0, len(matches))
+	var topHooks []ir.HookIR
+
+	for _, m := range matches {
+		kind := ir.ComponentKindArrow
+		if !m.isArrow {
+			kind = ir.ComponentKindFunction
+		}
+
+		isExport := false
+		for _, e := range exportedNames {
+			if e == m.name {
+				isExport = true
+				break
+			}
+		}
+
+		comp := ir.ComponentIR{
+			Name:           m.name,
+			FilePath:       path,
+			Kind:           kind,
+			StartLine:      int(m.body.StartPoint().Row) + 1,
+			EndLine:        int(m.body.EndPoint().Row) + 1,
+			Lines:          int(m.body.EndPoint().Row-m.body.StartPoint().Row) + 1,
+			Hooks:          nil,
+			JSXBlocks:      nil,
+			Props:          nil,
+			StateVars:      nil,
+			Effects:        nil,
+			EventHandlers:  nil,
+			Imports:        nil,
+			Exports:        nil,
+			HasKeyDown:     false,
+			HasAnalytics:   false,
+			ConditionalCount: 0,
+			LoopCount:      0,
+		}
+
+		if isExport {
+			comp.Exports = append(comp.Exports, ir.ExportIR{
+				Name:    m.name,
+				Default: false,
+			})
+		}
+
+		if m.params != nil {
+			comp.Props = extractProps(m.params, data)
+		}
+
+		bodyData := data[m.body.StartByte():m.body.EndByte()]
+
+		comp.Hooks = p.extractHooksInRange(m.body, data)
+		comp.StateVars = p.extractStateVarsInRange(m.body, data)
+		comp.Effects = extractEffectsFromHooks(comp.Hooks)
+		comp.JSXBlocks = p.extractJSXInRange(m.body, data)
+		comp.EventHandlers = p.extractEventHandlersInRange(m.body, data)
+		comp.HasKeyDown = hasKeyDownPattern(bodyData)
+		comp.HasAnalytics = hasAnalyticsPattern(bodyData)
+		comp.ConditionalCount = countConditionalsInNode(m.body, data)
+		comp.LoopCount = countLoopsInNode(m.body, data)
+
+		components = append(components, comp)
+	}
+
+	topHooks = p.extractTopLevelHooks(root, data, components)
+
+	return components, topHooks
+}
+
+func (p *Parser) extractHooksInRange(body *sitter.Node, data []byte) []ir.HookIR {
+	hooks := []ir.HookIR{}
+	for _, m := range p.execQuery(p.hookQ, body, data) {
+		nameNode := captureByName(m, p.hookQ, "hook_name")
+		if nameNode == nil {
+			continue
+		}
+		name := string(data[nameNode.StartByte():nameNode.EndByte()])
+		if !strings.HasPrefix(name, "use") {
+			continue
+		}
+		line := int(nameNode.StartPoint().Row) + 1
+		argsNode := captureByName(m, p.hookQ, "hook_args")
+		var args []string
+		if argsNode != nil && argsNode.NamedChildCount() > 0 {
+			argStr := strings.TrimSpace(string(data[argsNode.StartByte()+1 : argsNode.EndByte()-1]))
+			if argStr != "" {
+				args = []string{argStr}
+			}
+		}
+		hooks = append(hooks, ir.HookIR{
+			Name: name,
+			Line: line,
+			Args: args,
+		})
+	}
+	return hooks
+}
+
+func (p *Parser) extractStateVarsInRange(body *sitter.Node, data []byte) []ir.StateVarIR {
+	vars := []ir.StateVarIR{}
+	for _, m := range p.execQuery(p.stateVarQ, body, data) {
+		fnName := captureContent(m, p.stateVarQ, "state_fn", data)
+		if fnName != "useState" {
+			continue
+		}
+		name := captureContent(m, p.stateVarQ, "state_name", data)
+		setter := captureContent(m, p.stateVarQ, "state_setter", data)
+		nameNode := captureByName(m, p.stateVarQ, "state_name")
+		if nameNode == nil {
+			continue
+		}
+		line := int(nameNode.StartPoint().Row) + 1
+		vars = append(vars, ir.StateVarIR{
+			Name:       name,
+			Line:       line,
+			HasUpdater: setter != "",
+		})
+	}
+	return vars
+}
+
+func extractEffectsFromHooks(hooks []ir.HookIR) []ir.EffectIR {
+	var effects []ir.EffectIR
+	for _, h := range hooks {
+		if h.Name == "useEffect" {
+			effects = append(effects, ir.EffectIR{
+				Name: "useEffect",
+				Line: h.Line,
+			})
+		}
+	}
+	return effects
+}
+
+func (p *Parser) extractJSXInRange(body *sitter.Node, data []byte) []ir.JSXBlockIR {
+	blocks := []ir.JSXBlockIR{}
+
+	for _, m := range p.execQuery(p.jsxElemQ, body, data) {
+		tag := captureContent(m, p.jsxElemQ, "jsx_tag", data)
+		if !isJSXComponentName(tag) {
+			continue
+		}
+		line := int(captureByName(m, p.jsxElemQ, "jsx_tag").StartPoint().Row) + 1
+		blocks = append(blocks, ir.JSXBlockIR{
+			Element: tag,
+			Line:    line,
+		})
+	}
+
+	for _, m := range p.execQuery(p.jsxSelfQ, body, data) {
+		tag := captureContent(m, p.jsxSelfQ, "jsx_tag", data)
+		if !isJSXComponentName(tag) {
+			continue
+		}
+		line := int(captureByName(m, p.jsxSelfQ, "jsx_tag").StartPoint().Row) + 1
+		blocks = append(blocks, ir.JSXBlockIR{
+			Element: tag,
+			Line:    line,
+		})
+	}
+
+	return blocks
+}
+
+func (p *Parser) extractEventHandlersInRange(body *sitter.Node, data []byte) []ir.EventHandlerIR {
+	handlers := []ir.EventHandlerIR{}
+	for _, m := range p.execQuery(p.handlerQ, body, data) {
+		name := captureContent(m, p.handlerQ, "handler_name", data)
+		if name == "" {
+			continue
+		}
+		if strings.HasPrefix(name, "handle") || strings.HasPrefix(name, "on") ||
+			strings.HasSuffix(name, "Handler") {
+			line := int(captureByName(m, p.handlerQ, "handler_name").StartPoint().Row) + 1
+			handlers = append(handlers, ir.EventHandlerIR{
+				Name: name,
+				Line: line,
+			})
+		}
+	}
+	return handlers
+}
+
+func extractProps(params *sitter.Node, data []byte) []ir.PropIR {
+	if params == nil {
+		return nil
+	}
+
+	props := []ir.PropIR{}
+
+	for i := 0; i < int(params.NamedChildCount()); i++ {
+		param := params.NamedChild(i)
+		if param.Type() != "required_parameter" && param.Type() != "optional_parameter" {
+			continue
+		}
+		pattern := param.ChildByFieldName("pattern")
+		if pattern == nil || pattern.Type() != "object_pattern" {
+			continue
+		}
+
+		for j := 0; j < int(pattern.NamedChildCount()); j++ {
+			prop := pattern.NamedChild(j)
+			name := ""
+			propType := ""
+			required := true
+
+			switch prop.Type() {
+			case "shorthand_property_identifier_pattern":
+				name = string(data[prop.StartByte():prop.EndByte()])
+				ann := findTypeAnnotation(prop)
+				if ann != nil {
+					raw := strings.TrimSpace(string(data[ann.StartByte():ann.EndByte()]))
+					propType = strings.TrimSpace(strings.TrimPrefix(raw, ":"))
+					propType = strings.TrimSpace(propType)
+				}
+			case "pair_pattern":
+				val := prop.ChildByFieldName("value")
+				if val != nil && val.Type() == "identifier" {
+					name = string(data[val.StartByte():val.EndByte()])
+				}
+				ann := findTypeAnnotation(prop)
+				if ann != nil {
+					raw := strings.TrimSpace(string(data[ann.StartByte():ann.EndByte()]))
+					propType = strings.TrimSpace(strings.TrimPrefix(raw, ":"))
+					propType = strings.TrimSpace(propType)
+				}
+			case "property_identifier_pattern":
+				name = string(data[prop.StartByte():prop.EndByte()])
+			}
+
+			if name == "" {
+				continue
+			}
+
+			if param.Type() == "optional_parameter" {
+				required = false
+			}
+
+			props = append(props, ir.PropIR{
+				Name:     name,
+				Type:     propType,
+				Required: required,
+				Line:     int(prop.StartPoint().Row) + 1,
+			})
+		}
+	}
+
+	return props
+}
+
+func findTypeAnnotation(n *sitter.Node) *sitter.Node {
+	for i := 0; i < int(n.NamedChildCount()); i++ {
+		c := n.NamedChild(i)
+		if c.Type() == "type_annotation" {
+			return c
+		}
+		r := findTypeAnnotation(c)
+		if r != nil {
+			return r
+		}
+	}
+	return nil
+}
+
+func countConditionalsInNode(body *sitter.Node, data []byte) int {
+	count := 0
+	walkTree(body, func(n *sitter.Node) {
+		switch n.Type() {
+		case "if_statement":
+			count++
+		case "ternary_expression":
+			count++
+		}
+	})
+	return count
+}
+
+func countLoopsInNode(body *sitter.Node, data []byte) int {
+	count := 0
+	walkTree(body, func(n *sitter.Node) {
+		switch n.Type() {
+		case "for_statement", "for_in_statement", "while_statement", "do_statement":
+			count++
+		}
+		if n.Type() == "call_expression" {
+			fn := n.ChildByFieldName("function")
+			if fn != nil {
+				switch string(data[fn.StartByte():fn.EndByte()]) {
+				case "map", "forEach", "filter", "reduce":
+					count++
+				}
+			}
+		}
+	})
+	return count
+}
+
+func walkTree(n *sitter.Node, fn func(*sitter.Node)) {
+	fn(n)
+	for i := 0; i < int(n.NamedChildCount()); i++ {
+		walkTree(n.NamedChild(i), fn)
+	}
+}
+
+func hasKeyDownPattern(content []byte) bool {
+	lower := bytes.ToLower(content)
+	for _, p := range [][]byte{
+		[]byte("onkeydown"), []byte("usekeydown"), []byte("keyboard"), []byte("keydown"),
+	} {
+		if bytes.Contains(lower, p) {
+			return true
+		}
 	}
 	return false
 }
 
-func parseTopLevelStatement(ctx *parseContext, tz *tokenizer, imports *[]string) bool {
-	if tz.peek() == 'i' && tz.peekN(6) == "import" {
-		if imp := parseImport(tz); imp != "" {
-			*imports = append(*imports, imp)
+func hasAnalyticsPattern(content []byte) bool {
+	lower := bytes.ToLower(content)
+	for _, p := range [][]byte{
+		[]byte("analytics"), []byte("track"), []byte("gtag"),
+		[]byte("posthog"), []byte("amplitude"), []byte("mixpanel"),
+	} {
+		if bytes.Contains(lower, p) {
+			return true
 		}
-		return true
-	}
-	if tz.peek() == 'e' && tz.peekN(6) == "export" {
-		parseExportStmt(ctx, tz)
-		return true
-	}
-	if tz.peekN(5) == "async" {
-		parseAsyncFunction(ctx, tz)
-		return true
-	}
-	if tz.peekN(8) == "function" {
-		parseTopLevelFunction(ctx, tz)
-		return true
-	}
-	if isDeclarationStart(tz) {
-		parseTopLevelDeclaration(ctx, tz)
-		return true
 	}
 	return false
 }
 
-func isDeclarationStart(tz *tokenizer) bool {
-	return tz.peekN(5) == "const" || tz.peekN(3) == "let" || tz.peekN(3) == "var"
-}
+func (p *Parser) extractTopLevelHooks(root *sitter.Node, data []byte, components []ir.ComponentIR) []ir.HookIR {
+	var hooks []ir.HookIR
 
-func addComponentByName(ctx *parseContext, name string) {
-	if name == "" || !isComponentName(name) {
-		return
-	}
-	compID := buildComponentFromBody(ctx.g, ctx.path, ctx.content, ctx.lines, name)
-	if compID != "" {
-		ctx.root.AddChild(node.NodeID(compID))
-	}
-}
-
-func parseAsyncFunction(ctx *parseContext, tz *tokenizer) {
-	tz.pos += 5
-	tz.skipWhitespace()
-	if tz.peekN(8) == "function" {
-		addComponentByName(ctx, parseFunctionDecl(tz))
-	}
-}
-
-func parseTopLevelFunction(ctx *parseContext, tz *tokenizer) {
-	savePos := tz.pos
-	tz.pos += 8
-	tz.skipWhitespace()
-	fnName := tz.readIdent()
-	if fnName != "" && isComponentName(fnName) {
-		addComponentByName(ctx, fnName)
-		return
-	}
-	tz.pos = savePos
-	tz.pos++
-}
-
-func parseTopLevelDeclaration(ctx *parseContext, tz *tokenizer) {
-	decl := parseDeclaration(tz)
-	if decl != "" && isComponentName(decl) {
-		addComponentByName(ctx, decl)
-	}
-}
-
-func parseImport(tz *tokenizer) string {
-	tz.pos += 6
-	tz.skipWhitespace()
-
-	if tz.peekN(4) == "type" {
-		tz.pos += 4
-		tz.skipWhitespace()
-	}
-
-	if tz.peek() == '{' {
-		skipImportSpecifiers(tz)
-	}
-
-	tz.skipWhitespace()
-
-	if tz.peekN(4) == "from" {
-		return parseImportSource(tz)
-	}
-	if isIdentStart(tz.peek()) {
-		return tz.readIdent()
-	}
-	return ""
-}
-
-func skipImportSpecifiers(tz *tokenizer) {
-	tz.pos++
-	for tz.pos < len(tz.src) && tz.peek() != '}' {
-		if tz.peek() == '\n' {
-			tz.line++
-			tz.col = 1
+	compLines := make(map[int]bool)
+	for _, c := range components {
+		for line := c.StartLine; line <= c.EndLine; line++ {
+			compLines[line] = true
 		}
-		tz.pos++
 	}
-	if tz.peek() == '}' {
-		tz.pos++
+
+	seen := make(map[string]bool)
+
+	for _, m := range p.execQuery(p.hookQ, root, data) {
+		nameNode := captureByName(m, p.hookQ, "hook_name")
+		if nameNode == nil {
+			continue
+		}
+		name := string(data[nameNode.StartByte():nameNode.EndByte()])
+		if !strings.HasPrefix(name, "use") {
+			continue
+		}
+
+		line := int(nameNode.StartPoint().Row) + 1
+		if compLines[line] {
+			continue
+		}
+
+		key := fmt.Sprintf("%s:%d", name, line)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+
+		argsNode := captureByName(m, p.hookQ, "hook_args")
+		var args []string
+		if argsNode != nil && argsNode.NamedChildCount() > 0 {
+			argStr := strings.TrimSpace(string(data[argsNode.StartByte()+1 : argsNode.EndByte()-1]))
+			if argStr != "" {
+				args = []string{argStr}
+			}
+		}
+
+		hooks = append(hooks, ir.HookIR{
+			Name: name,
+			Line: line,
+			Args: args,
+		})
 	}
+
+	return hooks
 }
 
-func parseImportSource(tz *tokenizer) string {
-	tz.pos += 4
-	tz.skipWhitespace()
-	if tz.peek() == '"' || tz.peek() == '\'' {
-		return tz.readString(tz.peek())
-	}
-	return ""
-}
+func (p *Parser) exportedFunctionNames(root *sitter.Node, data []byte) []string {
+	var names []string
 
-func parseExportStmt(ctx *parseContext, tz *tokenizer) {
-	tz.pos += 6
-	tz.skipWhitespace()
-
-	if tz.peekN(7) == "default" {
-		parseDefaultExport(ctx, tz)
-		return
-	}
-
-	if tz.peekN(8) == "function" {
-		addExportedFunction(ctx, tz)
-		return
-	}
-
-	if tz.peekN(5) == "const" {
-		addExportedConst(ctx, tz)
-		return
-	}
-}
-
-func parseDefaultExport(ctx *parseContext, tz *tokenizer) {
-	tz.pos += 7
-	tz.skipWhitespace()
-	if tz.peekN(8) == "function" {
-		addExportedFunction(ctx, tz)
-	}
-}
-
-func addExportedFunction(ctx *parseContext, tz *tokenizer) {
-	tz.pos += 8
-	tz.skipWhitespace()
-	addComponentByName(ctx, tz.readIdent())
-}
-
-func addExportedConst(ctx *parseContext, tz *tokenizer) {
-	tz.pos += 5
-	tz.skipWhitespace()
-	if tz.peek() == '{' {
-		tz.skipToNewline()
-		return
-	}
-	name := tz.readIdent()
-	tz.skipWhitespace()
-	if tz.peek() == ':' {
-		tz.pos++
-		tz.skipWhitespace()
-		skipTypeAnnotation(tz)
-		tz.skipWhitespace()
-	}
-	if name != "" && isComponentName(name) && looksLikeComponentInitializer(tz) {
-		addComponentByName(ctx, name)
-	}
-}
-
-func parseFunctionDecl(tz *tokenizer) string {
-	if tz.peekN(8) == "function" {
-		tz.pos += 8
-		tz.skipWhitespace()
-		return tz.readIdent()
-	}
-	return ""
-}
-
-func parseDeclaration(tz *tokenizer) string {
-	if tz.peekN(5) == "const" {
-		tz.pos += 5
-	} else if tz.peekN(3) == "let" {
-		tz.pos += 3
-	} else if tz.peekN(3) == "var" {
-		tz.pos += 3
-	} else {
-		tz.skipToNewline()
-		return ""
+	for _, m := range p.execQuery(p.exportQ, root, data) {
+		decl := captureByName(m, p.exportQ, "export_decl")
+		if decl == nil {
+			continue
+		}
+		nameNode := decl.ChildByFieldName("name")
+		if nameNode != nil {
+			names = append(names, string(data[nameNode.StartByte():nameNode.EndByte()]))
+			continue
+		}
+		if decl.NamedChildCount() > 0 {
+			first := decl.NamedChild(0)
+			if first.Type() == "lexical_declaration" {
+				for i := 0; i < int(first.NamedChildCount()); i++ {
+					vd := first.NamedChild(i)
+					if vd.Type() == "variable_declarator" {
+						n := vd.ChildByFieldName("name")
+						if n != nil {
+							names = append(names, string(data[n.StartByte():n.EndByte()]))
+						}
+					}
+				}
+			}
+		}
 	}
 
-	tz.skipWhitespace()
-
-	if tz.peek() == '{' {
-		tz.skipToNewline()
-		return ""
+	for _, m := range p.execQuery(p.exportDefQ, root, data) {
+		decl := captureByName(m, p.exportDefQ, "export_default_decl")
+		if decl == nil {
+			continue
+		}
+		nameNode := decl.ChildByFieldName("name")
+		if nameNode != nil {
+			names = append(names, string(data[nameNode.StartByte():nameNode.EndByte()]))
+			continue
+		}
+		if decl.NamedChildCount() > 0 {
+			first := decl.NamedChild(0)
+			if first.Type() == "lexical_declaration" {
+				for i := 0; i < int(first.NamedChildCount()); i++ {
+					vd := first.NamedChild(i)
+					if vd.Type() == "variable_declarator" {
+						n := vd.ChildByFieldName("name")
+						if n != nil {
+							names = append(names, string(data[n.StartByte():n.EndByte()]))
+						}
+					}
+				}
+			}
+		}
 	}
 
-	name := tz.readIdent()
-	tz.skipWhitespace()
-
-	if tz.peek() == ':' {
-		tz.pos++
-		tz.skipWhitespace()
-		skipTypeAnnotation(tz)
-		tz.skipWhitespace()
-	}
-
-	if looksLikeComponentInitializer(tz) {
-		return name
-	}
-	return ""
+	return names
 }
