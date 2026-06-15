@@ -109,6 +109,7 @@ const (
 type Diagnostic struct {
 	Code       string            `json:"code"`
 	Severity   Severity          `json:"severity"`
+	Confidence string            `json:"confidence,omitempty"`
 	Message    string            `json:"message"`
 	File       string            `json:"file"`
 	Line       int               `json:"line"`
@@ -180,6 +181,7 @@ type GrpPlan struct {
 	Goal         string       `json:"goal"`
 	Risk         Severity     `json:"risk"`
 	Target       string       `json:"target"`
+	Language     string       `json:"language,omitempty"`
 	TokenEstimate int         `json:"tokenEstimate"`
 	FileCount     int         `json:"fileCount"`
 	Diagnostics   []Diagnostic `json:"diagnostics"`

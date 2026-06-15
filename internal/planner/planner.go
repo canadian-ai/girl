@@ -38,6 +38,7 @@ func (p *Planner) GeneratePlan(req PlanRequest) *ir.GrpPlan {
 		PlanID:       "",
 		Goal:         req.Goal,
 		Target:       req.Target,
+		Language:     req.Lang,
 		Diagnostics:  diags,
 		Steps:        []ir.GrpStep{},
 		Verification: p.detectVerification(req.Target, req.Lang),
@@ -56,11 +57,7 @@ func (p *Planner) GeneratePlan(req PlanRequest) *ir.GrpPlan {
 	plan.Risk = p.computeRisk(plan.Steps)
 	plan.FileCount = len(req.Files)
 
-	totalTokens := 0
-	for _, s := range plan.Steps {
-		totalTokens += len(s.Action) / 3
-	}
-	plan.TokenEstimate = totalTokens
+	plan.TokenEstimate = estimateTokens(plan.Steps)
 
 	p.assignStepIDs(plan)
 
@@ -235,6 +232,14 @@ func isSlugChar(r rune) bool {
 
 func isSlugSeparator(r rune) bool {
 	return r == ' ' || r == '-' || r == '_'
+}
+
+func estimateTokens(steps []ir.GrpStep) int {
+	total := 0
+	for _, s := range steps {
+		total += len(s.Action) / 3
+	}
+	return total
 }
 
 func (p *Planner) detectVerification(target string, lang string) []string {

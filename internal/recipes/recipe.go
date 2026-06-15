@@ -70,7 +70,6 @@ func (r *SplitLargeComponent) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool)
 
 func (r *SplitLargeComponent) GenerateStep(diag ir.Diagnostic) ir.GrpStep {
 	return ir.GrpStep{
-		ID:     "step_split",
 		Recipe: r.ID(),
 		Action: "Split component into smaller components by responsibility boundary. Extract sub-sections into separate files.",
 		File:   diag.File,
@@ -103,7 +102,6 @@ func (r *ExtractRepeatedJSX) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) 
 
 func (r *ExtractRepeatedJSX) GenerateStep(diag ir.Diagnostic) ir.GrpStep {
 	return ir.GrpStep{
-		ID:     "step_extract_jsx",
 		Recipe: r.ID(),
 		Action: "Extract repeated JSX into a reusable component. Identify differing props and create a clean interface.",
 		File:   diag.File,
@@ -137,7 +135,6 @@ func (r *ExtractCustomHook) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) {
 
 func (r *ExtractCustomHook) GenerateStep(diag ir.Diagnostic) ir.GrpStep {
 	return ir.GrpStep{
-		ID:     "step_extract_hook",
 		Recipe: r.ID(),
 		Action: "Extract related state and effects into a custom hook. Move hook logic to a separate file.",
 		File:   diag.File,
@@ -164,7 +161,6 @@ func (r *ReduceStateVars) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) {
 
 func (r *ReduceStateVars) GenerateStep(diag ir.Diagnostic) ir.GrpStep {
 	return ir.GrpStep{
-		ID:     "step_reduce_state",
 		Recipe: r.ID(),
 		Action: "Consolidate related useState calls into useReducer or a single state object.",
 		File:   diag.File,
@@ -191,7 +187,6 @@ func (r *ConsolidateEffects) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) 
 
 func (r *ConsolidateEffects) GenerateStep(diag ir.Diagnostic) ir.GrpStep {
 	return ir.GrpStep{
-		ID:     "step_consolidate_effects",
 		Recipe: r.ID(),
 		Action: "Merge related useEffect calls or extract logic into custom hooks.",
 		File:   diag.File,
@@ -228,7 +223,6 @@ func (r *AddPropTypes) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) {
 
 func (r *AddPropTypes) GenerateStep(diag ir.Diagnostic) ir.GrpStep {
 	return ir.GrpStep{
-		ID:     "step_add_types",
 		Recipe: r.ID(),
 		Action: "Define TypeScript interface for component props with proper types for each prop.",
 		File:   diag.File,

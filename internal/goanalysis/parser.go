@@ -302,7 +302,7 @@ func isProbablyErrorReturning(call *ast.CallExpr) bool {
 	if likelyErrorFuncs[name] {
 		return true
 	}
-	return true
+	return false
 }
 
 func callName(call *ast.CallExpr) string {

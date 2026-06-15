@@ -11,13 +11,18 @@ func FromIRPlan(irPlan *ir.GrpPlan) *Plan {
 		return nil
 	}
 
+	lang := irPlan.Language
+	if lang == "" {
+		lang = "auto"
+	}
+
 	p := &Plan{
 		SpecVersion:  "0.1",
 		ID:           irPlan.PlanID,
 		Type:         "dev.refactor.plan",
 		Source:       "github.com/canadian-ai/girl",
 		Subject:      irPlan.Target,
-		Language:     "auto",
+		Language:     lang,
 		Goal:         irPlan.Goal,
 		Risk:         Severity(irPlan.Risk),
 		Diagnostics:  make([]Diagnostic, len(irPlan.Diagnostics)),
@@ -54,11 +59,16 @@ func convertVerification(cmds []string) []Verification {
 }
 
 func convertDiagnostic(d ir.Diagnostic, index int) Diagnostic {
+	confidence := ConfidenceHigh
+	if d.Confidence != "" {
+		confidence = Confidence(d.Confidence)
+	}
+
 	g := Diagnostic{
 		ID:         fmt.Sprintf("diag_%d", index),
 		Code:       d.Code,
 		Severity:   Severity(d.Severity),
-		Confidence: ConfidenceHigh,
+		Confidence: confidence,
 		Message:    d.Message,
 		File:       d.File,
 		Line:       d.Line,

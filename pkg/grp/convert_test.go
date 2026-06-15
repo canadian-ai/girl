@@ -8,27 +8,30 @@ import (
 
 func TestFromIRPlan(t *testing.T) {
 	irPlan := &ir.GrpPlan{
-		PlanID: "grp_test_001",
-		Goal:   "Refactor long functions",
-		Risk:   ir.SeverityMedium,
-		Target: ".",
+		PlanID:   "grp_test_001",
+		Goal:     "Refactor long functions",
+		Risk:     ir.SeverityMedium,
+		Target:   ".",
+		Language: "go",
 		Diagnostics: []ir.Diagnostic{
 			{
-				Code:     "go.high-complexity",
-				Severity: ir.SeverityHigh,
-				Message:  "Function foo has complexity 22",
-				File:     "main.go",
-				Line:     10,
-				EndLine:  12,
-				Symbol:   "foo",
+				Code:       "go.high-complexity",
+				Severity:   ir.SeverityHigh,
+				Confidence: "high",
+				Message:    "Function foo has complexity 22",
+				File:       "main.go",
+				Line:       10,
+				EndLine:    12,
+				Symbol:     "foo",
 			},
 			{
-				Code:     "go.long-function",
-				Severity: ir.SeverityLow,
-				Message:  "Function bar is too long",
-				File:     "util.go",
-				Line:     20,
-				EndLine:  30,
+				Code:       "go.long-function",
+				Severity:   ir.SeverityLow,
+				Confidence: "medium",
+				Message:    "Function bar is too long",
+				File:       "util.go",
+				Line:       20,
+				EndLine:    30,
 			},
 		},
 		Steps: []ir.GrpStep{
@@ -64,8 +67,8 @@ func TestFromIRPlan(t *testing.T) {
 	if p.Subject != "." {
 		t.Errorf("Subject = %q, want %q", p.Subject, ".")
 	}
-	if p.Language != "auto" {
-		t.Errorf("Language = %q, want %q", p.Language, "auto")
+	if p.Language != "go" {
+		t.Errorf("Language = %q, want %q", p.Language, "go")
 	}
 	if p.Goal != "Refactor long functions" {
 		t.Errorf("Goal = %q, want %q", p.Goal, "Refactor long functions")
@@ -109,6 +112,13 @@ func TestFromIRPlan(t *testing.T) {
 	if p.Diagnostics[1].Code != "go.long-function" {
 		t.Errorf("Diagnostics[1].Code = %q, want %q", p.Diagnostics[1].Code, "go.long-function")
 	}
+	if p.Diagnostics[0].Confidence != ConfidenceHigh {
+		t.Errorf("Diagnostics[0].Confidence = %q, want %q", p.Diagnostics[0].Confidence, ConfidenceHigh)
+	}
+	if p.Diagnostics[1].Confidence != ConfidenceMedium {
+		t.Errorf("Diagnostics[1].Confidence = %q, want %q", p.Diagnostics[1].Confidence, ConfidenceMedium)
+	}
+
 	if p.Diagnostics[1].Symbol != nil {
 		t.Errorf("Diagnostics[1].Symbol should be nil, got %v", p.Diagnostics[1].Symbol)
 	}
@@ -165,6 +175,7 @@ func TestDiagnosticConversion(t *testing.T) {
 	irDiag := ir.Diagnostic{
 		Code:       "go.high-complexity",
 		Severity:   ir.SeverityHigh,
+		Confidence: "low",
 		Message:    "Function handleRequest has complexity 22",
 		File:       "internal/server/handler.go",
 		Line:       42,
@@ -201,8 +212,8 @@ func TestDiagnosticConversion(t *testing.T) {
 	if g.Severity != SeverityHigh {
 		t.Errorf("Severity = %q, want %q", g.Severity, SeverityHigh)
 	}
-	if g.Confidence != ConfidenceHigh {
-		t.Errorf("Confidence = %q, want %q", g.Confidence, ConfidenceHigh)
+	if g.Confidence != ConfidenceLow {
+		t.Errorf("Confidence = %q, want %q", g.Confidence, ConfidenceLow)
 	}
 	if g.Message != "Function handleRequest has complexity 22" {
 		t.Errorf("Message = %q, want %q", g.Message, "Function handleRequest has complexity 22")
