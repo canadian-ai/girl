@@ -3,7 +3,7 @@
 **Grammar-Informed Refactoring Language** — a CLI for analyzing code and
 generating GRP refactoring plans.
 
-> **GRP** (Green Refactoring Protocol) is the protocol/schema for structured,
+> **GRP** (Grammar Refactoring Protocol) is the protocol/schema for structured,
 > source-grounded refactoring plans. **GIRL** is the reference CLI
 > implementation of GRP, starting with Go, TypeScript, and React bindings.
 
