@@ -1,0 +1,29 @@
+{
+  "jsonrpc": "2.0",
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "uri": "file:///path/to/src/main.rs",
+    "diagnostics": [
+      {
+        "range": {
+          "start": { "line": 10, "character": 0 },
+          "end": { "line": 55, "character": 0 }
+        },
+        "severity": 2,
+        "code": "rust-lsp.long-function",
+        "source": "girl",
+        "message": "Function 'process_data' is 120 lines (threshold: 60). Consider extracting helper functions."
+      },
+      {
+        "range": {
+          "start": { "line": 30, "character": 4 },
+          "end": { "line": 48, "character": 5 }
+        },
+        "severity": 3,
+        "code": "rust-lsp.deep-nesting",
+        "source": "girl",
+        "message": "Nesting depth of 6 exceeds threshold of 4. Consider flattening with early returns."
+      }
+    ]
+  }
+}

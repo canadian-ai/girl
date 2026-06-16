@@ -1,0 +1,19 @@
+// GritQL pattern: Extract long functions
+// Generated from GIRL go.long-function diagnostic
+
+pattern extract_function() {
+  `function $name($params) {
+    $body
+  }` where {
+    $body <: contains `return` and $body <: contains within 50 lines
+  }
+}
+
+// Split function body into extracted calls
+pattern split_large_switch() {
+  `switch ($cond) {
+    $cases
+  }` where {
+    $cases <: contains multiple `case`
+  }
+}
