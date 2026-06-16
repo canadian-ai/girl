@@ -101,11 +101,11 @@ func TestWalkerComponentWithChildren(t *testing.T) {
 }
 
 type typedSpy struct {
-	variables []string
-	functions []string
+	variables  []string
+	functions  []string
 	components []string
-	hooks []string
-	jsxs []string
+	hooks      []string
+	jsxs       []string
 	references []string
 }
 

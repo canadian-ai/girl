@@ -17,7 +17,7 @@ type StructuralRatios struct {
 }
 
 type CohesionResult struct {
-	Variance         float64
+	Variance          float64
 	SuggestedClusters [][]string
 }
 

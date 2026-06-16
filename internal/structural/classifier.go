@@ -119,11 +119,11 @@ func Classify(diff *diffstats.DiffStats) *Classification {
 type bucketLabel string
 
 const (
-	bucketLogic           bucketLabel = "logic"
-	bucketTest            bucketLabel = "test"
-	bucketConfigData      bucketLabel = "config_data"
+	bucketLogic            bucketLabel = "logic"
+	bucketTest             bucketLabel = "test"
+	bucketConfigData       bucketLabel = "config_data"
 	bucketConfigStructural bucketLabel = "config_structural"
-	bucketGenerated       bucketLabel = "generated"
+	bucketGenerated        bucketLabel = "generated"
 )
 
 func classifyByPath(f diffstats.FileStat) bucketLabel {
@@ -202,7 +202,7 @@ func computeCohesion(diff *diffstats.DiffStats) CohesionResult {
 	}
 
 	return CohesionResult{
-		Variance:         variance,
+		Variance:          variance,
 		SuggestedClusters: clusters,
 	}
 }

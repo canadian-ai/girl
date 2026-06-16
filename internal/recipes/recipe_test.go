@@ -43,10 +43,10 @@ func TestThresholds_LoweredMatches(t *testing.T) {
 	matches := engine.Match(comp)
 
 	expected := map[string]bool{
-		"react.split-large-component":  true,
-		"react.extract-custom-hook":    true,
-		"react.reduce-state-vars":      true,
-		"react.consolidate-effects":    true,
+		"react.split-large-component": true,
+		"react.extract-custom-hook":   true,
+		"react.reduce-state-vars":     true,
+		"react.consolidate-effects":   true,
 	}
 	for _, m := range matches {
 		if !expected[m.RecipeID] {

@@ -28,6 +28,11 @@ Language bindings encode findings from the core language itself, independent of 
 - `go.too-many-params` — Function parameter count exceeds limit
 - `ts.any-usage` — Type `any` used where a concrete type is available
 - `ts.missing-return-type` — Function lacks explicit return type annotation
+- `rust.long-function` — Function body exceeds line limit
+- `rust.high-complexity` — Cyclomatic complexity exceeds threshold
+- `rust.deep-nesting` — Control-flow nesting depth exceeds threshold
+- `rust.large-file` — File exceeds line count threshold
+- `rust.too-many-params` — Function parameter count exceeds limit
 
 ## Framework bindings
 

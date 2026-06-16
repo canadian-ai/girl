@@ -9,25 +9,25 @@ const (
 )
 
 type ComponentIR struct {
-	Name             string          `json:"name"`
-	FilePath         string          `json:"filePath"`
-	Kind             ComponentKind   `json:"kind"`
-	StartLine        int             `json:"startLine"`
-	EndLine          int             `json:"endLine"`
-	Lines            int             `json:"lines"`
-	Hooks            []HookIR        `json:"hooks"`
-	JSXBlocks        []JSXBlockIR    `json:"jsxBlocks"`
-	Props            []PropIR        `json:"props"`
-	StateVars        []StateVarIR    `json:"stateVars"`
-	Effects          []EffectIR      `json:"effects"`
+	Name             string           `json:"name"`
+	FilePath         string           `json:"filePath"`
+	Kind             ComponentKind    `json:"kind"`
+	StartLine        int              `json:"startLine"`
+	EndLine          int              `json:"endLine"`
+	Lines            int              `json:"lines"`
+	Hooks            []HookIR         `json:"hooks"`
+	JSXBlocks        []JSXBlockIR     `json:"jsxBlocks"`
+	Props            []PropIR         `json:"props"`
+	StateVars        []StateVarIR     `json:"stateVars"`
+	Effects          []EffectIR       `json:"effects"`
 	EventHandlers    []EventHandlerIR `json:"eventHandlers"`
-	Imports          []ImportIR      `json:"imports"`
-	Exports          []ExportIR      `json:"exports"`
-	ChildComponents  []string        `json:"childComponents"`
-	HasKeyDown       bool            `json:"hasKeyDown"`
-	HasAnalytics     bool            `json:"hasAnalytics"`
-	ConditionalCount int             `json:"conditionalCount"`
-	LoopCount        int             `json:"loopCount"`
+	Imports          []ImportIR       `json:"imports"`
+	Exports          []ExportIR       `json:"exports"`
+	ChildComponents  []string         `json:"childComponents"`
+	HasKeyDown       bool             `json:"hasKeyDown"`
+	HasAnalytics     bool             `json:"hasAnalytics"`
+	ConditionalCount int              `json:"conditionalCount"`
+	LoopCount        int              `json:"loopCount"`
 }
 
 type HookIR struct {
@@ -80,8 +80,8 @@ type ImportIR struct {
 }
 
 type ExportIR struct {
-	Name     string `json:"name"`
-	Default  bool   `json:"default"`
+	Name    string `json:"name"`
+	Default bool   `json:"default"`
 }
 
 type FileIR struct {
@@ -94,14 +94,14 @@ type FileIR struct {
 }
 
 type AnalyzerResult struct {
-	Files       []*FileIR     `json:"files"`
-	Diagnostics []Diagnostic  `json:"diagnostics"`
+	Files       []*FileIR    `json:"files"`
+	Diagnostics []Diagnostic `json:"diagnostics"`
 }
 
 type Severity string
 
 const (
-	SeverityLow   Severity = "low"
+	SeverityLow    Severity = "low"
 	SeverityMedium Severity = "medium"
 	SeverityHigh   Severity = "high"
 )

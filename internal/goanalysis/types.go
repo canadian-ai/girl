@@ -26,12 +26,12 @@ type GoFunction struct {
 }
 
 type Config struct {
-	MaxFunctionLines     int
-	MaxComplexity        int
-	MaxNesting           int
-	MaxFileLines         int
-	MaxParams            int
-	MinSwitchCases       int
+	MaxFunctionLines       int
+	MaxComplexity          int
+	MaxNesting             int
+	MaxFileLines           int
+	MaxParams              int
+	MinSwitchCases         int
 	IgnoredErrorConfidence string
 }
 

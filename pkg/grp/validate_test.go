@@ -30,11 +30,11 @@ func validPlan() *Plan {
 		},
 		Steps: []Step{
 			{
-				ID:     "step_001_go.high-complexity_handleRequest",
-				Title:  "Simplify branching in handleRequest",
-				Action: "Extract guard clauses and reduce nesting in handleRequest",
-				Target: Target{File: "internal/server/handler.go"},
-				Risk:   SeverityMedium,
+				ID:       "step_001_go.high-complexity_handleRequest",
+				Title:    "Simplify branching in handleRequest",
+				Action:   "Extract guard clauses and reduce nesting in handleRequest",
+				Target:   Target{File: "internal/server/handler.go"},
+				Risk:     SeverityMedium,
 				Requires: []string{"diag_001"},
 			},
 		},
@@ -107,7 +107,7 @@ func TestValidatePlanDiagnosticMissingFields(t *testing.T) {
 	p := validPlan()
 	p.Diagnostics = []Diagnostic{
 		{
-			ID: "diag_001",
+			ID:         "diag_001",
 			Severity:   SeverityHigh,
 			Confidence: ConfidenceHigh,
 			Message:    "test",

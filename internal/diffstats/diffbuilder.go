@@ -28,11 +28,11 @@ type DiffHunk struct {
 
 // DiffFile represents a single file entry in a diff.
 type DiffFile struct {
-	Path    string
-	OldPath string
-	IsNew   bool
+	Path     string
+	OldPath  string
+	IsNew    bool
 	IsBinary bool
-	Hunks   []DiffHunk
+	Hunks    []DiffHunk
 }
 
 // Diff generates a unified diff string from human-readable parameters.

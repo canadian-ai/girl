@@ -168,6 +168,52 @@ var builtInRecipes = []DiagnosticRecipe{
 			return fmt.Sprintf("Group parameters in %s into an options struct", targetName(d))
 		},
 	},
+	// Rust recipes
+	{
+		Code:   "rust.long-function",
+		Recipe: "rust.extract-function",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{"cargo build", "cargo test"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Extract helper functions from %s to reduce function length", targetName(d))
+		},
+	},
+	{
+		Code:   "rust.high-complexity",
+		Recipe: "rust.simplify-branches",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{"cargo clippy", "cargo test"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Reduce branching in %s with guard clauses or simpler match arms", targetName(d))
+		},
+	},
+	{
+		Code:   "rust.deep-nesting",
+		Recipe: "rust.flatten-nesting",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{"cargo build", "cargo test"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Flatten deep nesting in %s with early returns or extracted helpers", targetName(d))
+		},
+	},
+	{
+		Code:   "rust.large-file",
+		Recipe: "rust.split-file",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{"cargo build", "cargo test"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Split %s into smaller modules by responsibility", targetName(d))
+		},
+	},
+	{
+		Code:   "rust.too-many-params",
+		Recipe: "rust.extract-options-struct",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{"cargo build", "cargo test"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Group parameters in %s into a builder or options struct", targetName(d))
+		},
+	},
 	{
 		Code:   "agent.diff-too-large",
 		Recipe: "agent.decompose-large-diff",

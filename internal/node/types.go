@@ -77,17 +77,17 @@ func NewNodeBase(id NodeID, kind NodeKind, name string) NodeBase {
 	}
 }
 
-func (b *NodeBase) ID() NodeID           { return b.id }
-func (b *NodeBase) Kind() NodeKind       { return b.kind }
-func (b *NodeBase) Name() string         { return b.name }
-func (b *NodeBase) Range() Range         { return b.loc }
-func (b *NodeBase) File() string         { return b.file }
-func (b *NodeBase) Children() []NodeID   { return b.children }
-func (b *NodeBase) Parent() NodeID       { return b.parent }
-func (b *NodeBase) SetRange(r Range)     { b.loc = r }
-func (b *NodeBase) SetFile(f string)     { b.file = f }
-func (b *NodeBase) SetParent(p NodeID)   { b.parent = p }
-func (b *NodeBase) AddChild(c NodeID)    { b.children = append(b.children, c) }
+func (b *NodeBase) ID() NodeID         { return b.id }
+func (b *NodeBase) Kind() NodeKind     { return b.kind }
+func (b *NodeBase) Name() string       { return b.name }
+func (b *NodeBase) Range() Range       { return b.loc }
+func (b *NodeBase) File() string       { return b.file }
+func (b *NodeBase) Children() []NodeID { return b.children }
+func (b *NodeBase) Parent() NodeID     { return b.parent }
+func (b *NodeBase) SetRange(r Range)   { b.loc = r }
+func (b *NodeBase) SetFile(f string)   { b.file = f }
+func (b *NodeBase) SetParent(p NodeID) { b.parent = p }
+func (b *NodeBase) AddChild(c NodeID)  { b.children = append(b.children, c) }
 
 type Node interface {
 	ID() NodeID

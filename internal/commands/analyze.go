@@ -8,6 +8,7 @@ import (
 	"github.com/canadian-ai/girl/internal/analyzer"
 	"github.com/canadian-ai/girl/internal/goanalysis"
 	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/rustanalysis"
 	"github.com/urfave/cli/v2"
 )
 
@@ -52,6 +53,9 @@ func AnalyzeCommand() *cli.Command {
 			if lang == "go" {
 				cfg := goanalysis.DefaultConfig()
 				result, err = goanalysis.AnalyzePath(path, cfg)
+			} else if lang == "rust" {
+				cfg := rustanalysis.DefaultConfig()
+				result, err = rustanalysis.AnalyzePath(path, cfg)
 			} else {
 				cfg := analyzer.DefaultConfig()
 				cfg.MaxComponentLines = c.Int("max-lines")

@@ -73,12 +73,12 @@ func ReviewCommand() *cli.Command {
 				printReviewMarkdown(result)
 			default:
 				printJSON(struct {
-				Result     ir.ReviewabilityResult     `json:"result"`
-				Structural *structural.Classification `json:"structural,omitempty"`
-			}{
-				Result:     result.Result,
-				Structural: result.Structural,
-			})
+					Result     ir.ReviewabilityResult     `json:"result"`
+					Structural *structural.Classification `json:"structural,omitempty"`
+				}{
+					Result:     result.Result,
+					Structural: result.Structural,
+				})
 			}
 
 			if c.Bool("fail-on-over-budget") && overBudget {

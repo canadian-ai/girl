@@ -32,6 +32,7 @@ func Detect(path string) (*Result, error) {
 
 	result.Commands = append(result.Commands, detectPackageScripts(path, pm)...)
 	result.Commands = append(result.Commands, detectGoCommands(path, pm)...)
+	result.Commands = append(result.Commands, detectRustCommands(path, pm)...)
 	result.Commands = append(result.Commands, detectOptionalCommands(path)...)
 	return result, nil
 }
@@ -59,6 +60,7 @@ func detectPackageManager(path string) string {
 		{name: "yarn.lock", manager: "yarn"},
 		{name: "package-lock.json", manager: "npm"},
 		{name: "go.mod", manager: "go"},
+		{name: "Cargo.toml", manager: "cargo"},
 	}
 	for _, lockfile := range lockfiles {
 		if pathExists(filepath.Join(path, lockfile.name)) {
@@ -127,6 +129,17 @@ func detectGoCommands(path string, pm string) []Command {
 		{Name: "Go build", Command: "go build ./...", Required: true, Source: "go.mod", Confidence: "high", Type: "build", Exists: true},
 		{Name: "Go vet", Command: "go vet ./...", Required: true, Source: "go.mod", Confidence: "high", Type: "lint", Exists: true},
 		{Name: "Go test", Command: "go test ./...", Required: true, Source: "go.mod", Confidence: "high", Type: "test", Exists: true},
+	}
+}
+
+func detectRustCommands(path string, pm string) []Command {
+	if pm != "cargo" || !pathExists(filepath.Join(path, "Cargo.toml")) {
+		return nil
+	}
+	return []Command{
+		{Name: "Cargo build", Command: "cargo build", Required: true, Source: "Cargo.toml", Confidence: "high", Type: "build", Exists: true},
+		{Name: "Cargo clippy", Command: "cargo clippy", Required: false, Source: "Cargo.toml", Confidence: "high", Type: "lint", Exists: true},
+		{Name: "Cargo test", Command: "cargo test", Required: true, Source: "Cargo.toml", Confidence: "high", Type: "test", Exists: true},
 	}
 }
 

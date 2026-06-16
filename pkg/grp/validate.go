@@ -222,8 +222,8 @@ func err(field, msg string) ValidationError {
 	return ValidationError{Field: field, Message: msg, Severity: "error"}
 }
 
-func validRisk(s string) bool    { return s == "low" || s == "medium" || s == "high" }
-func validSeverity(s string) bool { return s == "low" || s == "medium" || s == "high" }
+func validRisk(s string) bool       { return s == "low" || s == "medium" || s == "high" }
+func validSeverity(s string) bool   { return s == "low" || s == "medium" || s == "high" }
 func validConfidence(s string) bool { return s == "low" || s == "medium" || s == "high" }
 func isAbsolute(s string) bool {
 	if len(s) == 0 {
