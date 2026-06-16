@@ -21,6 +21,18 @@ func NormalizePlan(p *Plan) {
 	oldToNew := remapDiagIDs(p.Diagnostics)
 	sort.SliceStable(p.Steps, stepLess(p.Steps))
 	renumberSteps(p.Steps, p.Diagnostics, oldToNew)
+
+	if p.Decomposition != nil {
+		sort.SliceStable(p.Decomposition.Tasks, func(i, j int) bool {
+			return p.Decomposition.Tasks[i].ID < p.Decomposition.Tasks[j].ID
+		})
+		for i := range p.Decomposition.Tasks {
+			sort.Strings(p.Decomposition.Tasks[i].AllowedFiles)
+			sort.Strings(p.Decomposition.Tasks[i].ForbiddenFiles)
+			sort.Strings(p.Decomposition.Tasks[i].DependsOn)
+			sort.Strings(p.Decomposition.Tasks[i].Verification)
+		}
+	}
 }
 
 func diagLess(diags []Diagnostic) func(i, j int) bool {

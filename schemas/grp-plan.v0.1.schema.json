@@ -23,6 +23,58 @@
     "extensions": { "type": "object" },
     "requiredExtensions": { "type": "array", "items": { "type": "string" } },
     "context": { "type": "object" },
-    "artifacts": { "type": "array", "items": { "type": "string" } }
+    "artifacts": { "type": "array", "items": { "type": "string" } },
+    "reviewability": {
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["pass", "warn", "fail", "unknown"] },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "maxDiffLines": { "type": "integer" },
+            "maxTouchedFiles": { "type": "integer" },
+            "maxRisk": { "type": "string", "enum": ["low", "medium", "high"] }
+          }
+        },
+        "observed": {
+          "type": "object",
+          "properties": {
+            "addedLines": { "type": "integer" },
+            "deletedLines": { "type": "integer" },
+            "changedLines": { "type": "integer" },
+            "changedFiles": { "type": "integer" },
+            "largestFileDelta": { "type": "integer" }
+          }
+        },
+        "recommendation": { "type": "string", "enum": ["review", "decompose", "reject", "unknown"] },
+        "reason": { "type": "string" }
+      },
+      "required": ["status"]
+    },
+    "decomposition": {
+      "type": "object",
+      "properties": {
+        "strategy": { "type": "string" },
+        "parentPlan": { "type": "string" },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "pattern": "^task_" },
+              "goal": { "type": "string" },
+              "allowedFiles": { "type": "array", "items": { "type": "string" } },
+              "forbiddenFiles": { "type": "array", "items": { "type": "string" } },
+              "maxDiffLines": { "type": "integer" },
+              "parallelizable": { "type": "boolean" },
+              "dependsOn": { "type": "array", "items": { "type": "string" } },
+              "verification": { "type": "array", "items": { "type": "string" } }
+            },
+            "required": ["id", "goal"]
+          }
+        }
+      },
+      "required": ["strategy"]
+    }
   }
 }

@@ -42,6 +42,53 @@ func FromIRPlan(irPlan *ir.GrpPlan) *Plan {
 		p.Steps[i] = step
 	}
 
+	if irPlan.Reviewability != nil {
+		r := irPlan.Reviewability
+		p.Reviewability = &Reviewability{
+			Status:         r.Status,
+			Recommendation: r.Recommendation,
+			Reason:         r.Reason,
+		}
+		if r.Budget != nil {
+			p.Reviewability.Budget = ReviewabilityBudget{
+				MaxDiffLines:    r.Budget.MaxDiffLines,
+				MaxTouchedFiles: r.Budget.MaxTouchedFiles,
+				MaxRisk:         Severity(r.Budget.MaxRisk),
+			}
+		}
+		if r.Observed != nil {
+			p.Reviewability.Observed = ReviewabilityObserved{
+				AddedLines:   r.Observed.AddedLines,
+				DeletedLines: r.Observed.DeletedLines,
+				ChangedLines: r.Observed.ChangedLines,
+				ChangedFiles: r.Observed.ChangedFiles,
+				LargestDelta: r.Observed.LargestDelta,
+			}
+		}
+	}
+
+	if irPlan.Decomposition != nil {
+		irDecomp := irPlan.Decomposition
+		d := &Decomposition{
+			Strategy:   irDecomp.Strategy,
+			ParentPlan: irDecomp.ParentPlan,
+			Tasks:      make([]DecompositionTask, len(irDecomp.Tasks)),
+		}
+		for i, t := range irDecomp.Tasks {
+			d.Tasks[i] = DecompositionTask{
+				ID:             t.ID,
+				Goal:           t.Goal,
+				AllowedFiles:   t.AllowedFiles,
+				ForbiddenFiles: t.ForbiddenFiles,
+				MaxDiffLines:   t.MaxDiffLines,
+				Parallelizable: t.Parallelizable,
+				DependsOn:      t.DependsOn,
+				Verification:   t.Verification,
+			}
+		}
+		p.Decomposition = d
+	}
+
 	return p
 }
 

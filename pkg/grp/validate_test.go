@@ -539,6 +539,137 @@ func TestValidatePlanEmptySteps(t *testing.T) {
 	}
 }
 
+func TestValidatePlanWithReviewability(t *testing.T) {
+	p := validPlan()
+	p.Reviewability = &Reviewability{
+		Status: "pass",
+		Budget: ReviewabilityBudget{
+			MaxDiffLines:    500,
+			MaxTouchedFiles: 10,
+			MaxRisk:         SeverityMedium,
+		},
+		Observed: ReviewabilityObserved{
+			AddedLines:   100,
+			DeletedLines: 50,
+			ChangedLines: 150,
+			ChangedFiles: 3,
+			LargestDelta: 80,
+		},
+		Recommendation: "review",
+		Reason:         "Within acceptable change budget",
+	}
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("expected valid plan with reviewability, got errors: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanWithInvalidReviewability(t *testing.T) {
+	p := validPlan()
+	p.Reviewability = &Reviewability{
+		Status:         "invalid_status",
+		Recommendation: "invalid_rec",
+		Budget: ReviewabilityBudget{
+			MaxDiffLines:    -1,
+			MaxTouchedFiles: -1,
+		},
+		Observed: ReviewabilityObserved{
+			AddedLines:   -1,
+			DeletedLines: -1,
+			ChangedFiles: -1,
+		},
+	}
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan with bad reviewability")
+	}
+	if !hasField(result.Errors, "reviewability.status") {
+		t.Errorf("expected error for reviewability.status, got: %v", result.Errors)
+	}
+	if !hasField(result.Errors, "reviewability.budget.maxDiffLines") {
+		t.Errorf("expected error for reviewability.budget.maxDiffLines, got: %v", result.Errors)
+	}
+	if !hasField(result.Errors, "reviewability.budget.maxTouchedFiles") {
+		t.Errorf("expected error for reviewability.budget.maxTouchedFiles, got: %v", result.Errors)
+	}
+	if !hasField(result.Errors, "reviewability.observed.addedLines") {
+		t.Errorf("expected error for reviewability.observed.addedLines, got: %v", result.Errors)
+	}
+	if !hasField(result.Errors, "reviewability.observed.deletedLines") {
+		t.Errorf("expected error for reviewability.observed.deletedLines, got: %v", result.Errors)
+	}
+	if !hasField(result.Errors, "reviewability.observed.changedFiles") {
+		t.Errorf("expected error for reviewability.observed.changedFiles, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanWithDecomposition(t *testing.T) {
+	p := validPlan()
+	p.Decomposition = &Decomposition{
+		Strategy:   "by-boundary",
+		ParentPlan: "grp_parent",
+		Tasks: []DecompositionTask{
+			{
+				ID:             "task_001",
+				Goal:           "Extract schema types",
+				AllowedFiles:   []string{"schema/"},
+				MaxDiffLines:   100,
+				Parallelizable: false,
+				DependsOn:      nil,
+				Verification:   []string{"go build ./..."},
+			},
+			{
+				ID:             "task_002",
+				Goal:           "Update API handlers",
+				AllowedFiles:   []string{"api/"},
+				MaxDiffLines:   200,
+				Parallelizable: true,
+				DependsOn:      []string{"task_001"},
+				Verification:   []string{"go test ./..."},
+			},
+		},
+	}
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("expected valid plan with decomposition, got errors: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanWithDuplicateDecompTaskIDs(t *testing.T) {
+	p := validPlan()
+	p.Decomposition = &Decomposition{
+		Strategy: "by-boundary",
+		Tasks: []DecompositionTask{
+			{ID: "task_001", Goal: "First task"},
+			{ID: "task_001", Goal: "Duplicate ID"},
+		},
+	}
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan with duplicate task IDs")
+	}
+	if !hasFieldMsg(result.Errors, "decomposition.tasks[1].id", "duplicate") {
+		t.Errorf("expected error for duplicate task ID, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanWithUnknownDecompDep(t *testing.T) {
+	p := validPlan()
+	p.Decomposition = &Decomposition{
+		Strategy: "by-boundary",
+		Tasks: []DecompositionTask{
+			{ID: "task_001", Goal: "First task", DependsOn: []string{"task_999"}},
+		},
+	}
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan with unknown dependency")
+	}
+	if !hasFieldMsg(result.Errors, "decomposition.tasks[0].dependsOn", "unknown task") {
+		t.Errorf("expected error for unknown dependency, got: %v", result.Errors)
+	}
+}
+
 func TestValidatePlanEmptyVerification(t *testing.T) {
 	p := validPlan()
 	p.Verification = []Verification{}

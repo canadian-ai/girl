@@ -87,6 +87,45 @@ type Step struct {
 	Execution *Execution     `json:"execution,omitempty"`
 }
 
+type ReviewabilityBudget struct {
+	MaxDiffLines    int      `json:"maxDiffLines,omitempty"`
+	MaxTouchedFiles int      `json:"maxTouchedFiles,omitempty"`
+	MaxRisk         Severity `json:"maxRisk,omitempty"`
+}
+
+type ReviewabilityObserved struct {
+	AddedLines   int `json:"addedLines,omitempty"`
+	DeletedLines int `json:"deletedLines,omitempty"`
+	ChangedLines int `json:"changedLines,omitempty"`
+	ChangedFiles int `json:"changedFiles,omitempty"`
+	LargestDelta int `json:"largestFileDelta,omitempty"`
+}
+
+type Reviewability struct {
+	Status         string                `json:"status"`
+	Budget         ReviewabilityBudget   `json:"budget,omitempty"`
+	Observed       ReviewabilityObserved `json:"observed,omitempty"`
+	Recommendation string                `json:"recommendation,omitempty"`
+	Reason         string                `json:"reason,omitempty"`
+}
+
+type DecompositionTask struct {
+	ID             string   `json:"id"`
+	Goal           string   `json:"goal"`
+	AllowedFiles   []string `json:"allowedFiles,omitempty"`
+	ForbiddenFiles []string `json:"forbiddenFiles,omitempty"`
+	MaxDiffLines   int      `json:"maxDiffLines,omitempty"`
+	Parallelizable bool     `json:"parallelizable"`
+	DependsOn      []string `json:"dependsOn,omitempty"`
+	Verification   []string `json:"verification,omitempty"`
+}
+
+type Decomposition struct {
+	Strategy   string              `json:"strategy"`
+	ParentPlan string              `json:"parentPlan,omitempty"`
+	Tasks      []DecompositionTask `json:"tasks"`
+}
+
 type Plan struct {
 	SpecVersion        string                 `json:"specversion"`
 	ID                 string                 `json:"id"`
@@ -107,4 +146,6 @@ type Plan struct {
 	RequiredExtensions []string               `json:"requiredExtensions,omitempty"`
 	Context            map[string]interface{} `json:"context,omitempty"`
 	Artifacts          []string               `json:"artifacts,omitempty"`
+	Reviewability      *Reviewability         `json:"reviewability,omitempty"`
+	Decomposition      *Decomposition         `json:"decomposition,omitempty"`
 }

@@ -168,6 +168,51 @@ var builtInRecipes = []DiagnosticRecipe{
 			return fmt.Sprintf("Group parameters in %s into an options struct", targetName(d))
 		},
 	},
+	{
+		Code:   "agent.diff-too-large",
+		Recipe: "agent.decompose-large-diff",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityHigh },
+		Verify: func(d ir.Diagnostic) []string { return []string{"go build ./...", "go test ./..."} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Decompose large diff in %s into smaller reviewable tasks", targetName(d))
+		},
+	},
+	{
+		Code:   "agent.too-many-files-touched",
+		Recipe: "agent.decompose-large-diff",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityHigh },
+		Verify: func(d ir.Diagnostic) []string { return []string{"go build ./...", "go test ./..."} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Split multi-file change in %s into smaller focused tasks", targetName(d))
+		},
+	},
+	{
+		Code:   "agent.mixed-boundaries",
+		Recipe: "agent.split-mixed-boundary",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityMedium },
+		Verify: func(d ir.Diagnostic) []string { return []string{"go build ./...", "go vet ./..."} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Separate concerns in %s: isolate schema, API, and UI changes", targetName(d))
+		},
+	},
+	{
+		Code:   "agent.unreviewable-plan",
+		Recipe: "agent.extract-reviewable-task",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityHigh },
+		Verify: func(d ir.Diagnostic) []string { return []string{"go build ./...", "go test ./...", "go vet ./..."} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Break unreviewable plan in %s into bounded reviewable tasks", targetName(d))
+		},
+	},
+	{
+		Code:   "agent.parallelization-opportunity",
+		Recipe: "agent.generate-parallel-task-packs",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityLow },
+		Verify: func(d ir.Diagnostic) []string { return []string{"go build ./...", "go test ./..."} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Create parallel task packs for independent changes in %s", targetName(d))
+		},
+	},
 }
 
 func init() {

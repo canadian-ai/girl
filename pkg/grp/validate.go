@@ -29,6 +29,8 @@ func ValidatePlan(p *Plan) *ValidationResult {
 	diagIDs := validateDiagnostics(p.Diagnostics, result)
 	validateSteps(p.Steps, diagIDs, result)
 	validateVerification(p.Verification, result)
+	validateReviewability(p.Reviewability, result)
+	validateDecomposition(p.Decomposition, result)
 	result.Valid = len(result.Errors) == 0
 	return result
 }
@@ -120,6 +122,78 @@ func validateVerification(verifications []Verification, result *ValidationResult
 		requiredNonEmpty(result, prefix+".command", v.Command)
 		requiredNonEmpty(result, prefix+".source", v.Source)
 		enumCheck(result, prefix+".confidence", v.Confidence, validConfidence)
+	}
+}
+
+func validateReviewability(r *Reviewability, result *ValidationResult) {
+	if r == nil {
+		return
+	}
+	prefix := "reviewability"
+	enumCheck(result, prefix+".status", r.Status, func(s string) bool {
+		return s == "pass" || s == "warn" || s == "fail" || s == "unknown"
+	})
+	if r.Recommendation != "" {
+		enumCheck(result, prefix+".recommendation", r.Recommendation, func(s string) bool {
+			return s == "review" || s == "decompose" || s == "reject" || s == "unknown"
+		})
+	}
+	if r.Budget.MaxDiffLines < 0 {
+		result.Errors = append(result.Errors, err(prefix+".budget.maxDiffLines", "must be non-negative"))
+	}
+	if r.Budget.MaxTouchedFiles < 0 {
+		result.Errors = append(result.Errors, err(prefix+".budget.maxTouchedFiles", "must be non-negative"))
+	}
+	if r.Observed.AddedLines < 0 {
+		result.Errors = append(result.Errors, err(prefix+".observed.addedLines", "must be non-negative"))
+	}
+	if r.Observed.DeletedLines < 0 {
+		result.Errors = append(result.Errors, err(prefix+".observed.deletedLines", "must be non-negative"))
+	}
+	if r.Observed.ChangedFiles < 0 {
+		result.Errors = append(result.Errors, err(prefix+".observed.changedFiles", "must be non-negative"))
+	}
+}
+
+func validateDecomposition(d *Decomposition, result *ValidationResult) {
+	if d == nil {
+		return
+	}
+	requiredNonEmpty(result, "decomposition.strategy", d.Strategy)
+	if len(d.Tasks) == 0 {
+		result.Errors = append(result.Errors, err("decomposition.tasks", "must not be empty"))
+	}
+	ids := map[string]bool{}
+	for i, task := range d.Tasks {
+		prefix := fmt.Sprintf("decomposition.tasks[%d]", i)
+		requiredNonEmpty(result, prefix+".id", task.ID)
+		if task.ID != "" && !strings.HasPrefix(task.ID, "task_") {
+			result.Errors = append(result.Errors, err(prefix+".id", `must start with "task_"`))
+		}
+		if task.ID != "" {
+			if ids[task.ID] {
+				result.Errors = append(result.Errors, err(prefix+".id", fmt.Sprintf("duplicate task ID %q", task.ID)))
+			}
+			ids[task.ID] = true
+		}
+		requiredNonEmpty(result, prefix+".goal", task.Goal)
+		if task.MaxDiffLines < 0 {
+			result.Errors = append(result.Errors, err(prefix+".maxDiffLines", "must be non-negative"))
+		}
+		for _, dep := range task.DependsOn {
+			if task.ID != "" && !ids[dep] && dep != task.ID {
+				found := false
+				for j := 0; j < i; j++ {
+					if d.Tasks[j].ID == dep {
+						found = true
+						break
+					}
+				}
+				if !found {
+					result.Errors = append(result.Errors, err(prefix+".dependsOn", fmt.Sprintf("references unknown task ID %q", dep)))
+				}
+			}
+		}
 	}
 }
 

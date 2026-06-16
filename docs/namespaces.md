@@ -13,6 +13,7 @@ GRP diagnostics and recipes use a dot-separated namespace to identify the origin
 | `framework.*` | Generic framework | Reserved for framework-agnostic extensions    |
 | `tool.*`    | External tool     | `tool.gritql.pattern-match`, `tool.eslint.no-unused-vars` |
 | `vendor.*`  | Vendor-owned      | Reserved for third-party binding maintainers  |
+| `agent.*`    | Agent workflow    | `agent.diff-too-large`, `agent.decompose-large-diff` |
 
 ## Language bindings
 
@@ -50,6 +51,23 @@ Tool bindings encode findings from external analysis tools mapped into GRP.
 - `tool.eslint.<rule-id>` — ESLint rule violation
 - `tool.semgrep.<rule-id>` — Semgrep rule match
 - `tool.sarif.<tool>.<rule>` — Any SARIF-compatible tool finding
+
+## Agent workflow bindings
+
+Agent workflow bindings encode findings about AI agent output quality and
+reviewability, not source code itself.
+
+- `agent.diff-too-large` — Diff exceeds reviewability line budget
+- `agent.too-many-files-touched` — Diff touches more files than the reviewability budget allows
+- `agent.mixed-boundaries` — Diff spans multiple architectural layers (schema, UI, API, config)
+- `agent.unreviewable-plan` — Plan is too large or risky for safe human review
+- `agent.parallelization-opportunity` — Diff contains independent changes that could be parallelized
+
+Recipes:
+- `agent.decompose-large-diff` — Split large diff into smaller reviewable tasks
+- `agent.split-mixed-boundary` — Separate concerns by architectural layer
+- `agent.extract-reviewable-task` — Extract a bounded, reviewable task from a larger plan
+- `agent.generate-parallel-task-packs` — Create independent context packs for concurrent agent work
 
 ## Choosing a namespace
 

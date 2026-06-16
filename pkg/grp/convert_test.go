@@ -171,6 +171,137 @@ func TestFromIRPlan(t *testing.T) {
 	}
 }
 
+func TestFromIRPlanWithReviewability(t *testing.T) {
+	irPlan := &ir.GrpPlan{
+		PlanID:   "grp_test_review",
+		Goal:     "Refactor with reviewability",
+		Risk:     ir.SeverityLow,
+		Target:   "pkg/server",
+		Language: "go",
+		Reviewability: &ir.ReviewabilityResult{
+			Status:         "pass",
+			Recommendation: "review",
+			Reason:         "Within budget",
+			Budget: &ir.ReviewabilityBudget{
+				MaxDiffLines:    500,
+				MaxTouchedFiles: 10,
+				MaxRisk:         ir.SeverityMedium,
+			},
+			Observed: &ir.ReviewabilityObserved{
+				AddedLines:   100,
+				DeletedLines: 50,
+				ChangedLines: 150,
+				ChangedFiles: 3,
+				LargestDelta: 80,
+			},
+		},
+		Decomposition: &ir.Decomposition{
+			Strategy:   "by-boundary",
+			ParentPlan: "grp_parent",
+			Tasks: []ir.DecompositionTask{
+				{
+					ID:             "task_001",
+					Goal:           "Extract types",
+					AllowedFiles:   []string{"types/"},
+					ForbiddenFiles: []string{"api/"},
+					MaxDiffLines:   100,
+					Parallelizable: false,
+					DependsOn:      []string{},
+					Verification:   []string{"go build ./..."},
+				},
+				{
+					ID:             "task_002",
+					Goal:           "Update handlers",
+					AllowedFiles:   []string{"api/"},
+					MaxDiffLines:   200,
+					Parallelizable: true,
+					DependsOn:      []string{"task_001"},
+					Verification:   []string{"go test ./..."},
+				},
+			},
+		},
+	}
+
+	p := FromIRPlan(irPlan)
+	if p == nil {
+		t.Fatal("FromIRPlan returned nil")
+	}
+
+	if p.Reviewability == nil {
+		t.Fatal("Reviewability should not be nil")
+	}
+	if p.Reviewability.Status != "pass" {
+		t.Errorf("Status = %q, want %q", p.Reviewability.Status, "pass")
+	}
+	if p.Reviewability.Recommendation != "review" {
+		t.Errorf("Recommendation = %q, want %q", p.Reviewability.Recommendation, "review")
+	}
+	if p.Reviewability.Reason != "Within budget" {
+		t.Errorf("Reason = %q, want %q", p.Reviewability.Reason, "Within budget")
+	}
+	if p.Reviewability.Budget.MaxDiffLines != 500 {
+		t.Errorf("Budget.MaxDiffLines = %d, want %d", p.Reviewability.Budget.MaxDiffLines, 500)
+	}
+	if p.Reviewability.Budget.MaxTouchedFiles != 10 {
+		t.Errorf("Budget.MaxTouchedFiles = %d, want %d", p.Reviewability.Budget.MaxTouchedFiles, 10)
+	}
+	if p.Reviewability.Budget.MaxRisk != SeverityMedium {
+		t.Errorf("Budget.MaxRisk = %q, want %q", p.Reviewability.Budget.MaxRisk, SeverityMedium)
+	}
+	if p.Reviewability.Observed.AddedLines != 100 {
+		t.Errorf("Observed.AddedLines = %d, want %d", p.Reviewability.Observed.AddedLines, 100)
+	}
+	if p.Reviewability.Observed.DeletedLines != 50 {
+		t.Errorf("Observed.DeletedLines = %d, want %d", p.Reviewability.Observed.DeletedLines, 50)
+	}
+	if p.Reviewability.Observed.ChangedLines != 150 {
+		t.Errorf("Observed.ChangedLines = %d, want %d", p.Reviewability.Observed.ChangedLines, 150)
+	}
+	if p.Reviewability.Observed.ChangedFiles != 3 {
+		t.Errorf("Observed.ChangedFiles = %d, want %d", p.Reviewability.Observed.ChangedFiles, 3)
+	}
+	if p.Reviewability.Observed.LargestDelta != 80 {
+		t.Errorf("Observed.LargestDelta = %d, want %d", p.Reviewability.Observed.LargestDelta, 80)
+	}
+
+	if p.Decomposition == nil {
+		t.Fatal("Decomposition should not be nil")
+	}
+	if p.Decomposition.Strategy != "by-boundary" {
+		t.Errorf("Decomposition.Strategy = %q, want %q", p.Decomposition.Strategy, "by-boundary")
+	}
+	if p.Decomposition.ParentPlan != "grp_parent" {
+		t.Errorf("Decomposition.ParentPlan = %q, want %q", p.Decomposition.ParentPlan, "grp_parent")
+	}
+	if len(p.Decomposition.Tasks) != 2 {
+		t.Fatalf("len(Decomposition.Tasks) = %d, want 2", len(p.Decomposition.Tasks))
+	}
+	if p.Decomposition.Tasks[0].ID != "task_001" {
+		t.Errorf("Tasks[0].ID = %q, want %q", p.Decomposition.Tasks[0].ID, "task_001")
+	}
+	if p.Decomposition.Tasks[0].Goal != "Extract types" {
+		t.Errorf("Tasks[0].Goal = %q, want %q", p.Decomposition.Tasks[0].Goal, "Extract types")
+	}
+	if len(p.Decomposition.Tasks[0].AllowedFiles) != 1 || p.Decomposition.Tasks[0].AllowedFiles[0] != "types/" {
+		t.Errorf("Tasks[0].AllowedFiles = %v, want [types/]", p.Decomposition.Tasks[0].AllowedFiles)
+	}
+	if p.Decomposition.Tasks[0].MaxDiffLines != 100 {
+		t.Errorf("Tasks[0].MaxDiffLines = %d, want %d", p.Decomposition.Tasks[0].MaxDiffLines, 100)
+	}
+	if p.Decomposition.Tasks[0].Parallelizable {
+		t.Errorf("Tasks[0].Parallelizable = true, want false")
+	}
+	if p.Decomposition.Tasks[1].ID != "task_002" {
+		t.Errorf("Tasks[1].ID = %q, want %q", p.Decomposition.Tasks[1].ID, "task_002")
+	}
+	if len(p.Decomposition.Tasks[1].DependsOn) != 1 || p.Decomposition.Tasks[1].DependsOn[0] != "task_001" {
+		t.Errorf("Tasks[1].DependsOn = %v, want [task_001]", p.Decomposition.Tasks[1].DependsOn)
+	}
+	if len(p.Decomposition.Tasks[1].Verification) != 1 || p.Decomposition.Tasks[1].Verification[0] != "go test ./..." {
+		t.Errorf("Tasks[1].Verification = %v, want [go test ./...]", p.Decomposition.Tasks[1].Verification)
+	}
+}
+
 func TestDiagnosticConversion(t *testing.T) {
 	irDiag := ir.Diagnostic{
 		Code:       "go.high-complexity",
