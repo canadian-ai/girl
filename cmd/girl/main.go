@@ -13,7 +13,7 @@ func main() {
 		Name:        "girl",
 		Usage:       "Grammar-Informed Refactoring Language",
 		Description: "GIRL analyzes code, detects refactoring opportunities, and generates structured GRP plans for AI coding agents. Ships with agents/skills for OpenCode, Claude Code, Codex, and Pi.",
-		Version:     "0.1.3",
+		Version:     "0.1.4",
 		Commands: []*cli.Command{
 			commands.AnalyzeCommand(),
 			commands.NodesCommand(),
