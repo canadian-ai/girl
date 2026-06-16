@@ -258,6 +258,114 @@ var builtInRecipes = []DiagnosticRecipe{
 			return fmt.Sprintf("Continue extracting reusable scaffold from %s", targetName(d))
 		},
 	},
+	{
+		Code:   "openrewrite.refactor-opportunity",
+		Recipe: "openrewrite.export-yaml-recipe",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{"mvn rewrite:run", "gradle rewriteRun"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Export diagnostics from %s as OpenRewrite YAML recipe", targetName(d))
+		},
+	},
+	{
+		Code:   "openrewrite.export-yaml",
+		Recipe: "openrewrite.export-yaml-recipe",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityLow },
+		Verify: func(d ir.Diagnostic) []string { return []string{"mvn rewrite:run", "gradle rewriteRun"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Export GIRL diagnostics as OpenRewrite YAML recipe for %s", targetName(d))
+		},
+	},
+	{
+		Code:   "rtk.optimize-commands",
+		Recipe: "rtk.pipe-through-proxy",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityLow },
+		Verify: func(d ir.Diagnostic) []string { return []string{"rtk version"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Pipe GIRL commands through RTK for token-efficient output: rtk girl analyze/plan/pack %s", targetName(d))
+		},
+	},
+	{
+		Code:   "rtk.hook-configure",
+		Recipe: "rtk.pipe-through-proxy",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityLow },
+		Verify: func(d ir.Diagnostic) []string { return []string{"rtk version"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Configure RTK pre-tool hook for transparent command rewriting in %s", targetName(d))
+		},
+	},
+	{
+		Code:   "gritql.pattern-available",
+		Recipe: "gritql.generate-pattern",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{"grit check"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Generate GritQL pattern from %s diagnostic for automated rewriting", targetName(d))
+		},
+	},
+	{
+		Code:   "gritql.generate-pattern",
+		Recipe: "gritql.generate-pattern",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityLow },
+		Verify: func(d ir.Diagnostic) []string { return []string{"grit check"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Generate GritQL transformation pattern for %s", targetName(d))
+		},
+	},
+	{
+		Code:   "gritql.apply-transform",
+		Recipe: "gritql.generate-pattern",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityMedium },
+		Verify: func(d ir.Diagnostic) []string { return []string{"grit apply", "grit check"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Apply GritQL transformation to %s: grit apply generated-pattern.grit", targetName(d))
+		},
+	},
+	{
+		Code:   "rust-lsp.long-function",
+		Recipe: "rust-lsp.export-diagnostics",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{"cargo check"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Export long function %s as LSP diagnostic for rust-analyzer", targetName(d))
+		},
+	},
+	{
+		Code:   "rust-lsp.high-complexity",
+		Recipe: "rust-lsp.export-diagnostics",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{"cargo check", "cargo clippy"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Export high complexity in %s as LSP diagnostic", targetName(d))
+		},
+	},
+	{
+		Code:   "rust-lsp.deep-nesting",
+		Recipe: "rust-lsp.export-diagnostics",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{"cargo check"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Export deep nesting in %s as LSP diagnostic", targetName(d))
+		},
+	},
+	{
+		Code:   "rust-lsp.large-file",
+		Recipe: "rust-lsp.export-diagnostics",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{"cargo check"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Export large file %s as LSP diagnostic", targetName(d))
+		},
+	},
+	{
+		Code:   "rust-lsp.export-diagnostics",
+		Recipe: "rust-lsp.export-diagnostics",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityLow },
+		Verify: func(d ir.Diagnostic) []string { return []string{"cargo check"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Export GIRL diagnostics for %s in LSP format", targetName(d))
+		},
+	},
 }
 
 func init() {

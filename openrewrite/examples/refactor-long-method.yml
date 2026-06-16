@@ -1,0 +1,15 @@
+---
+type: specs.openrewrite.org/v1beta/recipe
+name: dev.refactor.girl.ExtractLongMethods
+displayName: GIRL - Extract Long Methods
+description: Generated from GIRL go.long-function diagnostics
+tags:
+  - girl
+  - refactoring
+recipeList:
+  - org.openrewrite.java.ChangeMethodName:
+      methodPattern: com.example.* *(..)
+      newMethodName: extractHelper
+  - org.openrewrite.java.ReplaceMethodWithMethodCall:
+      methodPattern: com.example.* longMethod(..)
+      replacementMethodName: extractedHelper

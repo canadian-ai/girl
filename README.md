@@ -91,6 +91,7 @@ go build -o girl ./cmd/girl/
 | `girl refs <path>` | List reference nodes, optionally filtered by symbol |
 | `girl plan <path>` | Generate structured GRP refactor plan |
 | `girl pack <path>` | Create token-budgeted agent context pack |
+| `girl install <framework>` | Install agents/skills for a coding framework |
 | `girl validate <file>` | Validate a GRP plan JSON file |
 | `girl verify <path>` | Detect available verification commands |
 | `girl review` | Check diff reviewability against a budget |
@@ -253,13 +254,61 @@ A minimal GRP plan:
 
 See [Namespaces](docs/namespaces.md) for the complete namespace convention.
 
+## Tool Recipes
+
+GIRL includes diagnostic recipes for complementary refactoring tools.
+Install with `girl install <tool>`:
+
+| Tool | Install | Description |
+|------|---------|-------------|
+| **OpenRewrite** | `girl install openrewrite` | Export diagnostics as OpenRewrite YAML recipes for Java refactoring |
+| **RTK** | `girl install rtk` | Pipe GIRL through RTK for 60-90% token compression |
+| **GritQL** | `girl install gritql` | Generate GritQL patterns from GIRL diagnostics |
+| **Rust-LSP** | `girl install rust-lsp` | Export GIRL diagnostics in LSP format for rust-analyzer |
+
+### OpenRewrite
+
+```bash
+girl install openrewrite
+# Analyze and generate OpenRewrite YAML recipe
+girl analyze src/main --lang java --output text
+girl plan src/main --recipe openrewrite.export-yaml-recipe --output markdown
+# Apply: mvn rewrite:run -Drewrite.activeRecipes=dev.refactor.GirlGeneratedRecipe
+```
+
+### RTK
+
+```bash
+girl install rtk
+# All GIRL commands pipe through RTK automatically
+rtk girl analyze . --output text
+rtk girl plan . --goal "Refactor" --output markdown
+rtk girl verify . --output text
+```
+
+### GritQL
+
+```bash
+girl install gritql
+# Generate and apply GritQL patterns
+girl analyze src/ --output json
+girl plan src/ --recipe gritql.generate-pattern --output markdown
+# Apply: grit apply generated-patterns.grit
+```
+
+### Rust-LSP
+
+```bash
+girl install rust-lsp
+# Export diagnostics in LSP format for IDE consumption
+girl analyze src/ --lang rust --output json
+# Consumed by rust-analyzer and Rust IDE tooling
+```
+
 ## Future Tool Bindings (post-v0.1)
 
-- GritQL binding
-- OpenRewrite binding
 - ESLint binding
 - SARIF binding
-- LSP binding
 
 ## Framework Integrations
 
@@ -267,21 +316,31 @@ GIRL ships with first-class support for multiple AI coding frameworks. Install
 agents/skills for your framework of choice:
 
 ```bash
-# Install for your framework
+# Coding frameworks
 girl install opencode    # OpenCode agents
 girl install claude      # Claude Code skill
 girl install codex       # Codex skill
 girl install pi          # Pi skill
+
+# Refactoring tools
+girl install openrewrite # OpenRewrite recipe generation
+girl install rtk         # RTK token optimization
+girl install gritql      # GritQL pattern generation
+girl install rust-lsp    # Rust-LSP diagnostics
 ```
 
 Or copy files manually:
 
-| Framework | Source | Target |
-|-----------|--------|--------|
+| Framework/Tool | Source | Target |
+|----------------|--------|--------|
 | **OpenCode** | `opencode/agents/` | `.opencode/agents/` |
 | **Claude Code** | `claude/` | `.claude/` |
 | **Codex** | `codex/` | `.codex/` |
 | **Pi** | `pi/` | `.pi/agent/` |
+| **OpenRewrite** | `openrewrite/` | `.openrewrite/` |
+| **RTK** | `rtk/` | `.rtk/` |
+| **GritQL** | `gritql/` | `.gritql/` |
+| **Rust-LSP** | `rust-lsp/` | `.rust-lsp/` |
 
 ### OpenCode
 
