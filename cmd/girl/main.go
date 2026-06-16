@@ -21,6 +21,8 @@ func main() {
 			commands.PlanCommand(),
 			commands.PackCommand(),
 			commands.ValidateCommand(),
+			commands.ReviewCommand(),
+			commands.DecomposeCommand(),
 			commands.VerifyCommand(),
 			commands.VersionCommand(),
 		},

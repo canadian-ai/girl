@@ -91,6 +91,7 @@ point in time. References the plan via `planId` when provided.
 | Plan | `id` | Self — unique plan identifier |
 | Context Pack | `planId` | The plan this context was derived from |
 | Verification Result | `planId` | (Optional) The plan this verification belongs to |
+| Decomposition | `parentPlan` | The plan this decomposition was derived from |
 
 ## RunID
 
@@ -109,7 +110,8 @@ project root or target directory:
 .grp/
 ├── plan.json              # Plan artifact
 ├── context-pack.json      # Context pack artifact
-└── verification.json      # Verification result artifact
+├── verification.json      # Verification result artifact
+├── decomposition.json     # Decomposition artifact
 ```
 
 Consumers MUST tolerate missing artifact files. Each artifact is

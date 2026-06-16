@@ -80,6 +80,8 @@ implementation that produced it.
 | `requiredExtensions` | array | List of extension keys consumers MUST support |
 | `context` | object | Producer-chosen context or preamble |
 | `artifacts` | array | Attached artifact references |
+| `reviewability` | object | Reviewability assessment: budget, observed metrics, status, recommendation |
+| `decomposition` | object | Decomposition into atomic reviewable tasks |
 
 ## Bindings
 

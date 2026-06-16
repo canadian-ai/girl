@@ -1,7 +1,9 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/canadian-ai/girl/internal/ir"
@@ -47,6 +49,14 @@ func PackCommand() *cli.Command {
 				Usage: "Language mode: auto (default), go, ts",
 				Value: "auto",
 			},
+			&cli.StringFlag{
+				Name:  "task",
+				Usage: "Task ID for task-scoped context pack",
+			},
+			&cli.StringFlag{
+				Name:  "task-file",
+				Usage: "Path to decomposition JSON file",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			path := commandPath(c)
@@ -64,6 +74,43 @@ func PackCommand() *cli.Command {
 				Files:       result.Files,
 				Lang:        lang,
 			})
+
+			taskID := c.String("task")
+			taskFile := c.String("task-file")
+			if taskID != "" && taskFile != "" {
+				decompData, err := os.ReadFile(taskFile)
+				if err != nil {
+					return fmt.Errorf("read task file: %w", err)
+				}
+				var decomp ir.Decomposition
+				if err := json.Unmarshal(decompData, &decomp); err != nil {
+					return fmt.Errorf("parse decomposition: %w", err)
+				}
+				var matchedTask *ir.DecompositionTask
+				for _, t := range decomp.Tasks {
+					if t.ID == taskID {
+						matchedTask = &t
+						break
+					}
+				}
+				if matchedTask == nil {
+					return fmt.Errorf("task %q not found in decomposition", taskID)
+				}
+				allowed := make(map[string]bool)
+				for _, f := range matchedTask.AllowedFiles {
+					allowed[f] = true
+				}
+				var filtered []*ir.FileIR
+				for _, f := range result.Files {
+					if allowed[f.Path] {
+						filtered = append(filtered, f)
+					}
+				}
+				result.Files = filtered
+				if matchedTask.Goal != "" {
+					plan.Goal = matchedTask.Goal
+				}
+			}
 
 			pkr := packer.NewPacker(c.Int("budget"))
 			pack, err := pkr.Pack(packer.PackRequest{

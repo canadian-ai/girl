@@ -176,15 +176,56 @@ type GrpStep struct {
 	SourceDiagIndex int      `json:"-"`
 }
 
+type ReviewabilityBudget struct {
+	MaxDiffLines    int      `json:"maxDiffLines,omitempty"`
+	MaxTouchedFiles int      `json:"maxTouchedFiles,omitempty"`
+	MaxRisk         Severity `json:"maxRisk,omitempty"`
+}
+
+type ReviewabilityObserved struct {
+	AddedLines   int `json:"addedLines,omitempty"`
+	DeletedLines int `json:"deletedLines,omitempty"`
+	ChangedLines int `json:"changedLines,omitempty"`
+	ChangedFiles int `json:"changedFiles,omitempty"`
+	LargestDelta int `json:"largestFileDelta,omitempty"`
+}
+
+type ReviewabilityResult struct {
+	Status         string                 `json:"status"`
+	Budget         *ReviewabilityBudget   `json:"budget,omitempty"`
+	Observed       *ReviewabilityObserved `json:"observed,omitempty"`
+	Recommendation string                 `json:"recommendation,omitempty"`
+	Reason         string                 `json:"reason,omitempty"`
+}
+
+type DecompositionTask struct {
+	ID             string   `json:"id"`
+	Goal           string   `json:"goal"`
+	AllowedFiles   []string `json:"allowedFiles,omitempty"`
+	ForbiddenFiles []string `json:"forbiddenFiles,omitempty"`
+	MaxDiffLines   int      `json:"maxDiffLines,omitempty"`
+	Parallelizable bool     `json:"parallelizable"`
+	DependsOn      []string `json:"dependsOn,omitempty"`
+	Verification   []string `json:"verification,omitempty"`
+}
+
+type Decomposition struct {
+	Strategy   string              `json:"strategy"`
+	ParentPlan string              `json:"parentPlan,omitempty"`
+	Tasks      []DecompositionTask `json:"tasks"`
+}
+
 type GrpPlan struct {
-	PlanID       string       `json:"planId"`
-	Goal         string       `json:"goal"`
-	Risk         Severity     `json:"risk"`
-	Target       string       `json:"target"`
-	Language     string       `json:"language,omitempty"`
-	TokenEstimate int         `json:"tokenEstimate"`
-	FileCount     int         `json:"fileCount"`
-	Diagnostics   []Diagnostic `json:"diagnostics"`
-	Steps         []GrpStep   `json:"steps"`
-	Verification  []string     `json:"verification"`
+	PlanID        string               `json:"planId"`
+	Goal          string               `json:"goal"`
+	Risk          Severity             `json:"risk"`
+	Target        string               `json:"target"`
+	Language      string               `json:"language,omitempty"`
+	TokenEstimate int                  `json:"tokenEstimate"`
+	FileCount     int                  `json:"fileCount"`
+	Diagnostics   []Diagnostic         `json:"diagnostics"`
+	Steps         []GrpStep            `json:"steps"`
+	Verification  []string             `json:"verification"`
+	Reviewability *ReviewabilityResult `json:"reviewability,omitempty"`
+	Decomposition *Decomposition       `json:"decomposition,omitempty"`
 }

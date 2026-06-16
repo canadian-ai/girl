@@ -99,3 +99,19 @@ opportunity, or quality concern.
 | `high` | Analyzer is certain this is a genuine issue (e.g. complexity threshold exceeded) |
 | `medium` | Analyzer has reasonable evidence but may produce false positives |
 | `low` | Heuristic or pattern-based suggestion, review recommended |
+
+## Agent diagnostics (`agent.*`)
+
+Agent workflow diagnostics encode findings about AI agent output quality and
+reviewability, not source code itself.
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| `agent.diff-too-large` | high | Diff exceeds reviewability line budget |
+| `agent.too-many-files-touched` | high | Diff touches more files than the reviewability budget allows |
+| `agent.mixed-boundaries` | medium | Diff spans multiple architectural layers |
+| `agent.unreviewable-plan` | high | Plan is too large or risky for safe human review |
+| `agent.parallelization-opportunity` | low | Diff contains independent changes that could be parallelized |
+
+These diagnostics are produced by the `girl review` command and used by agent
+workflows to decide whether to decompose, parallelize, or escalate a diff.

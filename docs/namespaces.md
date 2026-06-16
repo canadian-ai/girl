@@ -13,6 +13,8 @@ GRP diagnostics and recipes use a dot-separated namespace to identify the origin
 | `framework.*` | Generic framework | Reserved for framework-agnostic extensions    |
 | `tool.*`    | External tool     | `tool.gritql.pattern-match`, `tool.eslint.no-unused-vars` |
 | `vendor.*`  | Vendor-owned      | Reserved for third-party binding maintainers  |
+| `agent.*`    | Agent workflow    | `agent.diff-too-large`, `agent.ceremonial-noise` |
+| `agent.structural` | Agent extension | Structural overhead metrics (`extensions` field) |
 
 ## Language bindings
 
@@ -50,6 +52,43 @@ Tool bindings encode findings from external analysis tools mapped into GRP.
 - `tool.eslint.<rule-id>` — ESLint rule violation
 - `tool.semgrep.<rule-id>` — Semgrep rule match
 - `tool.sarif.<tool>.<rule>` — Any SARIF-compatible tool finding
+
+## Agent workflow bindings
+
+Agent workflow bindings encode findings about AI agent output quality and
+reviewability, not source code itself.
+
+### Surface budget diagnostics
+
+- `agent.diff-too-large` — Diff exceeds reviewability line budget
+- `agent.too-many-files-touched` — Diff touches more files than the reviewability budget allows
+- `agent.mixed-boundaries` — Diff spans multiple architectural layers (schema, UI, API, config)
+- `agent.unreviewable-plan` — Plan is too large or risky for safe human review
+- `agent.parallelization-opportunity` — Diff contains independent changes that could be parallelized
+
+### Structural overhead diagnostics
+
+These diagnostics measure the internal structure of a diff, not its surface
+area. See the [structural overhead extension](spec/extensions/agent-structural.md)
+for the full spec.
+
+- `agent.high-overhead` — Structural overhead ratio exceeds threshold (ceremonial noise vs. signal)
+- `agent.low-cohesion` — Diff touches files with low topic cohesion (scattered concerns)
+- `agent.test-to-code-imbalance` — Test-to-logic ratio exceeds threshold with no reusable scaffold
+- `agent.ceremonial-noise` — High overhead AND low cohesion simultaneously (HIGH severity)
+- `agent.productive-scaffold` — Diff generates reusable support code (positive signal, INFO severity)
+
+### Recipes
+
+**Surface budget:**
+- `agent.decompose-large-diff` — Split large diff into smaller reviewable tasks
+- `agent.split-mixed-boundary` — Separate concerns by architectural layer
+- `agent.extract-reviewable-task` — Extract a bounded, reviewable task from a larger plan
+- `agent.generate-parallel-task-packs` — Create independent context packs for concurrent agent work
+
+**Structural:**
+- `agent.extract-reusable-scaffold` — Refactor ephemeral harness into shared builders
+- `agent.flatten-cohesion-variance` — Consolidate diff into fewer concern boundaries
 
 ## Choosing a namespace
 

@@ -201,6 +201,65 @@ func TestComputePlanIDChangesOnInput(t *testing.T) {
 	}
 }
 
+func TestNormalizePlanSortsDecompositionTasks(t *testing.T) {
+	p := &Plan{
+		SpecVersion: "0.1", ID: "grp_test", Type: "dev.refactor.plan",
+		Source: "s", Subject: ".", Language: "go", Goal: "test",
+		Risk: SeverityLow,
+		Decomposition: &Decomposition{
+			Strategy: "by-boundary",
+			Tasks: []DecompositionTask{
+				{
+					ID:             "task_z",
+					Goal:           "Last",
+					AllowedFiles:   []string{"zzz/", "aaa/"},
+					ForbiddenFiles: []string{"data/", "config/"},
+					DependsOn:      []string{"task_a", "task_m"},
+					Verification:   []string{"ztest", "atest"},
+				},
+				{
+					ID:             "task_a",
+					Goal:           "First",
+					AllowedFiles:   []string{"aaa/", "bbb/"},
+					ForbiddenFiles: []string{"old/", "new/"},
+					DependsOn:      []string{},
+					Verification:   []string{"btest", "atest"},
+				},
+			},
+		},
+	}
+
+	NormalizePlan(p)
+
+	if p.Decomposition == nil {
+		t.Fatal("Decomposition should not be nil")
+	}
+	if len(p.Decomposition.Tasks) != 2 {
+		t.Fatalf("expected 2 tasks, got %d", len(p.Decomposition.Tasks))
+	}
+	if p.Decomposition.Tasks[0].ID != "task_a" {
+		t.Errorf("first task ID = %q, want %q", p.Decomposition.Tasks[0].ID, "task_a")
+	}
+	if p.Decomposition.Tasks[1].ID != "task_z" {
+		t.Errorf("second task ID = %q, want %q", p.Decomposition.Tasks[1].ID, "task_z")
+	}
+	assertSorted := func(name string, got []string) {
+		t.Helper()
+		for i := 1; i < len(got); i++ {
+			if got[i-1] > got[i] {
+				t.Errorf("%s not sorted: %v", name, got)
+				break
+			}
+		}
+	}
+	assertSorted("task_a.AllowedFiles", p.Decomposition.Tasks[0].AllowedFiles)
+	assertSorted("task_a.ForbiddenFiles", p.Decomposition.Tasks[0].ForbiddenFiles)
+	assertSorted("task_z.AllowedFiles", p.Decomposition.Tasks[1].AllowedFiles)
+	assertSorted("task_z.ForbiddenFiles", p.Decomposition.Tasks[1].ForbiddenFiles)
+	assertSorted("task_z.DependsOn", p.Decomposition.Tasks[1].DependsOn)
+	assertSorted("task_z.Verification", p.Decomposition.Tasks[1].Verification)
+}
+
 func TestNormalizePlanNil(t *testing.T) {
 	NormalizePlan(nil)
 }

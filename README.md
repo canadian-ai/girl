@@ -90,6 +90,8 @@ go build -o girl ./cmd/girl/
 | `girl pack <path>` | Create token-budgeted agent context pack |
 | `girl validate <file>` | Validate a GRP plan JSON file |
 | `girl verify <path>` | Detect available verification commands |
+| `girl review` | Check diff reviewability against a budget |
+| `girl decompose` | Decompose a large diff into smaller reviewable tasks |
 
 ### `girl analyze`
 
@@ -129,6 +131,36 @@ uniqueness, step-diagnostic linkage, and relative file paths.
 
 Detects available verification commands for a project by inspecting
 `package.json`, `go.mod`, and project structure.
+
+### `girl review`
+
+Checks a unified diff against a reviewability budget to determine if it's safe for human review.
+
+```bash
+# Review a diff file
+girl review --diff-file large-change.diff --output text
+
+# Review from stdin
+git diff main..feature | girl review --stdin --output markdown
+
+# Fail CI if over budget
+git diff main..feature | girl review --stdin --fail-on-over-budget
+```
+
+### `girl decompose`
+
+Splits a large diff into atomic reviewable tasks by file category and dependency order.
+
+```bash
+# Decompose from diff file
+girl decompose --diff-file large-change.diff --output markdown
+
+# Write decomposition JSON for use with `girl pack --task`
+girl decompose --diff-file large-change.diff --output-file .grp/decomposition.json
+
+# Use task-scoped pack
+girl pack . --task task_001_go --task-file .grp/decomposition.json --output markdown
+```
 
 ## GIRL Recipes
 
