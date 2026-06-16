@@ -5,7 +5,9 @@ generating GRP refactoring plans.
 
 > **GRP** (Grammar Refactoring Protocol) is the protocol/schema for structured,
 > source-grounded refactoring plans. **GIRL** is the reference CLI
-> implementation of GRP, starting with Go, TypeScript, and React bindings.
+> implementation of GRP, with [binding maturity](docs/bindings/maturity.md):
+> **Reference** (Go runtime), **Stable** (TypeScript spec), and
+> **Experimental** (React spec).
 
 GIRL analyzes code, detects refactoring opportunities, and generates structured
 GRP plans that make agent refactoring safe, repeatable, and token-efficient.
@@ -26,7 +28,7 @@ GRP plans are parser-independent.
 | **Role** | Protocol/schema for source-grounded refactoring plans | Reference CLI implementation of GRP |
 | **Scope** | Plan envelope, diagnostics, steps, verification | Analyzers (go/ast, tree-sitter), recipe engine, CLI |
 | **Extensible** | Via binding namespaced codes (`go.*`, `react.*`) | Register recipes and diagnostics in code |
-| **Language** | Language-agnostic | Go (go/ast), TypeScript/React (tree-sitter) |
+| **Language** | Language-agnostic | Go (go/ast) [Reference], TypeScript (tree-sitter) [Stable], React (tree-sitter) [Experimental] |
 
 **Non-goals for GRP Core:**
 - parser or AST format
@@ -39,14 +41,17 @@ Binding maturity is tracked in [docs/bindings/maturity.md](docs/bindings/maturit
 
 ## Architecture
 
+GIRL refactoring follows a pipeline that maps source code through analysis
+into structured GRP plans, then into agent context packs with verification:
+
 ```txt
-Source code
-  -> analyzer (go/ast for Go, tree-sitter + sitter queries for TS/JS/TSX/JSX)
-  -> binding maps findings into GRP diagnostics
-  -> GRP plan
-  -> GIRL context pack
+source code
+  -> analyzers (go/ast for Go, tree-sitter + sitter queries for TS/JS/TSX/JSX)
+  -> binding maps findings into GRP diagnostics via recipe engine
+  -> GRP plan generator (ordered steps with risk, requires, verify)
+  -> context packer (token-optimized agent input with heuristic estimator)
   -> agent/codemod/human
-  -> verification
+  -> verification (typecheck/lint/test)
 ```
 
 ## Why
@@ -59,8 +64,14 @@ Source code
 ## Quick Start
 
 ```bash
-# Build
+# Install (latest release)
+go install github.com/canadian-ai/girl@latest
+
+# Or build from source
 go build -o girl ./cmd/girl/
+
+# Test installation
+girl --help
 
 # Analyze a file or directory
 ./girl analyze examples/messy-react-form --output text
@@ -234,21 +245,64 @@ GRP Core is a minimal plan envelope. The full specification is in `docs/spec/`:
 - **[Real Refactors](examples/real-refactors/)** — Go and React before/after refactoring demos with GRP plans, context packs, and verification
 - **[Namespaces](docs/namespaces.md)** — diagnostic and recipe naming conventions
 
-A minimal GRP plan:
+A real GRP plan from `examples/real-refactors/go-grp-plan.json`:
 
 ```json
 {
   "specversion": "0.1",
-  "id": "grp_8f41c2b9",
+  "id": "grp_f2a9c1e4",
   "type": "dev.refactor.plan",
   "source": "github.com/canadian-ai/girl",
-  "subject": ".",
+  "subject": "examples/real-refactors/go-before",
   "language": "go",
-  "goal": "Refactor long functions into smaller focused units",
+  "goal": "Refactor order processing: reduce complexity, flatten nesting, fix ignored errors",
   "risk": "medium",
-  "diagnostics": [],
-  "steps": [],
-  "verification": []
+  "tool": "girl v0.1.0",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "go.high-complexity",
+      "severity": "high",
+      "confidence": "high",
+      "message": "Function processOrder has cyclomatic complexity 19 (limit: 10)",
+      "file": "examples/real-refactors/go-before/main.go",
+      "span": { "startLine": 21, "startColumn": 1, "endLine": 96, "endColumn": 2 },
+      "symbol": { "kind": "function", "name": "processOrder" },
+      "metadata": { "complexity": "19", "threshold": "10" }
+    },
+    {
+      "id": "diag_002",
+      "code": "go.deep-nesting",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "Function processOrder has nesting depth 4 (limit: 3)",
+      "file": "examples/real-refactors/go-before/main.go",
+      "span": { "startLine": 31, "startColumn": 3, "endLine": 43, "endColumn": 4 },
+      "symbol": { "kind": "function", "name": "processOrder" },
+      "metadata": { "depth": "4", "threshold": "3" }
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_go.high-complexity_processOrder",
+      "recipe": "go.simplify-branches",
+      "title": "Simplify branching in processOrder",
+      "action": "Simplify branching logic in processOrder with guard clauses and early returns",
+      "target": { "file": "examples/real-refactors/go-before/main.go", "symbol": "processOrder", "kind": "function" },
+      "risk": "high",
+      "requires": ["diag_001"],
+      "verify": [
+        { "command": "go build ./...", "required": true, "type": "build" },
+        { "command": "go test ./...", "required": true, "type": "test" }
+      ],
+      "execution": { "mode": "agent-assisted" }
+    }
+  ],
+  "verification": [
+    { "command": "go build ./...", "required": true, "type": "build" },
+    { "command": "go vet ./...",   "required": true, "type": "lint" },
+    { "command": "go test ./...",  "required": true, "type": "test" }
+  ]
 }
 ```
 
@@ -385,17 +439,6 @@ girl install pi
 ```
 
 The GIRL skill registers via `skills/girl/SKILL.md`.
-
-## Architecture
-
-```txt
-source code
-  -> analyzers (go/ast for Go, tree-sitter for TS/JS/TSX/JSX)
-  -> recipe engine (pattern matching with code-configured thresholds)
-  -> GRP plan generator (structured plan)
-  -> context packer (token-optimized agent input with heuristic estimator)
-  -> verification (typecheck/lint/test)
-```
 
 ## Privacy
 
