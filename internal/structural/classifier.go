@@ -8,6 +8,67 @@ import (
 	"github.com/canadian-ai/girl/internal/diffstats"
 )
 
+type pathPattern struct {
+	match  func(f diffstats.FileStat) bool
+	bucket bucketLabel
+}
+
+func buildPatterns() []pathPattern {
+	return []pathPattern{
+		{match: func(f diffstats.FileStat) bool {
+			return f.IsGenerated || f.IsLockfile
+		}, bucket: bucketGenerated},
+		{match: func(f diffstats.FileStat) bool {
+			base := filepath.Base(f.Path)
+			return strings.HasSuffix(base, "_test.go") || strings.HasSuffix(base, "_test.ts") || strings.HasSuffix(base, "_test.tsx")
+		}, bucket: bucketTest},
+		{match: func(f diffstats.FileStat) bool {
+			base := filepath.Base(f.Path)
+			return strings.Contains(base, ".spec.") || strings.Contains(base, ".test.")
+		}, bucket: bucketTest},
+		{match: func(f diffstats.FileStat) bool {
+			return strings.Contains(f.Path, "/test/") || strings.HasPrefix(f.Path, "test/")
+		}, bucket: bucketTest},
+		{match: func(f diffstats.FileStat) bool {
+			return strings.Contains(f.Path, "/__tests__/") || strings.HasPrefix(f.Path, "__tests__/")
+		}, bucket: bucketTest},
+		{match: func(f diffstats.FileStat) bool {
+			base := filepath.Base(f.Path)
+			return strings.HasPrefix(base, "tsconfig") ||
+				strings.HasPrefix(base, ".babelrc") ||
+				base == ".browserslistrc" ||
+				strings.HasPrefix(base, ".eslintrc") ||
+				strings.HasPrefix(base, ".prettierrc") ||
+				base == "Makefile" ||
+				base == "Dockerfile" ||
+				strings.Contains(f.Path, ".github/") ||
+				base == ".gitlab-ci.yml" ||
+				base == "go.mod" || base == "go.sum" ||
+				base == "Gemfile" || base == "Gemfile.lock" ||
+				base == "Package.resolved" ||
+				base == "Cargo.toml"
+		}, bucket: bucketConfigStructural},
+		{match: func(f diffstats.FileStat) bool {
+			return strings.HasSuffix(f.Path, ".css") || strings.HasSuffix(f.Path, ".scss") || strings.HasSuffix(f.Path, ".less")
+		}, bucket: bucketConfigData},
+		{match: func(f diffstats.FileStat) bool {
+			return strings.HasSuffix(f.Path, ".json")
+		}, bucket: bucketConfigData},
+		{match: func(f diffstats.FileStat) bool {
+			base := filepath.Base(f.Path)
+			return strings.HasPrefix(f.Path, "vendor/") ||
+				strings.HasPrefix(f.Path, "node_modules/") ||
+				strings.HasPrefix(f.Path, "gen/") ||
+				strings.HasSuffix(base, ".pb.go") ||
+				strings.HasSuffix(base, ".pb.ts") ||
+				strings.HasSuffix(base, ".pb.swift") ||
+				base == "yarn.lock" || base == "package-lock.json" || base == "Cargo.lock"
+		}, bucket: bucketGenerated},
+	}
+}
+
+var pathPatterns = buildPatterns()
+
 func Classify(diff *diffstats.DiffStats) *Classification {
 	result := &Classification{}
 
@@ -66,60 +127,11 @@ const (
 )
 
 func classifyByPath(f diffstats.FileStat) bucketLabel {
-	if f.IsGenerated || f.IsLockfile {
-		return bucketGenerated
+	for _, p := range pathPatterns {
+		if p.match(f) {
+			return p.bucket
+		}
 	}
-
-	path := f.Path
-	base := filepath.Base(path)
-
-	if strings.HasSuffix(base, "_test.go") || strings.HasSuffix(base, "_test.ts") || strings.HasSuffix(base, "_test.tsx") {
-		return bucketTest
-	}
-	if strings.Contains(base, ".spec.") || strings.Contains(base, ".test.") {
-		return bucketTest
-	}
-	if strings.Contains(path, "/test/") || strings.HasPrefix(path, "test/") {
-		return bucketTest
-	}
-	if strings.Contains(path, "/__tests__/") || strings.HasPrefix(path, "__tests__/") {
-		return bucketTest
-	}
-
-	// Check config_structural patterns FIRST (before generic config_data checks)
-	if strings.HasPrefix(base, "tsconfig") ||
-		strings.HasPrefix(base, ".babelrc") ||
-		base == ".browserslistrc" ||
-		strings.HasPrefix(base, ".eslintrc") ||
-		strings.HasPrefix(base, ".prettierrc") ||
-		base == "Makefile" ||
-		base == "Dockerfile" ||
-		strings.Contains(path, ".github/") ||
-		base == ".gitlab-ci.yml" ||
-		base == "go.mod" || base == "go.sum" ||
-		base == "Gemfile" || base == "Gemfile.lock" ||
-		base == "Package.resolved" ||
-		base == "Cargo.toml" {
-		return bucketConfigStructural
-	}
-
-	if strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".scss") || strings.HasSuffix(path, ".less") {
-		return bucketConfigData
-	}
-	if strings.HasSuffix(path, ".json") {
-		return bucketConfigData
-	}
-
-	if strings.HasPrefix(path, "vendor/") ||
-		strings.HasPrefix(path, "node_modules/") ||
-		strings.HasPrefix(path, "gen/") ||
-		strings.HasSuffix(base, ".pb.go") ||
-		strings.HasSuffix(base, ".pb.ts") ||
-		strings.HasSuffix(base, ".pb.swift") ||
-		base == "yarn.lock" || base == "package-lock.json" || base == "Cargo.lock" {
-		return bucketGenerated
-	}
-
 	return bucketLogic
 }
 

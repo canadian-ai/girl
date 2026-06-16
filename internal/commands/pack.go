@@ -75,41 +75,8 @@ func PackCommand() *cli.Command {
 				Lang:        lang,
 			})
 
-			taskID := c.String("task")
-			taskFile := c.String("task-file")
-			if taskID != "" && taskFile != "" {
-				decompData, err := os.ReadFile(taskFile)
-				if err != nil {
-					return fmt.Errorf("read task file: %w", err)
-				}
-				var decomp ir.Decomposition
-				if err := json.Unmarshal(decompData, &decomp); err != nil {
-					return fmt.Errorf("parse decomposition: %w", err)
-				}
-				var matchedTask *ir.DecompositionTask
-				for _, t := range decomp.Tasks {
-					if t.ID == taskID {
-						matchedTask = &t
-						break
-					}
-				}
-				if matchedTask == nil {
-					return fmt.Errorf("task %q not found in decomposition", taskID)
-				}
-				allowed := make(map[string]bool)
-				for _, f := range matchedTask.AllowedFiles {
-					allowed[f] = true
-				}
-				var filtered []*ir.FileIR
-				for _, f := range result.Files {
-					if allowed[f.Path] {
-						filtered = append(filtered, f)
-					}
-				}
-				result.Files = filtered
-				if matchedTask.Goal != "" {
-					plan.Goal = matchedTask.Goal
-				}
+			if err := filterPlanByTask(c, plan, result); err != nil {
+				return err
 			}
 
 			pkr := packer.NewPacker(c.Int("budget"))
@@ -127,32 +94,76 @@ func PackCommand() *cli.Command {
 				return fmt.Errorf("packing failed: %w", err)
 			}
 
-			outputFile := c.String("output-file")
+			planID := canonicalGRPPlanID(plan, lang)
+			gcp := pkr.GrpContextPack(pack, planID)
 
-			switch stringFlag(c, "output", "o") {
-			case "markdown":
-				printPackMarkdown(pack)
-			case "grp-context-json":
-				planID := canonicalGRPPlanID(plan, lang)
-				gcp := pkr.GrpContextPack(pack, planID)
-				if outputFile != "" {
-					if err := writeJSONFile(outputFile, gcp); err != nil {
-						return fmt.Errorf("write context pack: %w", err)
-					}
-				}
-				printJSON(gcp)
-			default:
-				if outputFile != "" {
-					if err := writeJSONFile(outputFile, pack); err != nil {
-						return fmt.Errorf("write context pack: %w", err)
-					}
-				}
-				printJSON(pack)
-			}
-
-			return nil
+			return writePackOutput(c, pack, gcp, plan, lang)
 		},
 	}
+}
+
+func filterPlanByTask(c *cli.Context, plan *ir.GrpPlan, result *ir.AnalyzerResult) error {
+	taskID := c.String("task")
+	taskFile := c.String("task-file")
+	if taskID == "" || taskFile == "" {
+		return nil
+	}
+	decompData, err := os.ReadFile(taskFile)
+	if err != nil {
+		return fmt.Errorf("read task file: %w", err)
+	}
+	var decomp ir.Decomposition
+	if err := json.Unmarshal(decompData, &decomp); err != nil {
+		return fmt.Errorf("parse decomposition: %w", err)
+	}
+	var matchedTask *ir.DecompositionTask
+	for _, t := range decomp.Tasks {
+		if t.ID == taskID {
+			matchedTask = &t
+			break
+		}
+	}
+	if matchedTask == nil {
+		return fmt.Errorf("task %q not found in decomposition", taskID)
+	}
+	allowed := make(map[string]bool)
+	for _, f := range matchedTask.AllowedFiles {
+		allowed[f] = true
+	}
+	var filtered []*ir.FileIR
+	for _, f := range result.Files {
+		if allowed[f.Path] {
+			filtered = append(filtered, f)
+		}
+	}
+	result.Files = filtered
+	if matchedTask.Goal != "" {
+		plan.Goal = matchedTask.Goal
+	}
+	return nil
+}
+
+func writePackOutput(c *cli.Context, pack *ir.ContextPack, gcp *ir.GrpContextPack, plan *ir.GrpPlan, lang string) error {
+	outputFile := c.String("output-file")
+	switch stringFlag(c, "output", "o") {
+	case "markdown":
+		printPackMarkdown(pack)
+	case "grp-context-json":
+		if outputFile != "" {
+			if err := writeJSONFile(outputFile, gcp); err != nil {
+				return fmt.Errorf("write context pack: %w", err)
+			}
+		}
+		printJSON(gcp)
+	default:
+		if outputFile != "" {
+			if err := writeJSONFile(outputFile, pack); err != nil {
+				return fmt.Errorf("write context pack: %w", err)
+			}
+		}
+		printJSON(pack)
+	}
+	return nil
 }
 
 func canonicalGRPPlanID(plan *ir.GrpPlan, lang string) string {
