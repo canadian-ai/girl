@@ -261,25 +261,71 @@ See [Namespaces](docs/namespaces.md) for the complete namespace convention.
 - SARIF binding
 - LSP binding
 
-## Use with OpenCode
+## Framework Integrations
 
-Copy the GIRL agents into your project:
+GIRL ships with first-class support for multiple AI coding frameworks. Install
+agents/skills for your framework of choice:
 
 ```bash
-cp -r opencode/agents/* .opencode/agents/
+# Install for your framework
+girl install opencode    # OpenCode agents
+girl install claude      # Claude Code skill
+girl install codex       # Codex skill
+girl install pi          # Pi skill
 ```
 
-Then in OpenCode:
+Or copy files manually:
+
+| Framework | Source | Target |
+|-----------|--------|--------|
+| **OpenCode** | `opencode/agents/` | `.opencode/agents/` |
+| **Claude Code** | `claude/` | `.claude/` |
+| **Codex** | `codex/` | `.codex/` |
+| **Pi** | `pi/` | `.pi/agent/` |
+
+### OpenCode
+
+```bash
+girl install opencode
+# or manually: cp -r opencode/agents/* .opencode/agents/
+```
+
+Use `@girl-planner`, `@girl-implementer`, or `@girl-reviewer` agents.
 
 ```txt
 @girl-planner analyze examples/messy-react-form and generate a GRP plan
 ```
 
-Or via the GIRL skill:
+### Claude Code
+
+```bash
+girl install claude
+# or manually: cp -r claude/* .claude/
+```
+
+The GIRL skill registers via `skills/girl/SKILL.md`.
 
 ```txt
 /girl analyze this component and plan the refactor
 ```
+
+### Codex
+
+```bash
+girl install codex
+# or manually: cp -r codex/* .codex/
+```
+
+The GIRL skill registers via `skills/girl/SKILL.md`.
+
+### Pi
+
+```bash
+girl install pi
+# or manually: cp -r pi/* .pi/agent/
+```
+
+The GIRL skill registers via `skills/girl/SKILL.md`.
 
 ## Architecture
 
