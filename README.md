@@ -10,6 +10,9 @@ generating GRP refactoring plans.
 GIRL analyzes code, detects refactoring opportunities, and generates structured
 GRP plans that make agent refactoring safe, repeatable, and token-efficient.
 
+[![Release](https://img.shields.io/github/v/release/canadian-ai/girl)](https://github.com/canadian-ai/girl/releases/latest)
+[![CI](https://github.com/canadian-ai/girl/actions/workflows/ci.yml/badge.svg)](https://github.com/canadian-ai/girl/actions/workflows/ci.yml)
+
 ## Design Philosophy
 
 GRP is language-agnostic. GIRL uses tree-sitter for TypeScript/React/JavaScript
