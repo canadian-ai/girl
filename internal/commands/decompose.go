@@ -8,6 +8,7 @@ import (
 	"github.com/canadian-ai/girl/internal/decomposer"
 	"github.com/canadian-ai/girl/internal/diffstats"
 	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/structural"
 	"github.com/urfave/cli/v2"
 )
 
@@ -78,8 +79,13 @@ func DecomposeCommand() *cli.Command {
 				return fmt.Errorf("parse diff: %w", err)
 			}
 
+			// Compute structural clusters for guided decomposition
+			class := structural.Classify(stats)
+			suggestedClusters := class.Cohesion.SuggestedClusters
+
 			decomp := decomposer.Decompose(&decomposer.DecomposeRequest{
-				DiffStats: stats,
+				DiffStats:         stats,
+				SuggestedClusters: suggestedClusters,
 			})
 
 			outputFile := c.String("output-file")

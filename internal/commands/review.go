@@ -8,6 +8,7 @@ import (
 	"github.com/canadian-ai/girl/internal/diffstats"
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/reviewability"
+	"github.com/canadian-ai/girl/internal/structural"
 	"github.com/urfave/cli/v2"
 )
 
@@ -98,7 +99,13 @@ func ReviewCommand() *cli.Command {
 			case "markdown":
 				printReviewMarkdown(result)
 			default:
-				printJSON(result.Result)
+				printJSON(struct {
+				Result     ir.ReviewabilityResult     `json:"result"`
+				Structural *structural.Classification `json:"structural,omitempty"`
+			}{
+				Result:     result.Result,
+				Structural: result.Structural,
+			})
 			}
 
 			if c.Bool("fail-on-over-budget") && overBudget {
@@ -106,6 +113,38 @@ func ReviewCommand() *cli.Command {
 			}
 			return nil
 		},
+	}
+}
+
+type structuralField interface {
+	GetStructural() *structural.Classification
+}
+
+func printStructuralText(s *structural.Classification) {
+	if s == nil {
+		return
+	}
+	fmt.Printf("\nStructural:\n")
+	if s.Added.Logic > 0 || s.Added.Test > 0 || s.Added.EphemeralSupport > 0 {
+		fmt.Printf("  Logic:            %d\n", s.Added.Logic)
+		fmt.Printf("  Test:             %d\n", s.Added.Test)
+		fmt.Printf("  Ephemeral:        %d\n", s.Added.EphemeralSupport)
+		fmt.Printf("  Reusable:         %d\n", s.Added.ReusableSupport)
+	}
+	if s.Added.ConfigData > 0 || s.Added.ConfigStructural > 0 {
+		fmt.Printf("  Config data:      %d\n", s.Added.ConfigData)
+		fmt.Printf("  Config structural:%d\n", s.Added.ConfigStructural)
+	}
+	if s.Added.Generated > 0 {
+		fmt.Printf("  Generated:        %d\n", s.Added.Generated)
+	}
+	fmt.Printf("  Overhead ratio:   %.2f\n", s.Ratios.StructuralOverhead)
+	fmt.Printf("  Test/logic ratio: %.2f\n", s.Ratios.TestToLogic)
+	if s.Ratios.ProductiveScaffold > 0 {
+		fmt.Printf("  Productive scaf:  %.2f\n", s.Ratios.ProductiveScaffold)
+	}
+	if s.Cohesion.Variance > 0 {
+		fmt.Printf("  Cohesion var:     %.2f\n", s.Cohesion.Variance)
 	}
 }
 
@@ -138,6 +177,7 @@ func printReviewText(r *reviewability.EvalResult) {
 			fmt.Printf("  [%s] %s\n", strings.ToUpper(string(d.Severity)), d.Message)
 		}
 	}
+	printStructuralText(r.Structural)
 	fmt.Println()
 }
 
@@ -176,6 +216,36 @@ func printReviewMarkdown(r *reviewability.EvalResult) {
 		fmt.Printf("## Diagnostics\n\n")
 		for _, d := range r.Diagnostics {
 			fmt.Printf("- [%s] `%s`: %s\n", strings.ToUpper(string(d.Severity)), d.Code, d.Message)
+		}
+		fmt.Println()
+	}
+	if r.Structural != nil {
+		fmt.Printf("## Structural\n\n")
+		fmt.Printf("| Metric | Value |\n")
+		fmt.Printf("|--------|-------|\n")
+		s := r.Structural
+		if s.Added.Logic > 0 || s.Added.Test > 0 {
+			fmt.Printf("| Logic lines | %d |\n", s.Added.Logic)
+			fmt.Printf("| Test lines | %d |\n", s.Added.Test)
+		}
+		if s.Added.EphemeralSupport > 0 || s.Added.ReusableSupport > 0 {
+			fmt.Printf("| Ephemeral scaffold | %d |\n", s.Added.EphemeralSupport)
+			fmt.Printf("| Reusable scaffold | %d |\n", s.Added.ReusableSupport)
+		}
+		if s.Added.ConfigData > 0 || s.Added.ConfigStructural > 0 {
+			fmt.Printf("| Config data | %d |\n", s.Added.ConfigData)
+			fmt.Printf("| Config structural | %d |\n", s.Added.ConfigStructural)
+		}
+		if s.Added.Generated > 0 {
+			fmt.Printf("| Generated | %d |\n", s.Added.Generated)
+		}
+		fmt.Printf("| Structural overhead ratio | %.2f |\n", s.Ratios.StructuralOverhead)
+		fmt.Printf("| Test-to-logic ratio | %.2f |\n", s.Ratios.TestToLogic)
+		if s.Ratios.ProductiveScaffold > 0 {
+			fmt.Printf("| Productive scaffold ratio | %.2f |\n", s.Ratios.ProductiveScaffold)
+		}
+		if s.Cohesion.Variance > 0 {
+			fmt.Printf("| Cohesion variance | %.2f |\n", s.Cohesion.Variance)
 		}
 		fmt.Println()
 	}

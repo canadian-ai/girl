@@ -11,8 +11,9 @@ import (
 )
 
 type DecomposeRequest struct {
-	DiffStats *diffstats.DiffStats
-	PlanID    string
+	DiffStats         *diffstats.DiffStats
+	PlanID            string
+	SuggestedClusters [][]string // from structural analysis cohesion
 }
 
 func Decompose(req *DecomposeRequest) *ir.Decomposition {
@@ -87,6 +88,18 @@ func Decompose(req *DecomposeRequest) *ir.Decomposition {
 			Verification:   taskVerification(cat),
 		}
 		tasks = append(tasks, task)
+	}
+
+	// If suggested clusters are provided, override with cluster-based decomposition
+	if len(req.SuggestedClusters) > 0 {
+		clusterTasks := buildClusterTasks(req.SuggestedClusters, req.DiffStats)
+		if len(clusterTasks) > 0 {
+			return &ir.Decomposition{
+				Strategy:   "cluster-decomposition",
+				ParentPlan: req.PlanID,
+				Tasks:      clusterTasks,
+			}
+		}
 	}
 
 	return &ir.Decomposition{
@@ -208,6 +221,184 @@ func taskSlug(category string) string {
 		slug = slug[:30]
 	}
 	return slug
+}
+
+func buildClusterTasks(clusters [][]string, diff *diffstats.DiffStats) []ir.DecompositionTask {
+	if len(clusters) == 0 {
+		return nil
+	}
+
+	fileToCluster := make(map[string]int)
+	for ci, cluster := range clusters {
+		for _, path := range cluster {
+			fileToCluster[path] = ci
+		}
+	}
+
+	// Count assigned vs unassigned files
+	assignedCount := 0
+	seen := make(map[string]bool)
+	for _, f := range diff.Files {
+		if _, ok := fileToCluster[f.Path]; ok {
+			assignedCount++
+		}
+	}
+
+	// Only use clusters if at least one real cluster (≥2 files) exists
+	hasRealCluster := false
+	for _, cluster := range clusters {
+		if len(cluster) >= 2 {
+			hasRealCluster = true
+			break
+		}
+	}
+	if !hasRealCluster {
+		return nil
+	}
+
+	// Create one task per cluster
+	var tasks []ir.DecompositionTask
+	for ci, cluster := range clusters {
+		if len(cluster) == 0 {
+			continue
+		}
+		info := struct {
+			files  []string
+			total  int
+			hasGo  bool
+			hasTS  bool
+			hasSQL bool
+		}{files: cluster}
+
+		for _, path := range cluster {
+			seen[path] = true
+			info.total += 10
+			if strings.HasSuffix(path, ".go") {
+				info.hasGo = true
+			}
+			if strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".tsx") {
+				info.hasTS = true
+			}
+			if strings.HasSuffix(path, ".sql") {
+				info.hasSQL = true
+			}
+		}
+
+		maxLines := info.total + info.total/2
+		if maxLines < 200 {
+			maxLines = 200
+		}
+
+		var verify []string
+		if info.hasGo {
+			verify = append(verify, "go build ./...", "go vet ./...", "go test ./...")
+		}
+		if info.hasTS {
+			verify = append(verify, "tsc --noEmit")
+		}
+		if info.hasSQL {
+			verify = append(verify, "go build ./...")
+		}
+		if len(verify) == 0 {
+			verify = []string{"go build ./...", "go test ./..."}
+		}
+
+		goal := fmt.Sprintf("Implement %s layer changes", clusterFilesLabel(cluster))
+		id := fmt.Sprintf("task_%03d_cluster_%s", ci+1, clusterFilesLabel(cluster))
+
+		task := ir.DecompositionTask{
+			ID:             id,
+			Goal:           goal,
+			AllowedFiles:   cluster,
+			MaxDiffLines:   maxLines,
+			Parallelizable: ci == 0,
+			Verification:   verify,
+		}
+		if ci > 0 {
+			task.DependsOn = []string{tasks[0].ID}
+		}
+		tasks = append(tasks, task)
+	}
+
+	// Add a remainder task for files not in any cluster
+	var unassigned []string
+	for _, f := range diff.Files {
+		if !seen[f.Path] {
+			unassigned = append(unassigned, f.Path)
+		}
+	}
+	if len(unassigned) > 0 {
+		var verify []string
+		hasGo := false
+		for _, path := range unassigned {
+			if strings.HasSuffix(path, ".go") {
+				hasGo = true
+			}
+		}
+		if hasGo {
+			verify = []string{"go build ./...", "go test ./..."}
+		} else {
+			verify = []string{"go build ./...", "go test ./..."}
+		}
+
+		remainderTask := ir.DecompositionTask{
+			ID:           fmt.Sprintf("task_%03d_remainder", len(tasks)+1),
+			Goal:         "Implement remaining changes",
+			AllowedFiles: unassigned,
+			MaxDiffLines: 400,
+			Verification: verify,
+		}
+		// Remainder depends on the first cluster task
+		if len(tasks) > 0 {
+			remainderTask.DependsOn = []string{tasks[0].ID}
+		} else {
+			remainderTask.Parallelizable = true
+		}
+		tasks = append(tasks, remainderTask)
+	}
+
+	return tasks
+}
+
+func clusterFilesLabel(files []string) string {
+	if len(files) == 0 {
+		return "unknown"
+	}
+	// Find longest common directory prefix
+	parts := make([][]string, len(files))
+	for i, f := range files {
+		parts[i] = strings.Split(f, "/")
+	}
+	// Find common prefix length
+	maxDepth := len(parts[0])
+	for _, p := range parts[1:] {
+		if len(p) < maxDepth {
+			maxDepth = len(p)
+		}
+	}
+	common := 0
+	for common < maxDepth {
+		allMatch := true
+		for _, p := range parts[1:] {
+			if len(p) <= common || p[common] != parts[0][common] {
+				allMatch = false
+				break
+			}
+		}
+		if !allMatch {
+			break
+		}
+		common++
+	}
+	// Use last common dir component, or first file's name if no common dir
+	if common >= 2 {
+		return parts[0][common-1]
+	}
+	if common >= 1 {
+		return parts[0][common-1]
+	}
+	// No common prefix — use first file's top-level dir
+	return parts[0][0]
 }
 
 func taskVerification(category string) []string {

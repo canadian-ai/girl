@@ -213,6 +213,51 @@ var builtInRecipes = []DiagnosticRecipe{
 			return fmt.Sprintf("Create parallel task packs for independent changes in %s", targetName(d))
 		},
 	},
+	{
+		Code:   "agent.high-overhead",
+		Recipe: "agent.extract-reusable-scaffold",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityMedium },
+		Verify: func(d ir.Diagnostic) []string { return []string{"go build ./...", "go test ./..."} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Refactor ephemeral scaffold in %s into reusable builders", targetName(d))
+		},
+	},
+	{
+		Code:   "agent.low-cohesion",
+		Recipe: "agent.flatten-cohesion-variance",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityMedium },
+		Verify: func(d ir.Diagnostic) []string { return []string{"go build ./...", "go vet ./..."} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Consolidate %s changes into fewer concern boundaries", targetName(d))
+		},
+	},
+	{
+		Code:   "agent.test-to-code-imbalance",
+		Recipe: "agent.extract-reusable-scaffold",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityMedium },
+		Verify: func(d ir.Diagnostic) []string { return []string{"go test ./...", "go vet ./..."} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Extract test helpers from %s to reduce test-to-code ratio", targetName(d))
+		},
+	},
+	{
+		Code:   "agent.ceremonial-noise",
+		Recipe: "agent.split-mixed-boundary",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityHigh },
+		Verify: func(d ir.Diagnostic) []string { return []string{"go build ./...", "go test ./...", "go vet ./..."} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Reduce ceremonial noise in %s by splitting concerns and consolidating scaffold", targetName(d))
+		},
+	},
+	{
+		Code:   "agent.productive-scaffold",
+		Recipe: "agent.extract-reusable-scaffold",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityLow },
+		Verify: func(d ir.Diagnostic) []string { return []string{"go build ./...", "go test ./..."} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Continue extracting reusable scaffold from %s", targetName(d))
+		},
+	},
 }
 
 func init() {

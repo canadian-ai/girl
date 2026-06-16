@@ -2,14 +2,17 @@ package reviewability
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/canadian-ai/girl/internal/diffstats"
 	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/structural"
 )
 
 type EvalResult struct {
 	Result      ir.ReviewabilityResult
 	Diagnostics []ir.Diagnostic
+	Structural  *structural.Classification
 }
 
 func Evaluate(diff *diffstats.DiffStats, budget ir.ReviewabilityBudget) *EvalResult {
@@ -109,8 +112,98 @@ func Evaluate(diff *diffstats.DiffStats, budget ir.ReviewabilityBudget) *EvalRes
 		}
 	}
 
+	// Structural analysis (second pass)
+	class := structural.Classify(diff)
+	r.Structural = class
+
+	// Structural diagnostics
+	structDiags := structuralDiagnosticsFor(class)
+	diagnostics = append(diagnostics, structDiags...)
+
 	r.Diagnostics = diagnostics
 	return r
+}
+
+func structuralDiagnosticsFor(class *structural.Classification) []ir.Diagnostic {
+	if class == nil {
+		return nil
+	}
+	var diags []ir.Diagnostic
+
+	// agent.high-overhead: WARN when structural_overhead_ratio > 0.5
+	if class.Ratios.StructuralOverhead > 0.5 {
+		diags = append(diags, ir.Diagnostic{
+			Code:       "agent.high-overhead",
+			Severity:   ir.SeverityMedium,
+			Confidence: "high",
+			Message:    fmt.Sprintf("Structural overhead ratio is %.2f (threshold: 0.50)", class.Ratios.StructuralOverhead),
+			File:       ".",
+		})
+	}
+
+	// agent.low-cohesion: WARN when cohesion_variance > 0.6
+	if class.Cohesion.Variance > 0.6 {
+		clusters := ""
+		if len(class.Cohesion.SuggestedClusters) > 0 {
+			var desc []string
+			for _, cl := range class.Cohesion.SuggestedClusters {
+				desc = append(desc, fmt.Sprintf("[%s...%s]", cl[0], cl[len(cl)-1]))
+			}
+			clusters = fmt.Sprintf(" (suggested clusters: %s)", strings.Join(desc, ", "))
+		}
+		diags = append(diags, ir.Diagnostic{
+			Code:       "agent.low-cohesion",
+			Severity:   ir.SeverityMedium,
+			Confidence: "high",
+			Message:    fmt.Sprintf("Cohesion variance is %.2f (threshold: 0.60)%s", class.Cohesion.Variance, clusters),
+			File:       ".",
+		})
+	}
+
+	// agent.test-to-code-imbalance: WARN when test_to_logic_ratio > 3.0 AND ephemeral > reusable
+	if class.Ratios.TestToLogic > 3.0 && class.Added.EphemeralSupport > class.Added.ReusableSupport {
+		diags = append(diags, ir.Diagnostic{
+			Code:       "agent.test-to-code-imbalance",
+			Severity:   ir.SeverityMedium,
+			Confidence: "medium",
+			Message:    fmt.Sprintf("Test-to-logic ratio is %.1f (threshold: 3.0) with no reusable scaffold", class.Ratios.TestToLogic),
+			File:       ".",
+		})
+	}
+
+	// agent.ceremonial-noise: HIGH when high-overhead AND low-cohesion
+	hasHighOverhead := false
+	hasLowCohesion := false
+	for _, d := range diags {
+		switch d.Code {
+		case "agent.high-overhead":
+			hasHighOverhead = true
+		case "agent.low-cohesion":
+			hasLowCohesion = true
+		}
+	}
+	if hasHighOverhead && hasLowCohesion {
+		diags = append(diags, ir.Diagnostic{
+			Code:       "agent.ceremonial-noise",
+			Severity:   ir.SeverityHigh,
+			Confidence: "high",
+			Message:    "Diff has high structural overhead and low cohesion — high ceremonial noise",
+			File:       ".",
+		})
+	}
+
+	// agent.productive-scaffold: INFO when productive_scaffold_ratio > 0.5 AND reusable_support >= 20
+	if class.Ratios.ProductiveScaffold > 0.5 && class.Added.ReusableSupport >= 20 {
+		diags = append(diags, ir.Diagnostic{
+			Code:       "agent.productive-scaffold",
+			Severity:   ir.SeverityLow,
+			Confidence: "high",
+			Message:    fmt.Sprintf("Productive scaffold ratio is %.2f with %d reusable lines", class.Ratios.ProductiveScaffold, class.Added.ReusableSupport),
+			File:       ".",
+		})
+	}
+
+	return diags
 }
 
 func joinReasons(reasons []string) string {
