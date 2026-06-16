@@ -363,5 +363,3 @@ func relPath(path string) string {
 	}
 	return rel
 }
-
-

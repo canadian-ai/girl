@@ -97,10 +97,10 @@ func NewCallNode(id NodeID, name string) *CallNode {
 
 type ImportNode struct {
 	NodeBase
-	Source    string
-	Default   string
-	Named     []string
-	IsType    bool
+	Source  string
+	Default string
+	Named   []string
+	IsType  bool
 }
 
 func NewImportNode(id NodeID, source string) *ImportNode {
@@ -121,8 +121,8 @@ type ExportNode struct {
 
 func NewExportNode(id NodeID, name string) *ExportNode {
 	return &ExportNode{
-		NodeBase:   NewNodeBase(id, KindExport, name),
-		IsDefault:  false,
+		NodeBase:  NewNodeBase(id, KindExport, name),
+		IsDefault: false,
 	}
 }
 
@@ -142,18 +142,18 @@ type ComponentNode struct {
 
 func NewComponentNode(id NodeID, name string) *ComponentNode {
 	return &ComponentNode{
-		NodeBase: NewNodeBase(id, KindComponent, name),
-		Hooks:    []NodeID{},
+		NodeBase:  NewNodeBase(id, KindComponent, name),
+		Hooks:     []NodeID{},
 		StateVars: []NodeID{},
-		Effects:  []NodeID{},
-		Events:   []NodeID{},
+		Effects:   []NodeID{},
+		Events:    []NodeID{},
 	}
 }
 
 type HookNode struct {
 	NodeBase
-	Args      []NodeID
-	Deps      []NodeID
+	Args []NodeID
+	Deps []NodeID
 }
 
 func NewHookNode(id NodeID, name string) *HookNode {
@@ -239,7 +239,7 @@ type EventNode struct {
 
 func NewEventNode(id NodeID, name string) *EventNode {
 	return &EventNode{
-		NodeBase:  NewNodeBase(id, KindEvent, name),
+		NodeBase: NewNodeBase(id, KindEvent, name),
 	}
 }
 

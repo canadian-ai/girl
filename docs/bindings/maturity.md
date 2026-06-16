@@ -20,6 +20,7 @@ Each GRP binding progresses through four maturity levels. This document defines 
 | Go (`go.*`) | **Reference** | `internal/goanalysis/analyzer_test.go`, `internal/planner/planner_test.go`, `internal/planner/golden_test.go` | `bindings/go/diagnostics.md`, `recipes.md`, `verification.md` | `grp-go`, `go-high-complexity`, `minimal-core` | Yes — `girl analyze`, `girl plan` |
 | TypeScript (`ts.*`) | **Stable** | `internal/parsertsx/parser_test.go`, `component_test.go`, `malformed_test.go`, `pkg/grp/` | `bindings/typescript/diagnostics.md`, `recipes.md`, `verification.md`, `README.md` | None | No |
 | React (`react.*`) | **Experimental** | `internal/recipes/diagnostics_test.go` (1 test) | `bindings/react/diagnostics.md`, `recipes.md`, `verification.md`, `README.md` | `grp-react`, `react-too-many-hooks` | No |
+| Rust (`rust.*`) | **Experimental** | `internal/rustanalysis/analyzer_test.go` | `bindings/rust/diagnostics.md`, `recipes.md`, `verification.md`, `README.md` | None | No |
 | ESLint (`tool.eslint.*`) | **Draft** | None | `docs/bindings/tool-bindings.md` (concept) | None | No |
 | GritQL (`tool.gritql.*`) | **Draft** | None | `docs/bindings/tool-bindings.md` (concept) | None | No |
 | Semgrep (`tool.semgrep.*`) | **Draft** | None | `docs/bindings/tool-bindings.md` (concept) | None | No |

@@ -11,6 +11,7 @@ import (
 	"github.com/canadian-ai/girl/internal/goanalysis"
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/lang"
+	"github.com/canadian-ai/girl/internal/rustanalysis"
 	"github.com/canadian-ai/girl/internal/shared"
 	"github.com/urfave/cli/v2"
 )
@@ -31,6 +32,9 @@ func commandPath(c *cli.Context) string {
 func analyzePath(path, lang string) (*ir.AnalyzerResult, error) {
 	if lang == "go" {
 		return goanalysis.AnalyzePath(path, nil)
+	}
+	if lang == "rust" {
+		return rustanalysis.AnalyzePath(path, nil)
 	}
 	return analyzer.NewAnalyzer(nil).Analyze(path)
 }
@@ -66,6 +70,11 @@ func HasPackageJSON(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
+func HasCargoToml(path string) bool {
+	info, err := os.Stat(filepath.Join(path, "Cargo.toml"))
+	return err == nil && !info.IsDir()
+}
+
 func resolveLang(path string, langStr string) string {
 	if langStr != "auto" {
 		return lang.Resolve(langStr)
@@ -77,9 +86,14 @@ func resolveLang(path string, langStr string) string {
 	if info.IsDir() {
 		hasGoMod := HasGoMod(path)
 		hasPkgJSON := HasPackageJSON(path)
+		hasCargo := HasCargoToml(path)
 
 		if hasGoMod && hasPkgJSON {
 			fmt.Fprintln(os.Stderr, "warning: mixed Go/TypeScript repo detected, use --lang go or --lang ts for precise analysis")
+		}
+
+		if hasCargo {
+			return lang.Rust
 		}
 
 		if hasGoMod {
@@ -102,6 +116,8 @@ func resolveLang(path string, langStr string) string {
 		return lang.Go
 	}
 	switch strings.ToLower(filepath.Ext(path)) {
+	case ".rs":
+		return lang.Rust
 	case ".ts":
 		return lang.TypeScript
 	case ".tsx":

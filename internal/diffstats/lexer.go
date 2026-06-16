@@ -117,7 +117,7 @@ func (l *Lexer) emit(line string) {
 	case l.isContext(line):
 		l.tokens = append(l.tokens, Token{Type: TokenContext, Text: line, Line: l.lineNo})
 
-	// Empty lines between diffs or unknown lines are silently skipped.
+		// Empty lines between diffs or unknown lines are silently skipped.
 	}
 }
 

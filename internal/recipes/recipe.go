@@ -60,8 +60,10 @@ type SplitLargeComponent struct {
 	thresholds *Thresholds
 }
 
-func (r *SplitLargeComponent) ID() string          { return "react.split-large-component" }
-func (r *SplitLargeComponent) Description() string { return "Split a large component into smaller focused components" }
+func (r *SplitLargeComponent) ID() string { return "react.split-large-component" }
+func (r *SplitLargeComponent) Description() string {
+	return "Split a large component into smaller focused components"
+}
 
 func (r *SplitLargeComponent) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) {
 	if comp.Lines < r.thresholds.LargeComponentLines {
@@ -88,8 +90,10 @@ type ExtractRepeatedJSX struct {
 	thresholds *Thresholds
 }
 
-func (r *ExtractRepeatedJSX) ID() string          { return "react.extract-repeated-jsx" }
-func (r *ExtractRepeatedJSX) Description() string { return "Extract repeated JSX blocks into a reusable component" }
+func (r *ExtractRepeatedJSX) ID() string { return "react.extract-repeated-jsx" }
+func (r *ExtractRepeatedJSX) Description() string {
+	return "Extract repeated JSX blocks into a reusable component"
+}
 
 func (r *ExtractRepeatedJSX) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) {
 	counts := map[string]int{}
@@ -122,8 +126,10 @@ type ExtractCustomHook struct {
 	thresholds *Thresholds
 }
 
-func (r *ExtractCustomHook) ID() string          { return "react.extract-custom-hook" }
-func (r *ExtractCustomHook) Description() string { return "Extract related hook logic into a custom hook" }
+func (r *ExtractCustomHook) ID() string { return "react.extract-custom-hook" }
+func (r *ExtractCustomHook) Description() string {
+	return "Extract related hook logic into a custom hook"
+}
 
 func (r *ExtractCustomHook) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) {
 	if len(comp.Hooks) > r.thresholds.MaxHooksPerComponent || (len(comp.Effects) > 1 && len(comp.StateVars) > 2) {
@@ -157,8 +163,10 @@ type ReduceStateVars struct {
 	thresholds *Thresholds
 }
 
-func (r *ReduceStateVars) ID() string          { return "react.reduce-state-vars" }
-func (r *ReduceStateVars) Description() string { return "Consolidate multiple state variables into a reducer or grouped state" }
+func (r *ReduceStateVars) ID() string { return "react.reduce-state-vars" }
+func (r *ReduceStateVars) Description() string {
+	return "Consolidate multiple state variables into a reducer or grouped state"
+}
 
 func (r *ReduceStateVars) Matches(comp *ir.ComponentIR) (*RecipeMatch, bool) {
 	if len(comp.StateVars) > r.thresholds.MaxStateVars {

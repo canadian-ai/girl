@@ -13,15 +13,15 @@ type FileStat struct {
 }
 
 type DiffStats struct {
-	Files         []FileStat
-	TotalAdded    int
-	TotalDeleted  int
-	TotalChanged  int
-	TotalFiles    int
-	LargestDelta  int
-	Categories    []string
-	HasBinary     bool
-	HasGenerated  bool
-	HasLockfile   bool
-	HasRename     bool
+	Files        []FileStat
+	TotalAdded   int
+	TotalDeleted int
+	TotalChanged int
+	TotalFiles   int
+	LargestDelta int
+	Categories   []string
+	HasBinary    bool
+	HasGenerated bool
+	HasLockfile  bool
+	HasRename    bool
 }

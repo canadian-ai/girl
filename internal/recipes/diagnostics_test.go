@@ -171,8 +171,8 @@ func TestStepForDiagnostic_RTKRecipes(t *testing.T) {
 
 func TestStepForDiagnostic_GritQLRecipes(t *testing.T) {
 	cases := []struct {
-		code       string
-		wantRecipe string
+		code         string
+		wantRecipe   string
 		wantSeverity ir.Severity
 	}{
 		{"gritql.pattern-available", "gritql.generate-pattern", ir.SeverityMedium},

@@ -4,14 +4,14 @@ import "testing"
 
 func TestDiagnosticTarget_Symbol(t *testing.T) {
 	d := Diagnostic{
-		Code:      "TEST001",
-		Severity:  SeverityHigh,
-		Message:   "symbol test",
-		File:      "test.ts",
-		Line:      10,
-		Component: "OldComponent",
+		Code:       "TEST001",
+		Severity:   SeverityHigh,
+		Message:    "symbol test",
+		File:       "test.ts",
+		Line:       10,
+		Component:  "OldComponent",
 		Suggestion: "rename it",
-		Symbol:    "newSymbol",
+		Symbol:     "newSymbol",
 	}
 	if got := d.DiagnosticTarget(); got != "newSymbol" {
 		t.Errorf("DiagnosticTarget() = %q, want %q", got, "newSymbol")
