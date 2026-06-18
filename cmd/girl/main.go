@@ -16,6 +16,8 @@ func main() {
 		Version:     "0.1.7",
 		Commands: []*cli.Command{
 			commands.AnalyzeCommand(),
+			commands.BenchmarkCommand(),
+			commands.ProveCommand(),
 			commands.NodesCommand(),
 			commands.RefsCommand(),
 			commands.PlanCommand(),

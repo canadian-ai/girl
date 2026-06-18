@@ -79,6 +79,10 @@ girl --help
 # Analyze Go code explicitly, or use --lang auto to detect Go/TS
 ./girl analyze . --lang go --output text
 
+# Create shareable benchmark and proof reports
+./girl benchmark . --lang go --output markdown
+./girl prove . --output text
+
 # Generate a GRP refactor plan (JSON, Markdown, or GRP JSON)
 ./girl plan examples/messy-react-form --output markdown
 ./girl plan . --lang go --output grp-json
@@ -98,6 +102,8 @@ girl --help
 | Command | Description |
 |---------|-------------|
 | `girl analyze <path>` | Scan code for refactoring opportunities |
+| `girl benchmark <path>` | Summarize GIRL findings across a repo |
+| `girl prove <path>` | Generate a shareable repository health proof report |
 | `girl nodes <path>` | List semantic nodes from TS/TSX files |
 | `girl refs <path>` | List reference nodes, optionally filtered by symbol |
 | `girl plan <path>` | Generate structured GRP refactor plan |
@@ -116,6 +122,23 @@ missing prop types, Go long functions, high complexity, deep nesting, large
 files, ignored errors, and large parameter lists.
 
 Output: JSON, text, or markdown. Use `--lang auto|ts|go` to choose the analyzer.
+
+
+### `girl benchmark`
+
+Summarizes analyzer output across a repository: files scanned, diagnostic totals, severity counts, top diagnostic codes, and worst files.
+
+```bash
+girl benchmark . --lang go --output markdown
+```
+
+### `girl prove`
+
+Builds on the same summary model as `benchmark` and adds a 0-100 repository health score with a screenshot-friendly status label.
+
+```bash
+girl prove . --output text
+```
 
 ### `girl plan`
 
