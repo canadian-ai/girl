@@ -1,0 +1,12 @@
+# CAI Launch Kit
+# Quality gates that must pass before deployment
+launch_kit:
+  version: "0.1"
+  gates:
+    preflight: {required: true, command: "girl preflight"}
+    review: {required: true, command: "girl review --stdin --output sigil-json"}
+    launchkit_validate: {required: true, command: "girl launchkit validate"}
+    prove_app: {required: true, command: "girl prove-app"}
+  receipt:
+    enabled: true
+    format: json

@@ -27,6 +27,11 @@ func main() {
 			commands.ReviewCommand(),
 			commands.DecomposeCommand(),
 			commands.VerifyCommand(),
+			commands.ReceiptCommand(),
+			commands.ProveAppCommand(),
+			commands.PreflightCommand(),
+			commands.WorkOrderCommand(),
+			commands.LaunchKitCommand(),
 			commands.VersionCommand(),
 		},
 	}

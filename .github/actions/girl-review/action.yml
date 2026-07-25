@@ -1,0 +1,135 @@
+name: GIRL Review
+description: Run GIRL reviewability checks with receipt artifact generation
+
+inputs:
+  girl-version:
+    description: Version of GIRL to install
+    required: true
+    default: "latest"
+  max-diff-lines:
+    description: Maximum diff lines
+    required: true
+    default: "1500"
+  max-touched-files:
+    description: Maximum touched files
+    required: true
+    default: "12"
+  max-risk:
+    description: Maximum risk level
+    required: true
+    default: "medium"
+  fail-on-over-budget:
+    description: Fail on over budget
+    required: true
+    default: "false"
+  generate-receipt:
+    description: Generate agent-change receipt
+    required: true
+    default: "true"
+  output-dir:
+    description: Output directory for artifacts
+    required: true
+    default: ".girl/artifacts"
+
+outputs:
+  review-status:
+    description: Status of reviewability check (pass/warn/fail)
+    value: ${{ steps.run-review.outputs.status }}
+  receipt-path:
+    description: Path to generated receipt (if generated)
+    value: ${{ steps.gen-receipt.outputs.receipt-path }}
+  sigil-output:
+    description: Path to SIGIL JSON output
+    value: ${{ steps.gen-receipt.outputs.sigil-output }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+
+    - name: Download and install GIRL
+      shell: bash
+      run: |
+        VERSION="${{ inputs.girl-version }}"
+        if [ "$VERSION" = "latest" ]; then
+          URL="https://github.com/canadian-ai/girl/releases/latest/download/girl"
+        else
+          URL="https://github.com/canadian-ai/girl/releases/download/${VERSION}/girl"
+        fi
+        curl -sSL -o /usr/local/bin/girl "$URL"
+        chmod +x /usr/local/bin/girl
+
+    - name: Set up CAI project
+      shell: bash
+      run: |
+        if [ -f "cai.yml" ] || [ -d ".cai" ]; then
+          girl install cai
+        fi
+      continue-on-error: true
+
+    - name: Generate diff
+      id: gen-diff
+      shell: bash
+      run: |
+        BASE_REF="${{ github.base_ref || github.event.repository.default_branch }}"
+        git fetch origin "$BASE_REF" --depth=1 2>/dev/null || true
+        git diff "origin/${BASE_REF}...HEAD" > /tmp/diff.patch
+        echo "diff-size=$(wc -l < /tmp/diff.patch)" >> "$GITHUB_OUTPUT"
+
+    - name: Run GIRL review
+      id: run-review
+      shell: bash
+      run: |
+        set +e
+        OUTPUT=$(girl review --stdin \
+          --max-diff-lines ${{ inputs.max-diff-lines }} \
+          --max-touched-files ${{ inputs.max-touched-files }} \
+          --max-risk ${{ inputs.max-risk }} \
+          --output json < /tmp/diff.patch 2>&1)
+        EXIT_CODE=$?
+        set -e
+        echo "$OUTPUT"
+        if [ $EXIT_CODE -eq 0 ] && echo "$OUTPUT" | grep -qi '"status"\s*:\s*"pass"'; then
+          echo "status=pass" >> "$GITHUB_OUTPUT"
+        elif [ $EXIT_CODE -ne 0 ] || echo "$OUTPUT" | grep -qi '"status"\s*:\s*"fail"'; then
+          echo "status=fail" >> "$GITHUB_OUTPUT"
+        else
+          echo "status=warn" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Generate receipt
+      id: gen-receipt
+      if: ${{ inputs.generate-receipt == 'true' }}
+      shell: bash
+      run: |
+        mkdir -p "${{ inputs.output-dir }}"
+        if girl receipt --stdin --output-file "${{ inputs.output-dir }}/receipt.json" --output json < /tmp/diff.patch 2>/dev/null; then
+          echo "receipt-path=${{ inputs.output-dir }}/receipt.json" >> "$GITHUB_OUTPUT"
+        else
+          echo "info=receipt command not yet available" >> "$GITHUB_OUTPUT"
+        fi
+        SIGIL_FILE="${{ inputs.output-dir }}/sigil.json"
+        girl review --stdin --output sigil-json < /tmp/diff.patch > "$SIGIL_FILE" 2>/dev/null || true
+        if [ -f "$SIGIL_FILE" ]; then
+          echo "sigil-output=$SIGIL_FILE" >> "$GITHUB_OUTPUT"
+        fi
+      continue-on-error: true
+
+    - name: Save artifacts
+      if: ${{ inputs.generate-receipt == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: girl-review-artifacts
+        path: ${{ inputs.output-dir }}/
+        if-no-files-found: ignore
+
+    - name: Fail on over budget
+      if: ${{ inputs.fail-on-over-budget == 'true' && steps.run-review.outputs.status == 'fail' }}
+      shell: bash
+      run: |
+        echo "::error::GIRL review failed: change exceeds budget thresholds"
+        exit 1
+
+branding:
+  icon: check-circle
+  color: green

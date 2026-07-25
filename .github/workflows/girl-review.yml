@@ -1,0 +1,95 @@
+name: GIRL Review
+
+on:
+  pull_request:
+    branches: [master, main]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate diff patch
+        id: diff
+        run: |
+          git diff origin/${GITHUB_BASE_REF:-master}...HEAD > /tmp/diff.patch
+          echo "patch=/tmp/diff.patch" >> "$GITHUB_OUTPUT"
+
+      - name: Run GIRL review action
+        id: girl-review
+        uses: ./.github/actions/girl-review
+        with:
+          girl-version: latest
+          max-diff-lines: 1500
+          max-touched-files: 12
+          max-risk: medium
+          fail-on-over-budget: "true"
+          generate-receipt: "true"
+          output-dir: .girl/artifacts
+
+      - name: Upload receipt artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: girl-review-receipt
+          path: .girl/artifacts/receipt.json
+          if-no-files-found: ignore
+
+      - name: Upload SIGIL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: girl-review-sigil
+          path: .girl/artifacts/sigil.json
+          if-no-files-found: ignore
+
+      - name: Post review status as PR comment
+        if: github.head_ref != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ steps.girl-review.outputs.review-status }}';
+            const receiptPath = '${{ steps.girl-review.outputs.receipt-path }}';
+            const sigilPath = '${{ steps.girl-review.outputs.sigil-output }}';
+
+            let body = `## GIRL Review\n\n**Status:** ${status}\n\n`;
+            if (receiptPath) {
+              body += `- **Receipt:** \`${receiptPath}\`\n`;
+            }
+            if (sigilPath) {
+              body += `- **SIGIL:** \`${sigilPath}\`\n`;
+            }
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' && c.body.startsWith('## GIRL Review')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

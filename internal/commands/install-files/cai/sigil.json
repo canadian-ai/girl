@@ -1,0 +1,15 @@
+{
+  "version": "0.1",
+  "spec": "cai-agent-safety",
+  "manifest": {
+    "project": "",
+    "tenancy": "",
+    "riskLevel": "low",
+    "gates": {
+      "preflight": true,
+      "review": true,
+      "receipt": true,
+      "prove": true
+    }
+  }
+}

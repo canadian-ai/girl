@@ -6,6 +6,9 @@ build:
 install:
 	go install ./cmd/girl/
 
+install-full:
+	@bash scripts/install.sh
+
 test:
 	go test ./...
 

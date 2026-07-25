@@ -42,7 +42,7 @@ func ReviewCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:    "output",
 				Aliases: []string{"o"},
-				Usage:   "Output format: json (default), text, markdown",
+				Usage:   "Output format: json (default), text, markdown, sigil-json",
 				Value:   "json",
 			},
 			&cli.BoolFlag{
@@ -71,6 +71,14 @@ func ReviewCommand() *cli.Command {
 				printReviewText(result)
 			case "markdown":
 				printReviewMarkdown(result)
+			case "sigil-json":
+				printJSON(sigilReviewOutput{
+					SigilVersion: "0.1",
+					Spec:         "cai-agent-safety",
+					Review:       result.Result,
+					Structural:   result.Structural,
+					Diagnostics:  result.Diagnostics,
+				})
 			default:
 				printJSON(struct {
 					Result     ir.ReviewabilityResult     `json:"result"`
@@ -89,8 +97,12 @@ func ReviewCommand() *cli.Command {
 	}
 }
 
-type structuralField interface {
-	GetStructural() *structural.Classification
+type sigilReviewOutput struct {
+	SigilVersion string                     `json:"sigilVersion"`
+	Spec         string                     `json:"spec"`
+	Review       ir.ReviewabilityResult     `json:"review"`
+	Structural   *structural.Classification `json:"structural,omitempty"`
+	Diagnostics  []ir.Diagnostic            `json:"diagnostics,omitempty"`
 }
 
 func printStructuralText(s *structural.Classification) {

@@ -1,0 +1,10 @@
+# CAI Tenancy Configuration
+# Defines the deployment context and isolation boundaries
+tenancy:
+  environment: development
+  isolation: project-local
+  deployment_gates:
+    - preflight_check
+    - reviewability_budget
+    - launchkit_validation
+    - prove_app_readiness

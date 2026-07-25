@@ -9,7 +9,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-//go:embed install-files/opencode install-files/claude install-files/codex install-files/pi install-files/openrewrite install-files/rtk install-files/gritql install-files/rust-lsp
+//go:embed install-files/opencode install-files/claude install-files/codex install-files/pi install-files/openrewrite install-files/rtk install-files/gritql install-files/rust-lsp install-files/cai
 var installFS embed.FS
 
 type frameworkTarget struct {
@@ -59,6 +59,11 @@ var frameworkTargets = map[string]frameworkTarget{
 		DestDir:  ".rust-lsp",
 		Files:    []string{"skills/SKILL.md"},
 	},
+	"cai": {
+		EmbedDir: "install-files/cai",
+		DestDir:  ".cai",
+		Files:    []string{"CLAUDE.md", "sigil.json", "tenancy.yaml", "launchkit.yaml"},
+	},
 }
 
 func InstallCommand() *cli.Command {
@@ -77,19 +82,20 @@ Frameworks:
   rtk          Copy skill to .rtk/ (skills/SKILL.md)
   gritql       Copy skill to .gritql/ (skills/SKILL.md)
   rust-lsp     Copy skill to .rust-lsp/ (skills/SKILL.md)
+  cai          Copy CAI safety config to .cai/ (CLAUDE.md, sigil.json, tenancy.yaml, launchkit.yaml)
 
 If no framework is specified, prints available frameworks.`,
 		Action: func(c *cli.Context) error {
 			framework := c.Args().First()
 			if framework == "" {
-				fmt.Fprintln(os.Stderr, "Available frameworks: opencode, claude, codex, pi, openrewrite, rtk, gritql, rust-lsp")
+				fmt.Fprintln(os.Stderr, "Available frameworks: opencode, claude, codex, pi, openrewrite, rtk, gritql, rust-lsp, cai")
 				fmt.Fprintln(os.Stderr, "Usage: girl install <framework>")
 				return nil
 			}
 
 			target, ok := frameworkTargets[framework]
 			if !ok {
-				return fmt.Errorf("unknown framework %q; supported: opencode, claude, codex, pi, openrewrite, rtk, gritql, rust-lsp", framework)
+				return fmt.Errorf("unknown framework %q; supported: opencode, claude, codex, pi, openrewrite, rtk, gritql, rust-lsp, cai", framework)
 			}
 
 			for _, f := range target.Files {
@@ -113,6 +119,13 @@ If no framework is specified, prints available frameworks.`,
 			}
 
 			fmt.Fprintf(os.Stderr, "GIRL %s integration installed. Use 'girl analyze/plan/pack/verify' in your project.\n", framework)
+			if framework == "opencode" {
+				exe, _ := os.Executable()
+				girlDir := filepath.Dir(exe)
+				fmt.Fprintf(os.Stderr, "\nNOTE: Ensure 'girl' is on PATH for OpenCode agents to use it.\n")
+				fmt.Fprintf(os.Stderr, "  Fish: fish_add_path %s\n", girlDir)
+				fmt.Fprintf(os.Stderr, "  Bash: export PATH=\"%s:$PATH\"\n", girlDir)
+			}
 			return nil
 		},
 	}
