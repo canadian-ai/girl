@@ -7,7 +7,7 @@ import (
 )
 
 func TestFrameworkTargets_AllFrameworksRegistered(t *testing.T) {
-	expected := []string{"opencode", "claude", "codex", "pi", "openrewrite", "rtk", "gritql", "rust-lsp"}
+	expected := []string{"opencode", "claude", "codex", "pi", "openrewrite", "rtk", "gritql", "rust-lsp", "cai"}
 	for _, name := range expected {
 		target, ok := frameworkTargets[name]
 		if !ok {
@@ -211,5 +211,46 @@ func TestInstall_UnknownFramework(t *testing.T) {
 	_, ok := frameworkTargets["nonexistent-framework"]
 	if ok {
 		t.Error("expected nonexistent-framework to not be in frameworkTargets")
+	}
+}
+
+func TestCAIInstallFiles(t *testing.T) {
+	target, ok := frameworkTargets["cai"]
+	if !ok {
+		t.Fatal("cai framework target not found")
+	}
+	if target.EmbedDir != "install-files/cai" {
+		t.Errorf("expected embed dir install-files/cai, got %s", target.EmbedDir)
+	}
+	if target.DestDir != ".cai" {
+		t.Errorf("expected dest dir .cai, got %s", target.DestDir)
+	}
+	expectedFiles := []string{"CLAUDE.md", "sigil.json", "tenancy.yaml", "launchkit.yaml"}
+	if len(target.Files) != len(expectedFiles) {
+		t.Errorf("expected %d files, got %d", len(expectedFiles), len(target.Files))
+	}
+	for i, f := range expectedFiles {
+		if target.Files[i] != f {
+			t.Errorf("file[%d]: expected %s, got %s", i, f, target.Files[i])
+		}
+	}
+
+	for _, f := range target.Files {
+		embedPath := filepath.ToSlash(filepath.Join(target.EmbedDir, f))
+		data, err := installFS.ReadFile(embedPath)
+		if err != nil {
+			t.Errorf("embedded file %s missing: %v", embedPath, err)
+			continue
+		}
+		if len(data) == 0 {
+			t.Errorf("embedded file %s is empty", embedPath)
+		}
+	}
+}
+
+func TestCAIInstallListed(t *testing.T) {
+	_, ok := frameworkTargets["cai"]
+	if !ok {
+		t.Error("cai should be listed in frameworkTargets")
 	}
 }

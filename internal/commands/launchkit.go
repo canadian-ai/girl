@@ -5,11 +5,41 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/urfave/cli/v2"
 )
+
+// CAI Launch Kit JSON Schema (draft-07)
+//
+// See schemas/cai-launchkit.v0.1.schema.json for the authoritative schema.
+//
+// Schema summary:
+//
+//	{
+//	  "$schema": "http://json-schema.org/draft-07/schema#",
+//	  "title": "CAI Launch Kit",
+//	  "type": "object",
+//	  "properties": {
+//	    "launch_kit": {
+//	      "type": "object",
+//	      "properties": {
+//	        "version":  { "type": "string", "pattern": "^\\d+\\.\\d+$" },
+//	        "gates":    { "type": "object" },
+//	        "receipt":  {
+//	          "type": "object",
+//	          "properties": {
+//	            "enabled": { "type": "boolean" },
+//	            "format":  { "type": "string", "enum": ["json", "yaml"] }
+//	          }
+//	        }
+//	      },
+//	      "required": ["version", "gates"]
+//	    }
+//	  }
+//	}
 
 type launchKitGateConfig struct {
 	Required bool   `json:"required"`
@@ -274,6 +304,62 @@ func validateLaunchKitGates(cfg *launchKitConfig, gateFilter []string, failFast 
 		}
 	}
 
+	var results []LaunchKitGateResult
+
+	// --- Schema-level validation (always runs, not filtered) ---
+
+	// 1. Version format validation (must be semver-like, e.g., "0.1")
+	if cfg.Version != "" {
+		if matched, _ := regexp.MatchString(`^\d+\.\d+$`, cfg.Version); !matched {
+			results = append(results, LaunchKitGateResult{
+				Name:    "version",
+				Status:  "fail",
+				Message: fmt.Sprintf("version %q is not valid semver (expected format: MAJOR.MINOR, e.g. \"0.1\")", cfg.Version),
+			})
+			if failFast {
+				return results
+			}
+		}
+	}
+
+	// 2. Receipt config validation (if enabled, format must be "json" or "yaml")
+	if cfg.Receipt.Enabled && cfg.Receipt.Format != "" {
+		if cfg.Receipt.Format != "json" && cfg.Receipt.Format != "yaml" {
+			results = append(results, LaunchKitGateResult{
+				Name:    "receipt",
+				Status:  "warn",
+				Message: fmt.Sprintf("receipt format %q is not valid; expected \"json\" or \"yaml\"", cfg.Receipt.Format),
+			})
+		}
+	}
+
+	// 3. Duplicate gate detection (case-insensitive key collision)
+	seenGates := make(map[string]string)
+	for name := range cfg.Gates {
+		lower := strings.ToLower(name)
+		if orig, ok := seenGates[lower]; ok {
+			results = append(results, LaunchKitGateResult{
+				Name:    name,
+				Status:  "warn",
+				Message: fmt.Sprintf("gate %q is a case-insensitive duplicate of %q", name, orig),
+			})
+		}
+		seenGates[lower] = name
+	}
+
+	// 4. Unknown gate name detection
+	knownGates := map[string]bool{"preflight": true, "review": true, "launchkit_validate": true, "prove_app": true}
+	for name := range cfg.Gates {
+		if !knownGates[name] {
+			results = append(results, LaunchKitGateResult{
+				Name:    name,
+				Status:  "warn",
+				Message: fmt.Sprintf("unknown gate %q; expected one of: preflight, review, launchkit_validate, prove_app", name),
+			})
+		}
+	}
+
+	// --- Per-gate validation ---
 	allGates := []struct {
 		Name     string
 		Validate func(*launchKitConfig) (status, msg string)
@@ -290,6 +376,9 @@ func validateLaunchKitGates(cfg *launchKitConfig, gateFilter []string, failFast 
 				}
 				if g.Command == "" {
 					return "warn", "preflight gate has no command"
+				}
+				if !strings.HasPrefix(g.Command, "girl ") {
+					return "warn", fmt.Sprintf("preflight command %q does not start with \"girl \"", g.Command)
 				}
 				if !strings.Contains(g.Command, "preflight") {
 					return "warn", fmt.Sprintf("preflight command %q does not reference preflight", g.Command)
@@ -310,6 +399,9 @@ func validateLaunchKitGates(cfg *launchKitConfig, gateFilter []string, failFast 
 				if g.Command == "" {
 					return "warn", "review gate has no command"
 				}
+				if !strings.HasPrefix(g.Command, "girl ") {
+					return "warn", fmt.Sprintf("review command %q does not start with \"girl \"", g.Command)
+				}
 				return "pass", "review gate configured correctly"
 			},
 		},
@@ -325,6 +417,9 @@ func validateLaunchKitGates(cfg *launchKitConfig, gateFilter []string, failFast 
 				}
 				if g.Command == "" {
 					return "warn", "launchkit_validate gate has no command"
+				}
+				if !strings.HasPrefix(g.Command, "girl ") {
+					return "warn", fmt.Sprintf("launchkit_validate command %q does not start with \"girl \"", g.Command)
 				}
 				if cfg.Version == "" {
 					return "fail", "launch kit has no version"
@@ -345,12 +440,14 @@ func validateLaunchKitGates(cfg *launchKitConfig, gateFilter []string, failFast 
 				if g.Command == "" {
 					return "warn", "prove_app gate has no command"
 				}
+				if !strings.HasPrefix(g.Command, "girl ") {
+					return "warn", fmt.Sprintf("prove_app command %q does not start with \"girl \"", g.Command)
+				}
 				return "pass", "prove_app gate configured correctly"
 			},
 		},
 	}
 
-	var results []LaunchKitGateResult
 	for _, k := range allGates {
 		if len(filterSet) > 0 && !filterSet[k.Name] {
 			continue

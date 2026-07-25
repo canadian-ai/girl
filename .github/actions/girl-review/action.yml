@@ -89,13 +89,12 @@ runs:
         EXIT_CODE=$?
         set -e
         echo "$OUTPUT"
-        if [ $EXIT_CODE -eq 0 ] && echo "$OUTPUT" | grep -qi '"status"\s*:\s*"pass"'; then
-          echo "status=pass" >> "$GITHUB_OUTPUT"
-        elif [ $EXIT_CODE -ne 0 ] || echo "$OUTPUT" | grep -qi '"status"\s*:\s*"fail"'; then
-          echo "status=fail" >> "$GITHUB_OUTPUT"
-        else
-          echo "status=warn" >> "$GITHUB_OUTPUT"
-        fi
+        STATUS=$(echo "$OUTPUT" | jq -r '.result.status // "unknown"' 2>/dev/null)
+        case "$STATUS" in
+          pass) echo "status=pass" >> "$GITHUB_OUTPUT" ;;
+          fail) echo "status=fail" >> "$GITHUB_OUTPUT" ;;
+          *)    echo "status=warn"  >> "$GITHUB_OUTPUT" ;;
+        esac
 
     - name: Generate receipt
       id: gen-receipt
@@ -103,17 +102,19 @@ runs:
       shell: bash
       run: |
         mkdir -p "${{ inputs.output-dir }}"
-        if girl receipt --stdin --output-file "${{ inputs.output-dir }}/receipt.json" --output json < /tmp/diff.patch 2>/dev/null; then
-          echo "receipt-path=${{ inputs.output-dir }}/receipt.json" >> "$GITHUB_OUTPUT"
-        else
-          echo "info=receipt command not yet available" >> "$GITHUB_OUTPUT"
+        RECEIPT_FILE="${{ inputs.output-dir }}/receipt.json"
+        if girl receipt --stdin --output-file "$RECEIPT_FILE" --output json < /tmp/diff.patch; then
+          RECEIPT_SIZE=$(stat -c%s "$RECEIPT_FILE" 2>/dev/null)
+          if [ -n "$RECEIPT_SIZE" ] && [ "$RECEIPT_SIZE" -gt 0 ]; then
+            jq -e . "$RECEIPT_FILE" >/dev/null && echo "receipt-path=$RECEIPT_FILE" >> "$GITHUB_OUTPUT"
+          fi
         fi
         SIGIL_FILE="${{ inputs.output-dir }}/sigil.json"
-        girl review --stdin --output sigil-json < /tmp/diff.patch > "$SIGIL_FILE" 2>/dev/null || true
-        if [ -f "$SIGIL_FILE" ]; then
-          echo "sigil-output=$SIGIL_FILE" >> "$GITHUB_OUTPUT"
+        girl review --stdin --output sigil-json < /tmp/diff.patch > "$SIGIL_FILE"
+        SIGIL_SIZE=$(stat -c%s "$SIGIL_FILE" 2>/dev/null)
+        if [ -n "$SIGIL_SIZE" ] && [ "$SIGIL_SIZE" -gt 0 ]; then
+          jq -e . "$SIGIL_FILE" >/dev/null && echo "sigil-output=$SIGIL_FILE" >> "$GITHUB_OUTPUT"
         fi
-      continue-on-error: true
 
     - name: Save artifacts
       if: ${{ inputs.generate-receipt == 'true' }}

@@ -8,7 +8,12 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func parseDiffFromFlags(c *cli.Context) (*diffstats.DiffStats, error) {
+type diffInput struct {
+	Raw   []byte
+	Stats *diffstats.DiffStats
+}
+
+func readDiffFromFlags(c *cli.Context) (*diffInput, error) {
 	diffFile := c.String("diff-file")
 	readStdin := c.Bool("stdin")
 
@@ -42,5 +47,13 @@ func parseDiffFromFlags(c *cli.Context) (*diffstats.DiffStats, error) {
 		return nil, fmt.Errorf("parse diff: %w", err)
 	}
 
-	return stats, nil
+	return &diffInput{Raw: data, Stats: stats}, nil
+}
+
+func parseDiffFromFlags(c *cli.Context) (*diffstats.DiffStats, error) {
+	in, err := readDiffFromFlags(c)
+	if err != nil {
+		return nil, err
+	}
+	return in.Stats, nil
 }

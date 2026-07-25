@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/canadian-ai/girl/schemas/cai-launchkit.v0.1.schema.json",
+  "title": "CAI Launch Kit",
+  "description": "Schema for CAI launch kit quality gate configuration",
+  "type": "object",
+  "properties": {
+    "launch_kit": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Launch kit schema version",
+          "pattern": "^\\d+\\.\\d+$"
+        },
+        "gates": {
+          "type": "object",
+          "description": "Quality gates that must pass before deployment",
+          "properties": {
+            "preflight": { "$ref": "#/definitions/gateSpec" },
+            "review": { "$ref": "#/definitions/gateSpec" },
+            "launchkit_validate": { "$ref": "#/definitions/gateSpec" },
+            "prove_app": { "$ref": "#/definitions/gateSpec" }
+          },
+          "minProperties": 1
+        },
+        "receipt": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "format": { "type": "string", "enum": ["json", "yaml"] }
+          }
+        }
+      },
+      "required": ["version", "gates"]
+    }
+  },
+  "definitions": {
+    "gateSpec": {
+      "type": "object",
+      "properties": {
+        "required": { "type": "boolean" },
+        "command": { "type": "string" }
+      },
+      "required": ["required", "command"]
+    }
+  }
+}

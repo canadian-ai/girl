@@ -120,6 +120,9 @@ func ProveAppCommand() *cli.Command {
 				printJSON(result)
 			}
 
+			if result.Status == "fail" {
+				return fmt.Errorf("prove-app: deployment readiness check FAILED")
+			}
 			return nil
 		},
 	}

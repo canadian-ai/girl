@@ -77,27 +77,12 @@ func ReceiptCommand() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			stats, err := parseDiffFromFlags(c)
+			in, err := readDiffFromFlags(c)
 			if err != nil {
 				return err
 			}
-
-			var data []byte
-			diffFile := c.String("diff-file")
-			if diffFile != "" {
-				data, err = os.ReadFile(diffFile)
-				if err != nil {
-					return fmt.Errorf("read diff for hash: %w", err)
-				}
-			} else {
-				stat, _ := os.Stdin.Stat()
-				if (stat.Mode() & os.ModeCharDevice) == 0 {
-					data, err = os.ReadFile("/dev/stdin")
-					if err != nil {
-						return fmt.Errorf("read stdin for hash: %w", err)
-					}
-				}
-			}
+			stats := in.Stats
+			data := in.Raw
 
 			var planRef string
 			if planPath := c.String("plan"); planPath != "" {

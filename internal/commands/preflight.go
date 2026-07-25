@@ -23,6 +23,7 @@ type PreflightResult struct {
 	ID          string          `json:"id"`
 	Type        string          `json:"type"`
 	Path        string          `json:"path"`
+	Profile     string          `json:"profile,omitempty"`
 	Status      string          `json:"status"`
 	Checks      []PreflightCheck `json:"checks"`
 	Summary     struct {
@@ -34,12 +35,87 @@ type PreflightResult struct {
 	Timestamp string `json:"timestamp"`
 }
 
+type PreflightProfile string
+
+const (
+	ProfileAuto          PreflightProfile = "auto"
+	ProfileGeneric       PreflightProfile = "generic"
+	ProfileCAINextConvex PreflightProfile = "cai-next-convex"
+)
+
+type profileChecks struct {
+	Name        string
+	Description string
+	Checks      func(path string) []PreflightCheck
+}
+
+var profileRegistry = map[PreflightProfile]*profileChecks{
+	ProfileGeneric: {
+		Name:        "Generic",
+		Description: "Generic repository readiness checks",
+		Checks: func(path string) []PreflightCheck {
+			return []PreflightCheck{
+				checkPackageManager(path),
+				checkReadme(path),
+				checkGitIgnore(path),
+				checkLicense(path),
+			}
+		},
+	},
+	ProfileCAINextConvex: {
+		Name:        "CAI Next.js + Convex",
+		Description: "CAI agent-safety checks for Next.js + Convex projects",
+		Checks: func(path string) []PreflightCheck {
+			return []PreflightCheck{
+				checkCAIDirectory(path),
+				checkSIGILManifest(path),
+				checkPreflightConfig(path),
+				checkLaunchKit(path),
+				checkTenancy(path),
+				checkGirlInstalled(),
+				checkCAIAgents(path),
+				checkNextJSConfig(path),
+				checkConvexConfig(path),
+				checkClerkConfig(path),
+				checkVercelConfig(path),
+				checkAgentsMd(path),
+				checkGrpDir(path),
+				checkVerificationScripts(path),
+				checkSecretFiles(path),
+			}
+		},
+	},
+}
+
+func detectProfile(path string) PreflightProfile {
+	caiDir := filepath.Join(path, ".cai")
+	if info, err := os.Stat(caiDir); err == nil && info.IsDir() {
+		nextConfig := checkFileExists(filepath.Join(path, "next.config.js")) || checkFileExists(filepath.Join(path, "next.config.ts"))
+		convexConfig := checkFileExists(filepath.Join(path, "convex.json")) || dirExists(filepath.Join(path, "convex"))
+		if nextConfig || convexConfig {
+			return ProfileCAINextConvex
+		}
+	}
+	return ProfileGeneric
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
 func PreflightCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "preflight",
 		Usage:     "Check CAI (Canadian AI) repo readiness",
 		ArgsUsage: "[path]",
 		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "profile",
+				Aliases: []string{"p"},
+				Usage:   "Preflight profile: auto (default), generic, cai-next-convex",
+				Value:   "auto",
+			},
 			&cli.StringFlag{
 				Name:    "output",
 				Aliases: []string{"o"},
@@ -58,7 +134,13 @@ func PreflightCommand() *cli.Command {
 				path = "."
 			}
 
-			result := runPreflight(path)
+			profileStr := c.String("profile")
+			if profileStr == "" {
+				profileStr = "auto"
+			}
+			profile := PreflightProfile(profileStr)
+
+			result := runPreflight(path, profile)
 
 			if c.Bool("strict") && result.Status == "warn" {
 				result.Status = "fail"
@@ -81,7 +163,7 @@ func PreflightCommand() *cli.Command {
 	}
 }
 
-func runPreflight(path string) *PreflightResult {
+func runPreflight(path string, profile PreflightProfile) *PreflightResult {
 	result := &PreflightResult{
 		SpecVersion: "1.0",
 		ID:          fmt.Sprintf("preflight_%d", time.Now().Unix()),
@@ -90,15 +172,18 @@ func runPreflight(path string) *PreflightResult {
 		Timestamp:   time.Now().UTC().Format(time.RFC3339),
 	}
 
-	checks := []PreflightCheck{}
+	if profile == ProfileAuto {
+		profile = detectProfile(path)
+	}
+	result.Profile = string(profile)
 
-	checks = append(checks, checkCAIDirectory(path))
-	checks = append(checks, checkSIGILManifest(path))
-	checks = append(checks, checkPreflightConfig(path))
-	checks = append(checks, checkLaunchKit(path))
-	checks = append(checks, checkTenancy(path))
-	checks = append(checks, checkGirlInstalled())
-	checks = append(checks, checkCAIAgents(path))
+	var checks []PreflightCheck
+
+	if p, ok := profileRegistry[profile]; ok {
+		checks = p.Checks(path)
+	} else {
+		checks = profileRegistry[ProfileGeneric].Checks(path)
+	}
 
 	result.Checks = checks
 
@@ -143,6 +228,290 @@ func checkFileValidJSON(path string) bool {
 	}
 	var v interface{}
 	return json.Unmarshal(data, &v) == nil
+}
+
+func checkPackageManager(path string) PreflightCheck {
+	if checkFileExists(filepath.Join(path, "go.mod")) {
+		return PreflightCheck{
+			Name:    "Package Manager",
+			Status:  "pass",
+			Message: "Go module detected (go.mod)",
+		}
+	}
+	if checkFileExists(filepath.Join(path, "package.json")) {
+		return PreflightCheck{
+			Name:    "Package Manager",
+			Status:  "pass",
+			Message: "Node.js project detected (package.json)",
+		}
+	}
+	if checkFileExists(filepath.Join(path, "Cargo.toml")) {
+		return PreflightCheck{
+			Name:    "Package Manager",
+			Status:  "pass",
+			Message: "Rust project detected (Cargo.toml)",
+		}
+	}
+	if checkFileExists(filepath.Join(path, "requirements.txt")) || checkFileExists(filepath.Join(path, "pyproject.toml")) {
+		return PreflightCheck{
+			Name:    "Package Manager",
+			Status:  "pass",
+			Message: "Python project detected",
+		}
+	}
+	return PreflightCheck{
+		Name:    "Package Manager",
+		Status:  "warn",
+		Message: "No recognized package manager manifest found",
+	}
+}
+
+func checkReadme(path string) PreflightCheck {
+	if checkFileExists(filepath.Join(path, "README.md")) {
+		return PreflightCheck{
+			Name:    "README",
+			Status:  "pass",
+			Message: "README.md exists",
+		}
+	}
+	return PreflightCheck{
+		Name:    "README",
+		Status:  "warn",
+		Message: "README.md not found",
+	}
+}
+
+func checkGitIgnore(path string) PreflightCheck {
+	if checkFileExists(filepath.Join(path, ".gitignore")) {
+		return PreflightCheck{
+			Name:    ".gitignore",
+			Status:  "pass",
+			Message: ".gitignore exists",
+		}
+	}
+	return PreflightCheck{
+		Name:    ".gitignore",
+		Status:  "warn",
+		Message: ".gitignore not found",
+	}
+}
+
+func checkLicense(path string) PreflightCheck {
+	if checkFileExists(filepath.Join(path, "LICENSE")) {
+		return PreflightCheck{
+			Name:    "License",
+			Status:  "pass",
+			Message: "LICENSE exists",
+		}
+	}
+	return PreflightCheck{
+		Name:    "License",
+		Status:  "warn",
+		Message: "LICENSE not found",
+	}
+}
+
+func checkNextJSConfig(path string) PreflightCheck {
+	if checkFileExists(filepath.Join(path, "next.config.js")) {
+		return PreflightCheck{
+			Name:    "Next.js Config",
+			Status:  "pass",
+			Message: "next.config.js exists",
+		}
+	}
+	if checkFileExists(filepath.Join(path, "next.config.ts")) {
+		return PreflightCheck{
+			Name:    "Next.js Config",
+			Status:  "pass",
+			Message: "next.config.ts exists",
+		}
+	}
+	return PreflightCheck{
+		Name:    "Next.js Config",
+		Status:  "warn",
+		Message: "Next.js config not found",
+	}
+}
+
+func checkConvexConfig(path string) PreflightCheck {
+	if checkFileExists(filepath.Join(path, "convex.json")) {
+		return PreflightCheck{
+			Name:    "Convex Config",
+			Status:  "pass",
+			Message: "convex.json exists",
+		}
+	}
+	if convexDir := filepath.Join(path, "convex"); dirExists(convexDir) {
+		return PreflightCheck{
+			Name:    "Convex Config",
+			Status:  "pass",
+			Message: "convex/ directory exists",
+		}
+	}
+	return PreflightCheck{
+		Name:    "Convex Config",
+		Status:  "warn",
+		Message: "No convex.json or convex/ directory found",
+	}
+}
+
+func checkClerkConfig(path string) PreflightCheck {
+	mwFile := filepath.Join(path, "middleware.ts")
+	if !checkFileExists(mwFile) {
+		mwFile = filepath.Join(path, "src", "middleware.ts")
+	}
+	if !checkFileExists(mwFile) {
+		return PreflightCheck{
+			Name:    "Clerk Config",
+			Status:  "warn",
+			Message: "middleware.ts not found",
+		}
+	}
+	data, err := os.ReadFile(mwFile)
+	if err != nil {
+		return PreflightCheck{
+			Name:    "Clerk Config",
+			Status:  "warn",
+			Message: fmt.Sprintf("cannot read middleware.ts: %v", err),
+		}
+	}
+	content := string(data)
+	if strings.Contains(content, "clerkMiddleware") || strings.Contains(content, "@clerk/nextjs") {
+		return PreflightCheck{
+			Name:    "Clerk Config",
+			Status:  "pass",
+			Message: "middleware.ts has Clerk references",
+		}
+	}
+	return PreflightCheck{
+		Name:    "Clerk Config",
+		Status:  "warn",
+		Message: "middleware.ts found but no Clerk references detected",
+	}
+}
+
+func checkVercelConfig(path string) PreflightCheck {
+	if checkFileExists(filepath.Join(path, "vercel.json")) {
+		return PreflightCheck{
+			Name:    "Vercel Config",
+			Status:  "pass",
+			Message: "vercel.json exists",
+		}
+	}
+	return PreflightCheck{
+		Name:    "Vercel Config",
+		Status:  "warn",
+		Message: "vercel.json not found",
+	}
+}
+
+func checkAgentsMd(path string) PreflightCheck {
+	if checkFileExists(filepath.Join(path, "AGENTS.md")) {
+		return PreflightCheck{
+			Name:    "AGENTS.md",
+			Status:  "pass",
+			Message: "AGENTS.md exists",
+		}
+	}
+	opencodeAgents := filepath.Join(path, ".opencode", "agents")
+	if info, err := os.Stat(opencodeAgents); err == nil && info.IsDir() {
+		return PreflightCheck{
+			Name:    "AGENTS.md",
+			Status:  "pass",
+			Message: ".opencode/agents/ directory exists",
+		}
+	}
+	return PreflightCheck{
+		Name:    "AGENTS.md",
+		Status:  "warn",
+		Message: "No AGENTS.md or .opencode/agents/ found",
+	}
+}
+
+func checkGrpDir(path string) PreflightCheck {
+	grpDir := filepath.Join(path, ".grp")
+	if info, err := os.Stat(grpDir); err == nil && info.IsDir() {
+		return PreflightCheck{
+			Name:    ".grp Directory",
+			Status:  "pass",
+			Message: ".grp/ directory exists",
+		}
+	}
+	return PreflightCheck{
+		Name:    ".grp Directory",
+		Status:  "warn",
+		Message: ".grp/ directory not found",
+	}
+}
+
+func checkVerificationScripts(path string) PreflightCheck {
+	pkgPath := filepath.Join(path, "package.json")
+	if !checkFileExists(pkgPath) {
+		return PreflightCheck{
+			Name:    "Verification Scripts",
+			Status:  "warn",
+			Message: "package.json not found, cannot verify scripts",
+		}
+	}
+	data, err := os.ReadFile(pkgPath)
+	if err != nil {
+		return PreflightCheck{
+			Name:    "Verification Scripts",
+			Status:  "warn",
+			Message: fmt.Sprintf("cannot read package.json: %v", err),
+		}
+	}
+	var pkg struct {
+		Scripts map[string]string `json:"scripts"`
+	}
+	if err := json.Unmarshal(data, &pkg); err != nil || pkg.Scripts == nil {
+		return PreflightCheck{
+			Name:    "Verification Scripts",
+			Status:  "warn",
+			Message: "package.json has no scripts section",
+		}
+	}
+	verificationCmds := []string{"lint", "test", "typecheck", "build", "check"}
+	found := []string{}
+	for _, cmd := range verificationCmds {
+		if _, ok := pkg.Scripts[cmd]; ok {
+			found = append(found, cmd)
+		}
+	}
+	if len(found) > 0 {
+		return PreflightCheck{
+			Name:    "Verification Scripts",
+			Status:  "pass",
+			Message: fmt.Sprintf("Found verification scripts: %s", strings.Join(found, ", ")),
+		}
+	}
+	return PreflightCheck{
+		Name:    "Verification Scripts",
+		Status:  "warn",
+		Message: "No standard verification scripts (lint, test, typecheck, build, check) found",
+	}
+}
+
+func checkSecretFiles(path string) PreflightCheck {
+	secretFiles := []string{".env", ".env.local", ".env.production", ".env.development"}
+	existing := []string{}
+	for _, f := range secretFiles {
+		if checkFileExists(filepath.Join(path, f)) {
+			existing = append(existing, f)
+		}
+	}
+	if len(existing) > 0 {
+		return PreflightCheck{
+			Name:    "Secret Files",
+			Status:  "pass",
+			Message: fmt.Sprintf("Found secret files: %s", strings.Join(existing, ", ")),
+		}
+	}
+	return PreflightCheck{
+		Name:    "Secret Files",
+		Status:  "warn",
+		Message: "No .env files found (might be expected for some projects)",
+	}
 }
 
 func checkCAIDirectory(path string) PreflightCheck {
@@ -382,6 +751,7 @@ func checkCAIAgents(path string) PreflightCheck {
 
 func printPreflightText(result *PreflightResult) {
 	fmt.Printf("Preflight result for %s\n", result.Path)
+	fmt.Printf("Profile: %s\n", result.Profile)
 	fmt.Printf("Status: %s\n", result.Status)
 	fmt.Printf("Timestamp: %s\n", result.Timestamp)
 	fmt.Println()
@@ -410,6 +780,7 @@ func printPreflightText(result *PreflightResult) {
 func printPreflightMarkdown(result *PreflightResult) {
 	fmt.Printf("# Preflight Result\n\n")
 	fmt.Printf("- **Path:** %s\n", result.Path)
+	fmt.Printf("- **Profile:** %s\n", result.Profile)
 	fmt.Printf("- **Status:** %s\n", result.Status)
 	fmt.Printf("- **Timestamp:** %s\n", result.Timestamp)
 	fmt.Printf("- **ID:** %s\n", result.ID)

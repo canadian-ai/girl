@@ -184,12 +184,10 @@ func WorkOrderCommand() *cli.Command {
 func generateWorkOrders(decomp *ir.Decomposition, plan *ir.GrpPlan) []WorkOrder {
 	now := nowISO()
 	var sourcePlanID string
-	var steps []ir.GrpStep
 	var risk string
 
 	if plan != nil {
 		sourcePlanID = plan.PlanID
-		steps = plan.Steps
 		risk = strings.ToUpper(string(plan.Risk))
 	} else {
 		risk = "MEDIUM"
@@ -201,6 +199,7 @@ func generateWorkOrders(decomp *ir.Decomposition, plan *ir.GrpPlan) []WorkOrder 
 
 	orders := make([]WorkOrder, 0, len(decomp.Tasks))
 	for _, task := range decomp.Tasks {
+		taskSteps := filterStepsForTask(plan, task)
 		wo := WorkOrder{
 			SpecVersion:    workOrderSpecVersion,
 			ID:             task.ID,
@@ -214,7 +213,7 @@ func generateWorkOrders(decomp *ir.Decomposition, plan *ir.GrpPlan) []WorkOrder 
 			DependsOn:      task.DependsOn,
 			Verification:   task.Verification,
 			SourcePlanID:   sourcePlanID,
-			Steps:          steps,
+			Steps:          taskSteps,
 			CreatedAt:      now,
 		}
 		if wo.AllowedFiles == nil {
@@ -232,6 +231,29 @@ func generateWorkOrders(decomp *ir.Decomposition, plan *ir.GrpPlan) []WorkOrder 
 		orders = append(orders, wo)
 	}
 	return orders
+}
+
+func filterStepsForTask(plan *ir.GrpPlan, task ir.DecompositionTask) []ir.GrpStep {
+	if plan == nil || len(plan.Steps) == 0 {
+		return []ir.GrpStep{}
+	}
+	allowed := make(map[string]bool, len(task.AllowedFiles))
+	for _, f := range task.AllowedFiles {
+		allowed[f] = true
+	}
+	if len(allowed) == 0 {
+		return plan.Steps
+	}
+	var filtered []ir.GrpStep
+	for _, s := range plan.Steps {
+		if allowed[s.File] {
+			filtered = append(filtered, s)
+		}
+	}
+	if filtered == nil {
+		filtered = []ir.GrpStep{}
+	}
+	return filtered
 }
 
 func printWorkOrderMarkdown(wo WorkOrder) {
