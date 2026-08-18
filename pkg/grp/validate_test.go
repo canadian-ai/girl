@@ -517,6 +517,41 @@ func TestConformanceReductionDuplicate(t *testing.T) {
 	}
 }
 
+func TestConformanceReductionContract(t *testing.T) {
+	p := loadPlan(t, "reduction-contract")
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("reduction-contract expected Valid=true, got errors: %v", result.Errors)
+	}
+	if p.Reduction == nil {
+		t.Fatal("reduction-contract expected reduction metadata")
+	}
+	ids := make(map[string]bool, len(p.Reduction.Nodes))
+	seenOpaque := map[string]bool{"cap.booking": false, "booking.create": false}
+	for _, n := range p.Reduction.Nodes {
+		if ids[n.ID] {
+			t.Errorf("reduction-contract node ID %q must be unique", n.ID)
+		}
+		ids[n.ID] = true
+		if _, ok := seenOpaque[n.ID]; ok {
+			seenOpaque[n.ID] = true
+		}
+		if n.CanonicalID != "" && !ids[n.CanonicalID] {
+			t.Errorf("reduction-contract canonicalID %q must reference a known node", n.CanonicalID)
+		}
+	}
+	for id, present := range seenOpaque {
+		if !present {
+			t.Errorf("reduction-contract must include opaque provider ID %q", id)
+		}
+	}
+	for _, b := range p.Reduction.Blocks {
+		if b.CapabilityID != "" && !ids[b.CapabilityID] {
+			t.Errorf("reduction-contract block %q capabilityId %q must reference a known node", b.ID, b.CapabilityID)
+		}
+	}
+}
+
 func TestConformanceInvalidUnsafeCollect(t *testing.T) {
 	p := loadPlan(t, "invalid-unsafe-collect")
 	result := ValidatePlan(p)
@@ -840,5 +875,47 @@ func TestValidatePlanReductionDuplicateNodeID(t *testing.T) {
 	}
 	if !hasFieldMsg(result.Errors, "reduction.nodes[2].id", "duplicate node ID") {
 		t.Errorf("expected error for duplicate node ID, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionOpaqueNodeIDs(t *testing.T) {
+	p := validPlan()
+	p.Reduction = &Reduction{
+		Nodes: []ReductionNode{
+			{ID: "cap.booking", Kind: "capability", Reachable: true, Symbol: "BookingService", File: "booking/service.go"},
+			{ID: "booking.create", Kind: "capability", GarbageClass: GarbageDuplicate, CanonicalID: "cap.booking", Symbol: "CreateBooking", File: "booking/create.go"},
+			{ID: "booking.confirm", Kind: "capability", GarbageClass: GarbageRedundant, CanonicalID: "cap.booking", Symbol: "ConfirmBooking", File: "booking/confirm.go"},
+		},
+		Blocks: []ReductionBlock{
+			{ID: "blk_booking", CapabilityID: "cap.booking", Standard: true, Inputs: []string{"request"}, Outputs: []string{"confirmation"}, Nodes: []string{"cap.booking", "booking.create", "booking.confirm"}},
+		},
+	}
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("opaque provider-supplied node IDs must be accepted, got errors: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionEmptyNodeID(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes = append(p.Reduction.Nodes, ReductionNode{ID: ""})
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[2].id", "must not be empty") {
+		t.Errorf("expected error for empty node ID, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionEmptyBlockID(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Blocks = []ReductionBlock{{ID: ""}}
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.blocks[0].id", "must not be empty") {
+		t.Errorf("expected error for empty block ID, got: %v", result.Errors)
 	}
 }

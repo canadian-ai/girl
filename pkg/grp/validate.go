@@ -191,13 +191,9 @@ func validateReduction(r *Reduction, result *ValidationResult) {
 		prefix := fmt.Sprintf("reduction.nodes[%d]", i)
 		if n.ID == "" {
 			result.Errors = append(result.Errors, err(prefix+".id", "must not be empty"))
+		} else if seen[n.ID] {
+			result.Errors = append(result.Errors, err(prefix+".id", fmt.Sprintf("duplicate node ID %q", n.ID)))
 		} else {
-			if !strings.HasPrefix(n.ID, "cap_") {
-				result.Errors = append(result.Errors, err(prefix+".id", `must start with "cap_"`))
-			}
-			if seen[n.ID] {
-				result.Errors = append(result.Errors, err(prefix+".id", fmt.Sprintf("duplicate node ID %q", n.ID)))
-			}
 			seen[n.ID] = true
 		}
 		if n.GarbageClass != "" && !validGarbageClass(string(n.GarbageClass)) {
@@ -256,13 +252,9 @@ func validateReduction(r *Reduction, result *ValidationResult) {
 		prefix := fmt.Sprintf("reduction.blocks[%d]", i)
 		if b.ID == "" {
 			result.Errors = append(result.Errors, err(prefix+".id", "must not be empty"))
+		} else if blockIDs[b.ID] {
+			result.Errors = append(result.Errors, err(prefix+".id", fmt.Sprintf("duplicate block ID %q", b.ID)))
 		} else {
-			if !strings.HasPrefix(b.ID, "blk_") {
-				result.Errors = append(result.Errors, err(prefix+".id", `must start with "blk_"`))
-			}
-			if blockIDs[b.ID] {
-				result.Errors = append(result.Errors, err(prefix+".id", fmt.Sprintf("duplicate block ID %q", b.ID)))
-			}
 			blockIDs[b.ID] = true
 		}
 		if b.CapabilityID != "" && !nodeIDs[b.CapabilityID] {

@@ -8,9 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- GRP Core reduction/collection slice (#90): semantic node identity (`cap_` capability IDs), canonical targets, source-grounded reference evidence, standard compression blocks with inputs/outputs, and gated collect steps (`grp.reduction.collect`)
+- GRP Core reduction/collection slice (#90): semantic node identity with opaque provider-supplied capability IDs (no prefix enforced; e.g. `cap.booking`, `booking.create`), canonical targets, source-grounded reference evidence, standard compression blocks with inputs/outputs, and gated collect steps (`grp.reduction.collect`)
 - Validator rejects unsafe collect ordering: a collect step must require at least one `grp.reduction.migrate` step and carry a verification gate; migration steps must also carry verification
-- `schemas/grp-reduction.v0.1.schema.json` and `reduction` property on the plan schema; deterministic `reduction-duplicate` and `invalid-unsafe-collect` conformance fixtures
+- `schemas/grp-reduction.v0.1.schema.json` and `reduction` property on the plan schema; deterministic `reduction-duplicate`, `reduction-contract`, and `invalid-unsafe-collect` conformance fixtures
 - Human-readable GRP plan rendering (`grp.RenderPlanMarkdown`) with safety rationale; `girl plan --output grp-markdown` and `girl validate --output markdown`
 - Context pack reduction: `girl pack --reduction-file` prefers a reduced canonical block instead of dumping duplicate implementation internals
 - Normalization now remaps step-to-step `requires` links so reduction plans survive renumbering deterministically

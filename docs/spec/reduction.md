@@ -53,43 +53,43 @@ A reduction plan is a GRP `Plan` carrying an optional `reduction` object
 ```json
 {
   "specversion": "0.1",
-  "id": "grp_reduction_notification_001",
+  "id": "grp_reduction_booking_001",
   "type": "dev.refactor.reduction",
-  "goal": "Canonicalize duplicate notification implementations",
+  "goal": "Canonicalize duplicate booking creation capabilities",
   "steps": [ ... ],
   "verification": [ ... ],
   "reduction": {
     "nodes": [
       {
-        "id": "cap_notification",
+        "id": "cap.booking",
         "kind": "capability",
         "reachable": true,
         "refCount": 9,
-        "symbol": "NotificationService",
-        "file": "notifications/notification.go"
+        "symbol": "BookingService",
+        "file": "booking/service.go"
       },
       {
-        "id": "cap_notifier_member",
+        "id": "booking.create",
         "kind": "capability",
         "garbageClass": "duplicate",
-        "canonicalID": "cap_notification",
+        "canonicalID": "cap.booking",
         "reachable": false,
-        "symbol": "MemberNotifier",
-        "file": "notifications/member_notifier.go",
+        "symbol": "CreateBooking",
+        "file": "booking/create.go",
         "references": [
-          { "from": "cap_notifier_member", "to": "cap_notification",
-            "kind": "duplicate-of", "file": "notifications/member_notifier.go", "line": 12 }
+          { "from": "booking.create", "to": "cap.booking",
+            "kind": "duplicate-of", "file": "booking/create.go", "line": 12 }
         ]
       }
     ],
     "blocks": [
       {
-        "id": "blk_notification",
-        "capabilityId": "cap_notification",
+        "id": "blk_booking",
+        "capabilityId": "cap.booking",
         "standard": true,
-        "inputs": ["memberId", "booking"],
-        "outputs": ["notification"],
-        "nodes": ["cap_notification", "cap_notifier_member"]
+        "inputs": ["request"],
+        "outputs": ["confirmation"],
+        "nodes": ["cap.booking", "booking.create"]
       }
     ]
   }
@@ -98,10 +98,13 @@ A reduction plan is a GRP `Plan` carrying an optional `reduction` object
 
 ### Semantic node identity
 
-`reduction.nodes[].id` is the **capability ID** (`cap_` prefix). GRP Core defines
-only the shape; a graph provider supplies the IDs. See the adapter contract
-below. Node IDs are unique within a plan and deterministic when produced from
-the same graph.
+`reduction.nodes[].id` is an **opaque, non-empty, provider-supplied capability
+ID**. GRP Core defines only the shape; a graph provider supplies the IDs and may
+use any stable namespace, e.g. COMPASS's `cap.booking`, SIGIL's
+`booking.create`, or any other opaque string. GRP Core never interprets node IDs
+and enforces no prefix: it only requires that they be non-empty and unique
+within a plan. Node IDs are unique within a plan and deterministic when produced
+from the same graph.
 
 ### Canonical target
 
@@ -172,8 +175,8 @@ public, language-agnostic contract:
 
 1. **Shape** — emit JSON conforming to `schemas/grp-reduction.v0.1.schema.json`
    (a `reduction` object with `nodes`, `references`, `canonicalID`, `blocks`).
-2. **Identity** — capability IDs are opaque strings; GRP Core never interprets
-   them, only checks prefix/uniqueness.
+2. **Identity** — capability IDs are opaque, non-empty, provider-supplied stable
+   strings; GRP Core never interprets them, it only checks non-empty/uniqueness.
 3. **Reachability** — the graph marks a node `reachable` and supplies
    `refCount` plus reference edges as evidence.
 4. **Canonicalization** — the graph classifies nodes and assigns `canonicalID`;
@@ -192,3 +195,10 @@ distinct behavior where actually necessary (each retains its own migration
 step, and collection is gated on migrate + verify). It normalizes
 deterministically (step-to-step `requires` links survive renumbering) and
 passes `ValidatePlan`.
+
+`testdata/conformance/reduction-contract/plan.json` proves the opaque-ID
+adapter contract: provider-neutral capability IDs such as `cap.booking`
+(COMPASS-style) and `booking.create` (SIGIL-style action capability) validate
+through `canonicalID`, `references`, and standard `blocks`, while uniqueness,
+self-reference, reachability, and unsafe-collect checks are preserved. The
+fixture stays valid after normalization.

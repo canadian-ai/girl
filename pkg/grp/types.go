@@ -151,9 +151,10 @@ const (
 
 // NodeIdentity is the semantic identity of a software graph node. GRP Core
 // only defines the shape; bindings and graph providers (e.g. a CAI Lang/TEMPLE
-// graph) supply canonical capability IDs without GIRL depending on them.
+// graph) supply canonical capability IDs without GIRL depending on them. IDs are
+// opaque, non-empty, provider-supplied stable strings.
 type NodeIdentity struct {
-	ID     string `json:"id"`             // semantic node / capability ID, e.g. "cap_notification"
+	ID     string `json:"id"`             // semantic node / capability ID, e.g. "cap.booking" or "booking.create"
 	Kind   string `json:"kind,omitempty"` // capability, api, schemaField, policy, dependencyAdapter
 	Symbol string `json:"symbol,omitempty"`
 	File   string `json:"file,omitempty"` // repo-relative source file

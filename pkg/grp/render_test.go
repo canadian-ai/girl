@@ -34,6 +34,31 @@ func TestRenderPlanMarkdownReductionExplainsSafety(t *testing.T) {
 	}
 }
 
+func TestRenderPlanMarkdownReductionContractOpaqueIDs(t *testing.T) {
+	p := loadPlanFixture(t, "reduction-contract")
+	out := RenderPlanMarkdown(p)
+
+	required := []string{
+		"# GRP Plan: grp_reduction_booking_001",
+		"## Reduction",
+		"### cap.booking",
+		"### booking.create",
+		"**Classification:** `duplicate`",
+		"**Canonical target:** `cap.booking`",
+		"safe to collect only after references migrate",
+		"**Evidence:**",
+		"`booking.create` -> `cap.booking` (duplicate-of) at booking/create.go:12",
+		"`blk_booking`",
+		"## Steps",
+		"this collect step is gated on reference migration + verification",
+	}
+	for _, want := range required {
+		if !strings.Contains(out, want) {
+			t.Errorf("rendered plan missing %q\n--- got:\n%s", want, out)
+		}
+	}
+}
+
 func TestRenderPlanMarkdownNil(t *testing.T) {
 	if got := RenderPlanMarkdown(nil); got != "" {
 		t.Errorf("nil plan should render empty, got %q", got)

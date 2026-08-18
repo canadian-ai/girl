@@ -34,6 +34,7 @@ Level 3 implies Level 0, 1, and 2 conformance.
 ## Reduction plans (Level 6)
 
 A Level 6 tool emits reduction plans per the [reduction specification](reduction.md):
-it identifies semantic nodes by capability ID, classifies garbage, proposes
-canonical targets with source-grounded reference evidence, and never emits a
-collect step without linked migration and verification gates.
+it identifies semantic nodes by opaque provider-supplied capability ID (any
+stable namespace such as `cap.booking` or `booking.create`), classifies garbage,
+proposes canonical targets with source-grounded reference evidence, and never
+emits a collect step without linked migration and verification gates.

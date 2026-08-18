@@ -1,0 +1,125 @@
+{
+  "specversion": "0.1",
+  "id": "grp_reduction_booking_001",
+  "type": "dev.refactor.reduction",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/conformance/reduction-contract",
+  "language": "go",
+  "goal": "Canonicalize duplicate booking creation capabilities toward one canonical capability and collect the redundant copies only after migration and verification",
+  "risk": "medium",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "grp.reduction.duplicate",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "booking.create and booking.confirm duplicate the cap.booking capability",
+      "file": "booking/create.go"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_grp.reduction.canonicalize_booking",
+      "recipe": "grp.reduction.canonicalize",
+      "title": "Canonicalize the booking capability",
+      "action": "Establish BookingService as the single canonical booking capability and publish its capability ID cap.booking",
+      "target": { "file": "booking/service.go", "symbol": "BookingService", "kind": "function" },
+      "risk": "low"
+    },
+    {
+      "id": "step_002_grp.reduction.migrate_booking_create",
+      "recipe": "grp.reduction.migrate",
+      "title": "Migrate booking.create references to cap.booking",
+      "action": "Rewrite references from booking.create to the canonical cap.booking capability",
+      "target": { "file": "booking/create.go", "symbol": "CreateBooking", "kind": "function" },
+      "risk": "medium",
+      "requires": ["step_001_grp.reduction.canonicalize_booking"],
+      "verify": [
+        { "command": "go build ./booking/...", "required": true, "source": "go", "confidence": "high" },
+        { "command": "go test ./booking/...", "required": true, "source": "go", "confidence": "high" }
+      ]
+    },
+    {
+      "id": "step_003_grp.reduction.migrate_booking_confirm",
+      "recipe": "grp.reduction.migrate",
+      "title": "Migrate booking.confirm references to cap.booking",
+      "action": "Rewrite references from booking.confirm to the canonical cap.booking capability",
+      "target": { "file": "booking/confirm.go", "symbol": "ConfirmBooking", "kind": "function" },
+      "risk": "medium",
+      "requires": ["step_001_grp.reduction.canonicalize_booking"],
+      "verify": [
+        { "command": "go build ./booking/...", "required": true, "source": "go", "confidence": "high" },
+        { "command": "go test ./booking/...", "required": true, "source": "go", "confidence": "high" }
+      ]
+    },
+    {
+      "id": "step_004_grp.reduction.collect_booking_create",
+      "recipe": "grp.reduction.collect",
+      "title": "Collect booking.create after migration and verification",
+      "action": "Delete the obsolete booking.create implementation now that all references resolve to cap.booking and behavior is verified",
+      "target": { "file": "booking/create.go", "symbol": "CreateBooking", "kind": "function" },
+      "risk": "medium",
+      "requires": [
+        "step_002_grp.reduction.migrate_booking_create",
+        "step_003_grp.reduction.migrate_booking_confirm"
+      ],
+      "verify": [
+        { "command": "go build ./...", "required": true, "source": "go", "confidence": "high" },
+        { "command": "go test ./...", "required": true, "source": "go", "confidence": "high" }
+      ]
+    }
+  ],
+  "verification": [
+    { "command": "go build ./...", "required": true, "source": "go", "confidence": "high" },
+    { "command": "go test ./...", "required": true, "source": "go", "confidence": "high" }
+  ],
+  "reduction": {
+    "nodes": [
+      {
+        "id": "cap.booking",
+        "kind": "capability",
+        "reachable": true,
+        "refCount": 7,
+        "symbol": "BookingService",
+        "file": "booking/service.go"
+      },
+      {
+        "id": "booking.create",
+        "kind": "capability",
+        "garbageClass": "duplicate",
+        "canonicalID": "cap.booking",
+        "reachable": false,
+        "refCount": 3,
+        "symbol": "CreateBooking",
+        "file": "booking/create.go",
+        "references": [
+          { "from": "booking.create", "to": "cap.booking", "kind": "duplicate-of", "file": "booking/create.go", "line": 12 },
+          { "from": "booking.create", "to": "cap.booking", "kind": "reference", "file": "internal/api/booking.go", "line": 44 }
+        ]
+      },
+      {
+        "id": "booking.confirm",
+        "kind": "capability",
+        "garbageClass": "redundant",
+        "canonicalID": "cap.booking",
+        "reachable": false,
+        "refCount": 2,
+        "symbol": "ConfirmBooking",
+        "file": "booking/confirm.go",
+        "references": [
+          { "from": "booking.confirm", "to": "cap.booking", "kind": "duplicate-of", "file": "booking/confirm.go", "line": 8 }
+        ]
+      }
+    ],
+    "blocks": [
+      {
+        "id": "blk_booking",
+        "capabilityId": "cap.booking",
+        "standard": true,
+        "inputs": ["request"],
+        "outputs": ["confirmation"],
+        "nodes": ["cap.booking", "booking.create", "booking.confirm"]
+      }
+    ]
+  }
+}

@@ -10,13 +10,13 @@
       "items": {
         "type": "object",
         "properties": {
-          "id": { "type": "string", "pattern": "^cap_" },
+          "id": { "type": "string", "minLength": 1 },
           "kind": { "type": "string" },
           "garbageClass": {
             "type": "string",
             "enum": ["unreachable", "duplicate", "obsolete", "redundant", "dead-api", "dead-policy", "dead-schema-field", "dead-dependency-adapter"]
           },
-          "canonicalID": { "type": "string", "pattern": "^cap_" },
+          "canonicalID": { "type": "string", "minLength": 1 },
           "reachable": { "type": "boolean" },
           "refCount": { "type": "integer", "minimum": 0 },
           "symbol": { "type": "string" },
@@ -26,8 +26,8 @@
             "items": {
               "type": "object",
               "properties": {
-                "from": { "type": "string" },
-                "to": { "type": "string" },
+                "from": { "type": "string", "minLength": 1 },
+                "to": { "type": "string", "minLength": 1 },
                 "kind": { "type": "string" },
                 "file": { "type": "string" },
                 "line": { "type": "integer", "minimum": 1 }
@@ -45,12 +45,12 @@
       "items": {
         "type": "object",
         "properties": {
-          "id": { "type": "string", "pattern": "^blk_" },
-          "capabilityId": { "type": "string", "pattern": "^cap_" },
+          "id": { "type": "string", "minLength": 1 },
+          "capabilityId": { "type": "string", "minLength": 1 },
           "standard": { "type": "boolean" },
           "inputs": { "type": "array", "items": { "type": "string" } },
           "outputs": { "type": "array", "items": { "type": "string" } },
-          "nodes": { "type": "array", "items": { "type": "string", "pattern": "^cap_" } }
+          "nodes": { "type": "array", "items": { "type": "string", "minLength": 1 } }
         },
         "required": ["id"]
       }

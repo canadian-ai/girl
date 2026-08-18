@@ -418,3 +418,31 @@ func TestConformanceComputePlanIDDifferentPlans(t *testing.T) {
 		t.Errorf("different plans should produce different IDs, both got %s", id1)
 	}
 }
+
+func TestConformanceNormalizeReductionContractDeterministic(t *testing.T) {
+	p1 := loadPlanFixture(t, "reduction-contract")
+	p2 := loadPlanFixture(t, "reduction-contract")
+
+	NormalizePlan(p1)
+	NormalizePlan(p2)
+
+	j1, err := json.Marshal(p1)
+	if err != nil {
+		t.Fatalf("marshal p1: %v", err)
+	}
+	j2, err := json.Marshal(p2)
+	if err != nil {
+		t.Fatalf("marshal p2: %v", err)
+	}
+	if string(j1) != string(j2) {
+		t.Errorf("normalization is not deterministic:\n%s\nvs\n%s", j1, j2)
+	}
+
+	result := ValidatePlan(p1)
+	if !result.Valid {
+		t.Errorf("normalized reduction-contract plan must stay valid, got errors: %v", result.Errors)
+	}
+	if p1.Reduction == nil {
+		t.Fatal("reduction metadata must survive normalization")
+	}
+}
