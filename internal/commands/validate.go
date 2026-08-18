@@ -14,6 +14,14 @@ func ValidateCommand() *cli.Command {
 		Name:      "validate",
 		Usage:     "Validate a GRP plan JSON file",
 		ArgsUsage: "<file>",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "output",
+				Aliases: []string{"o"},
+				Usage:   "Output format: text (default) or markdown (human-readable plan)",
+				Value:   "text",
+			},
+		},
 		Action: func(c *cli.Context) error {
 			path := c.Args().First()
 			if path == "" {
@@ -36,6 +44,11 @@ func ValidateCommand() *cli.Command {
 					fmt.Fprintf(os.Stderr, "  %s: %s\n", e.Field, e.Message)
 				}
 				return fmt.Errorf("plan validation failed with %d errors", len(result.Errors))
+			}
+
+			if stringFlag(c, "output", "o") == "markdown" {
+				fmt.Print(grp.RenderPlanMarkdown(&plan))
+				return nil
 			}
 
 			fmt.Println("Plan is valid.")

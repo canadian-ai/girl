@@ -39,6 +39,7 @@ type PackRequest struct {
 	PlanID      string
 	TargetPath  string
 	PrivacyMode string
+	Reduction   *ir.Reduction
 }
 
 func (p *Packer) Pack(req PackRequest) (*ir.ContextPack, error) {
@@ -50,6 +51,7 @@ func (p *Packer) Pack(req PackRequest) (*ir.ContextPack, error) {
 	diagCounts, codeCounts, fileDiagCounts := countDiagnostics(req.Diagnostics)
 	topCodes := topDiagnosticCodes(codeCounts, 5)
 	pack := newContextPack(req, budget, diagCounts, topCodes)
+	pack.Reduction = req.Reduction
 
 	p.addFileSummaries(pack, req.Files, fileDiagCounts)
 
@@ -58,10 +60,10 @@ func (p *Packer) Pack(req PackRequest) (*ir.ContextPack, error) {
 	if tier == 0 {
 		remaining = p.addDiagnosticSnippets(pack, req.Diagnostics, budget)
 		if remaining > 0 {
-			remaining = p.addComponentSnippets(pack, req.Files, remaining)
+			remaining = p.addComponentSnippets(pack, req.Files, remaining, req.Reduction)
 		}
 	} else {
-		remaining = p.addComponentSnippets(pack, req.Files, budget)
+		remaining = p.addComponentSnippets(pack, req.Files, budget, req.Reduction)
 		remaining = p.addDiagnosticSnippets(pack, req.Diagnostics, remaining)
 	}
 	pack.TokenEstimate = budget - remaining
@@ -155,8 +157,39 @@ func (p *Packer) addFileSummaries(pack *ir.ContextPack, files []*ir.FileIR, file
 	}
 }
 
-func (p *Packer) addComponentSnippets(pack *ir.ContextPack, files []*ir.FileIR, budget int) int {
+// reducedNode is a node that collapses into a canonical capability block. When
+// reduction metadata is present, the pack prefers the canonical block instead
+// of dumping every duplicated implementation.
+type reducedNode struct {
+	ID          string
+	CanonicalID string
+	File        string
+	Symbol      string
+}
+
+func indexReducedNodes(r *ir.Reduction) []reducedNode {
+	if r == nil {
+		return nil
+	}
+	var out []reducedNode
+	for _, n := range r.Nodes {
+		if n.CanonicalID != "" {
+			out = append(out, reducedNode{ID: n.ID, CanonicalID: n.CanonicalID, File: n.File, Symbol: n.Symbol})
+		}
+	}
+	return out
+}
+
+func matchesReducedNode(n reducedNode, f *ir.FileIR, c ir.ComponentIR) bool {
+	if n.Symbol != c.Name {
+		return false
+	}
+	return n.File == f.Path || n.File == packRelPath(f.Path)
+}
+
+func (p *Packer) addComponentSnippets(pack *ir.ContextPack, files []*ir.FileIR, budget int, reduction *ir.Reduction) int {
 	remaining := budget
+	reduced := indexReducedNodes(reduction)
 	for _, f := range files {
 		if remaining <= 0 {
 			break
@@ -166,12 +199,30 @@ func (p *Packer) addComponentSnippets(pack *ir.ContextPack, files []*ir.FileIR, 
 			if remaining <= 0 {
 				break
 			}
+			if rn := firstReducedMatch(reduced, f, c); rn != nil {
+				// Do not dump internals of a node that collapses into a canonical block.
+				pack.SelectedSnippets = append(pack.SelectedSnippets, ir.Snippet{
+					File:    rel,
+					Content: fmt.Sprintf("// reduced: %s collapses into canonical %s", c.Name, rn.CanonicalID),
+					Tokens:  0,
+				})
+				continue
+			}
 			snippet := p.createSnippet(f.Path, rel, c, remaining)
 			pack.SelectedSnippets = append(pack.SelectedSnippets, *snippet)
 			remaining -= snippet.Tokens
 		}
 	}
 	return remaining
+}
+
+func firstReducedMatch(reduced []reducedNode, f *ir.FileIR, c ir.ComponentIR) *reducedNode {
+	for i := range reduced {
+		if matchesReducedNode(reduced[i], f, c) {
+			return &reduced[i]
+		}
+	}
+	return nil
 }
 
 func (p *Packer) addDiagnosticSnippets(pack *ir.ContextPack, diags []ir.Diagnostic, remaining int) int {
