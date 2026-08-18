@@ -75,6 +75,7 @@
         }
       },
       "required": ["strategy"]
-    }
+    },
+    "reduction": { "$ref": "grp-reduction.v0.1.schema.json" }
   }
 }

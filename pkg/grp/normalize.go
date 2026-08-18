@@ -92,13 +92,26 @@ func stepLess(steps []Step) func(i, j int) bool {
 }
 
 func renumberSteps(steps []Step, diags []Diagnostic, oldToNew map[string]string) {
+	newIDs := make([]string, len(steps))
 	for i := range steps {
 		for j, req := range steps[i].Requires {
 			if newID, ok := oldToNew[req]; ok {
 				steps[i].Requires[j] = newID
 			}
 		}
-		steps[i].ID = fmt.Sprintf("step_%03d_%s_%s", i+1, diagCodeForStep(steps[i], diags), stepTargetSlug(steps[i], diags))
+		newIDs[i] = fmt.Sprintf("step_%03d_%s_%s", i+1, diagCodeForStep(steps[i], diags), stepTargetSlug(steps[i], diags))
+	}
+	stepRenames := make(map[string]string, len(steps))
+	for i := range steps {
+		stepRenames[steps[i].ID] = newIDs[i]
+		steps[i].ID = newIDs[i]
+	}
+	for i := range steps {
+		for j, req := range steps[i].Requires {
+			if newID, ok := stepRenames[req]; ok {
+				steps[i].Requires[j] = newID
+			}
+		}
 	}
 }
 
