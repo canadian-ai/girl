@@ -1,0 +1,204 @@
+# GRP Core Reduction & Collection
+
+**Grammar Refactoring Protocol — Software Graph Garbage Collection Runtime**
+
+Version 0.1 — Core specification.
+
+## Framing
+
+GRP Core extends from plan generation into a safe maintenance substrate: it
+can identify redundant, duplicate, obsolete, and dead software graph nodes,
+migrate references to canonical equivalents, verify behavior, and only then
+propose collection of the obsolete implementations.
+
+This is **plan-first and non-destructive**. GRP Core only ever emits a *plan*
+describing reduction/collection work. Nothing is deleted by emitting the plan.
+Collection is expressed as a step that is statically invalid unless it links
+migration and verification gates.
+
+## Lifecycle
+
+```
+discover → trace refs → classify → propose canonicalization → migrate → verify → collect
+```
+
+| Stage | GRP artifact |
+|-------|--------------|
+| discover | `reduction.nodes` — semantic node identities (capability IDs) |
+| trace refs | `reduction.nodes[].references` — source-grounded reference edges |
+| classify | `reduction.nodes[].garbageClass` — reachability / duplication / redundancy |
+| propose canonicalization | `reduction.nodes[].canonicalID` — canonical target |
+| migrate | steps with recipe `grp.reduction.migrate` |
+| verify | `verify` entries on migrate/collect steps and plan-level `verification` |
+| collect | steps with recipe `grp.reduction.collect` |
+
+## Garbage classes
+
+| Class | Meaning |
+|-------|---------|
+| `unreachable` | no active feature/route/workflow reference |
+| `duplicate` | canonical primitive supersedes it |
+| `obsolete` | version/migration replaced it |
+| `redundant` | overlapping semantic capability |
+| `dead-api` | dead API/interface |
+| `dead-policy` | dead policy/capability |
+| `dead-schema-field` | dead schema/data field |
+| `dead-dependency-adapter` | dead dependency/provider adapter |
+
+## Plan schema
+
+A reduction plan is a GRP `Plan` carrying an optional `reduction` object
+(see `schemas/grp-reduction.v0.1.schema.json`):
+
+```json
+{
+  "specversion": "0.1",
+  "id": "grp_reduction_booking_001",
+  "type": "dev.refactor.reduction",
+  "goal": "Canonicalize duplicate booking creation capabilities",
+  "steps": [ ... ],
+  "verification": [ ... ],
+  "reduction": {
+    "nodes": [
+      {
+        "id": "cap.booking",
+        "kind": "capability",
+        "reachable": true,
+        "refCount": 9,
+        "symbol": "BookingService",
+        "file": "booking/service.go"
+      },
+      {
+        "id": "booking.create",
+        "kind": "capability",
+        "garbageClass": "duplicate",
+        "canonicalID": "cap.booking",
+        "reachable": false,
+        "symbol": "CreateBooking",
+        "file": "booking/create.go",
+        "references": [
+          { "from": "booking.create", "to": "cap.booking",
+            "kind": "duplicate-of", "file": "booking/create.go", "line": 12 }
+        ]
+      }
+    ],
+    "blocks": [
+      {
+        "id": "blk_booking",
+        "capabilityId": "cap.booking",
+        "standard": true,
+        "inputs": ["request"],
+        "outputs": ["confirmation"],
+        "nodes": ["cap.booking", "booking.create"]
+      }
+    ]
+  }
+}
+```
+
+### Semantic node identity
+
+`reduction.nodes[].id` is an **opaque, non-empty, provider-supplied capability
+ID**. GRP Core defines only the shape; a graph provider supplies the IDs and may
+use any stable namespace, e.g. COMPASS's `cap.booking`, SIGIL's
+`booking.create`, or any other opaque string. GRP Core never interprets node IDs
+and enforces no prefix: it only requires that they be non-empty and unique
+within a plan. Node IDs are unique within a plan and deterministic when produced
+from the same graph.
+
+### Canonical target
+
+`reduction.nodes[].canonicalID` points at the canonical capability that
+supersedes a duplicate/redundant/obsolete node. The canonical target must exist
+in the same plan and must be `reachable`. Nodes classified
+`duplicate`/`obsolete`/`redundant` **must** declare a canonical target.
+
+### Reference evidence
+
+`reduction.nodes[].references[]` is deterministic, source-grounded evidence:
+`from`/`to` node IDs, reference `kind`, and the repo-relative `file`/`line`
+where the reference was observed. Both endpoints must reference known nodes.
+
+### Standard blocks
+
+`reduction.blocks[]` are compression metadata for collapsing repeated subgraphs
+into a standard block with explicit `inputs` and `outputs`. When present, a
+context pack prefers the reduced canonical block instead of dumping every
+duplicate implementation (see Context packs).
+
+## Collection safety
+
+A step is a **collect step** when its recipe (or action) is
+`grp.reduction.collect`. `ValidatePlan` rejects a collect step unless:
+
+1. it **requires at least one migration step** (`grp.reduction.migrate`) via
+   `requires`, and
+2. it **carries a verification gate** (`verify` entries).
+
+Migration steps must also carry a verification gate. This guarantees the plan
+cannot express "delete first, verify later": reference migration and behavior
+verification are static prerequisites of any collection step.
+
+Existing GRP clients remain backwards compatible: `reduction` is an optional
+top-level field, every new field is `omitempty`, and plans without reduction
+metadata validate exactly as before.
+
+## Context packs
+
+`girl pack` can accept a reduction file (`--reduction-file`) carrying the same
+shape as the plan's `reduction` section. When a component matches a reduced node
+(a node with a `canonicalID`), the pack emits a reduced placeholder
+(`// reduced: <name> collapses into canonical <id>`) instead of dumping the
+duplicate implementation's internals. The canonical node's snippet and the
+`reduction` metadata (including standard blocks with inputs/outputs) are
+included in both `dev.refactor.context` JSON and GRP context JSON.
+
+Unmatched reduction metadata never drops unrelated components — a component is
+only suppressed when both its file and symbol match a reduced node.
+
+## Human-readable output
+
+`grp.RenderPlanMarkdown` renders a plan as markdown. For reduction plans it
+explains, per node: reachability, classification, canonical target, reference
+evidence, and whether collection is safe and under what gates.
+
+```bash
+girl validate .grp/plan.json --output markdown
+girl plan <path> --output grp-markdown
+```
+
+## Adapter contract for CAI Lang / TEMPLE graphs
+
+GIRL (and GRP Core) must not depend on CAI-specific application code. A future
+CAI Lang/TEMPLE graph can feed canonical capability IDs into GIRL through this
+public, language-agnostic contract:
+
+1. **Shape** — emit JSON conforming to `schemas/grp-reduction.v0.1.schema.json`
+   (a `reduction` object with `nodes`, `references`, `canonicalID`, `blocks`).
+2. **Identity** — capability IDs are opaque, non-empty, provider-supplied stable
+   strings; GRP Core never interprets them, it only checks non-empty/uniqueness.
+3. **Reachability** — the graph marks a node `reachable` and supplies
+   `refCount` plus reference edges as evidence.
+4. **Canonicalization** — the graph classifies nodes and assigns `canonicalID`;
+   GRP Core validates targets exist and are reachable.
+5. **Non-destructive** — the graph produces a plan; GIRL validates it and can
+   render it. No executor deletes anything.
+6. **Compatibility** — plans without `reduction` are byte-identical in behavior
+   to current GRP Core.
+
+## First proof
+
+`testdata/conformance/reduction-duplicate/plan.json` demonstrates three
+notification implementations (`MemberNotifier`, `BookingEmail`, `NotifyMember`)
+canonicalizing toward one `cap_notification` capability while preserving
+distinct behavior where actually necessary (each retains its own migration
+step, and collection is gated on migrate + verify). It normalizes
+deterministically (step-to-step `requires` links survive renumbering) and
+passes `ValidatePlan`.
+
+`testdata/conformance/reduction-contract/plan.json` proves the opaque-ID
+adapter contract: provider-neutral capability IDs such as `cap.booking`
+(COMPASS-style) and `booking.create` (SIGIL-style action capability) validate
+through `canonicalID`, `references`, and standard `blocks`, while uniqueness,
+self-reference, reachability, and unsafe-collect checks are preserved. The
+fixture stays valid after normalization.

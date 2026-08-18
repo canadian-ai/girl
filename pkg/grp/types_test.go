@@ -196,3 +196,45 @@ func TestMarshalSpan(t *testing.T) {
 		t.Errorf("JSON should not contain \"StartColumn\", got: %s", js)
 	}
 }
+
+func TestReductionNodeIdentity(t *testing.T) {
+	n := ReductionNode{
+		ID: "cap_notification", Kind: "capability", Symbol: "NotificationService", File: "notifications/notification.go",
+	}
+	id := n.Identity()
+	if id.ID != "cap_notification" || id.Kind != "capability" || id.Symbol != "NotificationService" || id.File != "notifications/notification.go" {
+		t.Errorf("Identity() = %+v, want cap_notification identity", id)
+	}
+}
+
+func TestMarshalPlanWithReduction(t *testing.T) {
+	p := &Plan{
+		SpecVersion: "0.1",
+		ID:          "grp_test",
+		Type:        "dev.refactor.reduction",
+		Source:      "github.com/canadian-ai/girl",
+		Subject:     ".",
+		Language:    "go",
+		Goal:        "test",
+		Risk:        SeverityLow,
+		Reduction: &Reduction{
+			Nodes: []ReductionNode{
+				{ID: "cap_notification", Reachable: true},
+				{ID: "cap_member", GarbageClass: GarbageDuplicate, CanonicalID: "cap_notification"},
+			},
+			Blocks: []ReductionBlock{
+				{ID: "blk_notification", CapabilityID: "cap_notification", Standard: true},
+			},
+		},
+	}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	js := string(data)
+	for _, want := range []string{`"reduction"`, `"cap_notification"`, `"garbageClass"`, `"blk_notification"`, `"canonicalID"`} {
+		if !strings.Contains(js, want) {
+			t.Errorf("marshaled plan missing %q: %s", want, js)
+		}
+	}
+}
