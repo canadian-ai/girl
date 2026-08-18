@@ -31,7 +31,7 @@ func PlanCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:    "output",
 				Aliases: []string{"o"},
-				Usage:   "Output format: json (default), markdown, grp-json",
+				Usage:   "Output format: json (default), markdown, grp-json, grp-markdown",
 				Value:   "json",
 			},
 			&cli.StringFlag{
@@ -66,6 +66,12 @@ func PlanCommand() *cli.Command {
 			switch stringFlag(c, "output", "o") {
 			case "markdown":
 				printPlanMarkdown(plan)
+			case "grp-markdown":
+				gp := grp.FromIRPlan(plan)
+				gp.Language = lang.Resolve(langName)
+				grp.NormalizePlan(gp)
+				gp.ID = canonicalGRPPlanID(plan, langName)
+				fmt.Print(grp.RenderPlanMarkdown(gp))
 			case "grp-json":
 				gp := grp.FromIRPlan(plan)
 				gp.Language = lang.Resolve(langName)

@@ -462,3 +462,119 @@ func TestPacker_DiagnosticCountsAndTopCodes(t *testing.T) {
 		t.Errorf("expected E001 as top code, got %v", pack.TopCodes)
 	}
 }
+
+func TestPacker_PrefersCanonicalReducedBlock(t *testing.T) {
+	tmpDir := t.TempDir()
+	notifyFile := filepath.Join(tmpDir, "notify.go")
+	content := strings.Join([]string{
+		"package notify",
+		"",
+		"// NotificationService is the canonical notification capability.",
+		"func NotificationService() {}",
+		"",
+		"// MemberNotifier duplicates NotificationService.",
+		"func MemberNotifier() {}",
+	}, "\n")
+	if err := os.WriteFile(notifyFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	files := []*ir.FileIR{
+		{
+			Path:     notifyFile,
+			Language: "go",
+			Lines:    7,
+			Components: []ir.ComponentIR{
+				{Name: "NotificationService", StartLine: 4, EndLine: 4, Lines: 1},
+				{Name: "MemberNotifier", StartLine: 7, EndLine: 7, Lines: 1},
+			},
+		},
+	}
+	reduction := &ir.Reduction{
+		Nodes: []ir.ReductionNode{
+			{ID: "cap_notification", Kind: "capability", Reachable: true, Symbol: "NotificationService", File: notifyFile},
+			{ID: "cap_member", Kind: "capability", GarbageClass: "duplicate", CanonicalID: "cap_notification", Symbol: "MemberNotifier", File: notifyFile},
+		},
+		Blocks: []ir.ReductionBlock{
+			{ID: "blk_notification", CapabilityID: "cap_notification", Standard: true, Inputs: []string{"memberId"}, Outputs: []string{"notification"}},
+		},
+	}
+
+	// Without reduction metadata both implementations are dumped.
+	p := NewPacker(5000)
+	noReduction, err := p.Pack(PackRequest{Goal: "test", Files: files})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(noReduction.SelectedSnippets) != 2 {
+		t.Errorf("without reduction metadata, expected 2 snippets, got %d", len(noReduction.SelectedSnippets))
+	}
+
+	// With reduction metadata the pack prefers the canonical block.
+	withReduction, err := p.Pack(PackRequest{Goal: "test", Files: files, Reduction: reduction})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withReduction.Reduction == nil {
+		t.Fatal("expected pack to carry reduction metadata")
+	}
+	if len(withReduction.Reduction.Blocks) != 1 || withReduction.Reduction.Blocks[0].ID != "blk_notification" {
+		t.Errorf("expected canonical block metadata in pack, got %+v", withReduction.Reduction.Blocks)
+	}
+
+	var sawCanonical, sawReduced, sawDupBody bool
+	for _, sn := range withReduction.SelectedSnippets {
+		if strings.Contains(sn.Content, "NotificationService") {
+			sawCanonical = true
+		}
+		if strings.Contains(sn.Content, "MemberNotifier") {
+			sawReduced = true
+		}
+		if strings.Contains(sn.Content, "func MemberNotifier() {}") {
+			sawDupBody = true
+		}
+	}
+	if !sawCanonical {
+		t.Error("expected canonical NotificationService snippet to be included")
+	}
+	if !sawReduced {
+		t.Error("expected a reduced placeholder for MemberNotifier")
+	}
+	if sawDupBody {
+		t.Error("pack must not dump the duplicate MemberNotifier implementation internals")
+	}
+
+	// The GRP context pack must surface the same reduction metadata.
+	gcp := withReduction.ToGrpContextPack("grp_test")
+	if gcp.Reduction == nil || gcp.Reduction.Nodes[1].CanonicalID != "cap_notification" {
+		t.Errorf("GrpContextPack should carry reduction metadata, got %+v", gcp.Reduction)
+	}
+}
+
+func TestPacker_PrefersCanonicalReducedBlockNoMatchKeepsAll(t *testing.T) {
+	tmpDir := t.TempDir()
+	notifyFile := filepath.Join(tmpDir, "notify.go")
+	if err := os.WriteFile(notifyFile, []byte("package notify\n\nfunc NotificationService() {}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	reduction := &ir.Reduction{
+		Nodes: []ir.ReductionNode{
+			{ID: "cap_other", Kind: "capability", CanonicalID: "cap_nonexistent", Symbol: "NoSuchComponent", File: notifyFile},
+		},
+	}
+
+	p := NewPacker(5000)
+	pack, err := p.Pack(PackRequest{Goal: "test", Files: []*ir.FileIR{
+		{Path: notifyFile, Language: "go", Lines: 3, Components: []ir.ComponentIR{{Name: "NotificationService", StartLine: 3, EndLine: 3, Lines: 1}}},
+	}, Reduction: reduction})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pack.SelectedSnippets) != 1 {
+		t.Errorf("unmatched reduction metadata must not drop unrelated components, got %d snippets", len(pack.SelectedSnippets))
+	}
+	if !strings.Contains(pack.SelectedSnippets[0].Content, "NotificationService") {
+		t.Errorf("expected NotificationService snippet retained, got %q", pack.SelectedSnippets[0].Content)
+	}
+}

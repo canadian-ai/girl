@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -12,6 +13,7 @@ func TestSchemaFilesAreValidJSON(t *testing.T) {
 		"grp-diagnostic.v0.1.schema.json",
 		"grp-step.v0.1.schema.json",
 		"grp-verification.v0.1.schema.json",
+		"grp-reduction.v0.1.schema.json",
 		"grp-plan.v0.1.schema.json",
 	}
 
@@ -51,6 +53,35 @@ func TestPlanSchemaHasProperties(t *testing.T) {
 		if _, ok := props[f]; !ok {
 			t.Errorf("plan schema missing required property %q in 'properties'", f)
 		}
+	}
+
+	optional := []string{"time", "repository", "commit", "tool", "extensions", "requiredExtensions", "context", "artifacts", "reviewability", "decomposition", "reduction"}
+	for _, f := range optional {
+		if _, ok := props[f]; !ok {
+			t.Errorf("plan schema missing optional property %q in 'properties'", f)
+		}
+	}
+}
+
+func TestReductionSchemaEnforcesOpaqueIDs(t *testing.T) {
+	path := filepath.Join("..", "..", "schemas", "grp-reduction.v0.1.schema.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read reduction schema: %v", err)
+	}
+	raw := string(data)
+	if strings.Contains(raw, "cap_") || strings.Contains(raw, "blk_") {
+		t.Errorf("reduction schema must not enforce cap_/blk_ prefixes on provider-supplied IDs:\n%s", raw)
+	}
+	var schema map[string]interface{}
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	nodes := schema["properties"].(map[string]interface{})["nodes"].(map[string]interface{})
+	items := nodes["items"].(map[string]interface{})
+	id := items["properties"].(map[string]interface{})["id"].(map[string]interface{})
+	if id["minLength"] != float64(1) {
+		t.Errorf("node id must be non-empty (minLength 1), got: %v", id)
 	}
 }
 
