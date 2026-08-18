@@ -46,6 +46,8 @@ runs:
   using: composite
   steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Download and install GIRL
       shell: bash
