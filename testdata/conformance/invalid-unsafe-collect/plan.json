@@ -1,0 +1,42 @@
+{
+  "specversion": "0.1",
+  "id": "grp_unsafe_collect_001",
+  "type": "dev.refactor.reduction",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/conformance/invalid-unsafe-collect",
+  "language": "go",
+  "goal": "Attempt to collect a duplicate without migration and verification gates",
+  "risk": "medium",
+  "diagnostics": [],
+  "steps": [
+    {
+      "id": "step_001_grp.reduction.collect_unsafe",
+      "recipe": "grp.reduction.collect",
+      "title": "Collect the duplicate immediately",
+      "action": "Delete MemberNotifier without migrating references or verifying behavior",
+      "target": { "file": "notifications/member_notifier.go", "symbol": "MemberNotifier", "kind": "function" },
+      "risk": "high"
+    }
+  ],
+  "verification": [],
+  "reduction": {
+    "nodes": [
+      {
+        "id": "cap_notification",
+        "kind": "capability",
+        "reachable": true,
+        "symbol": "NotificationService",
+        "file": "notifications/notification.go"
+      },
+      {
+        "id": "cap_notifier_member",
+        "kind": "capability",
+        "garbageClass": "duplicate",
+        "canonicalID": "cap_notification",
+        "reachable": false,
+        "symbol": "MemberNotifier",
+        "file": "notifications/member_notifier.go"
+      }
+    ]
+  }
+}

@@ -509,6 +509,63 @@ func TestConformanceInvalidStepRequires(t *testing.T) {
 	}
 }
 
+func TestConformanceReductionDuplicate(t *testing.T) {
+	p := loadPlan(t, "reduction-duplicate")
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("reduction-duplicate expected Valid=true, got errors: %v", result.Errors)
+	}
+}
+
+func TestConformanceReductionContract(t *testing.T) {
+	p := loadPlan(t, "reduction-contract")
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("reduction-contract expected Valid=true, got errors: %v", result.Errors)
+	}
+	if p.Reduction == nil {
+		t.Fatal("reduction-contract expected reduction metadata")
+	}
+	ids := make(map[string]bool, len(p.Reduction.Nodes))
+	seenOpaque := map[string]bool{"cap.booking": false, "booking.create": false}
+	for _, n := range p.Reduction.Nodes {
+		if ids[n.ID] {
+			t.Errorf("reduction-contract node ID %q must be unique", n.ID)
+		}
+		ids[n.ID] = true
+		if _, ok := seenOpaque[n.ID]; ok {
+			seenOpaque[n.ID] = true
+		}
+		if n.CanonicalID != "" && !ids[n.CanonicalID] {
+			t.Errorf("reduction-contract canonicalID %q must reference a known node", n.CanonicalID)
+		}
+	}
+	for id, present := range seenOpaque {
+		if !present {
+			t.Errorf("reduction-contract must include opaque provider ID %q", id)
+		}
+	}
+	for _, b := range p.Reduction.Blocks {
+		if b.CapabilityID != "" && !ids[b.CapabilityID] {
+			t.Errorf("reduction-contract block %q capabilityId %q must reference a known node", b.ID, b.CapabilityID)
+		}
+	}
+}
+
+func TestConformanceInvalidUnsafeCollect(t *testing.T) {
+	p := loadPlan(t, "invalid-unsafe-collect")
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("invalid-unsafe-collect expected Valid=false")
+	}
+	if !hasFieldMsg(result.Errors, "steps[0].requires", "must require at least one") {
+		t.Errorf("expected error for missing migrate prereq, got: %v", result.Errors)
+	}
+	if !hasFieldMsg(result.Errors, "steps[0].verify", "verification gate") {
+		t.Errorf("expected error for missing verification gate, got: %v", result.Errors)
+	}
+}
+
 func TestConformanceInvalidUnsupportedSpecVersion(t *testing.T) {
 	p := loadPlan(t, "invalid-unsupported-specversion")
 	result := ValidatePlan(p)
@@ -676,5 +733,189 @@ func TestValidatePlanEmptyVerification(t *testing.T) {
 	result := ValidatePlan(p)
 	if !result.Valid {
 		t.Errorf("empty verification should be valid, got errors: %v", result.Errors)
+	}
+}
+
+func reductionPlan() *Plan {
+	p := validPlan()
+	p.Reduction = &Reduction{
+		Nodes: []ReductionNode{
+			{ID: "cap_notification", Kind: "capability", Reachable: true, Symbol: "NotificationService", File: "notifications/notification.go"},
+			{ID: "cap_member", Kind: "capability", GarbageClass: GarbageDuplicate, CanonicalID: "cap_notification", Symbol: "MemberNotifier", File: "notifications/member_notifier.go"},
+		},
+	}
+	p.Steps = []Step{
+		{
+			ID: "step_001_migrate", Title: "Migrate", Action: ActionMigrate,
+			Target: Target{File: "notifications/member_notifier.go"}, Risk: SeverityMedium,
+			Verify: []Verification{{Command: "go test ./...", Required: true, Source: "go", Confidence: "high"}},
+		},
+		{
+			ID: "step_002_collect", Title: "Collect", Action: ActionCollect,
+			Target: Target{File: "notifications/member_notifier.go"}, Risk: SeverityMedium,
+			Requires: []string{"step_001_migrate"},
+			Verify:   []Verification{{Command: "go test ./...", Required: true, Source: "go", Confidence: "high"}},
+		},
+	}
+	return p
+}
+
+func TestValidatePlanReductionValid(t *testing.T) {
+	p := reductionPlan()
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("expected valid reduction plan, got errors: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanCollectWithoutMigratePrereq(t *testing.T) {
+	p := reductionPlan()
+	p.Steps[1].Requires = nil
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "steps[1].requires", "must require at least one") {
+		t.Errorf("expected error for missing migrate prereq, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanCollectWithoutVerificationGate(t *testing.T) {
+	p := reductionPlan()
+	p.Steps[1].Verify = nil
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "steps[1].verify", "verification gate") {
+		t.Errorf("expected error for missing verification gate, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanMigrateWithoutVerificationGate(t *testing.T) {
+	p := reductionPlan()
+	p.Steps[0].Verify = nil
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "steps[0].verify", "verification gate") {
+		t.Errorf("expected error for missing migrate verification, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionRequiresCanonical(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes[1].CanonicalID = ""
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[1].canonicalID", "must declare a canonical target") {
+		t.Errorf("expected error for missing canonical target, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionUnknownCanonical(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes[1].CanonicalID = "cap_missing"
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[1].canonicalID", "unknown canonical node") {
+		t.Errorf("expected error for unknown canonical node, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionUnreachableCanonical(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes[0].Reachable = false
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[1].canonicalID", "not reachable") {
+		t.Errorf("expected error for unreachable canonical, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionSelfCanonical(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes[1].CanonicalID = "cap_member"
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[1].canonicalID", "must not reference itself") {
+		t.Errorf("expected error for self canonical, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionUnknownReference(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes[1].References = []ReferenceEdge{
+		{From: "cap_member", To: "cap_missing", Kind: "duplicate-of", File: "a.go", Line: 1},
+	}
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[1].references[0].to", "unknown node") {
+		t.Errorf("expected error for unknown reference node, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionDuplicateNodeID(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes = append(p.Reduction.Nodes, ReductionNode{ID: "cap_member"})
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[2].id", "duplicate node ID") {
+		t.Errorf("expected error for duplicate node ID, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionOpaqueNodeIDs(t *testing.T) {
+	p := validPlan()
+	p.Reduction = &Reduction{
+		Nodes: []ReductionNode{
+			{ID: "cap.booking", Kind: "capability", Reachable: true, Symbol: "BookingService", File: "booking/service.go"},
+			{ID: "booking.create", Kind: "capability", GarbageClass: GarbageDuplicate, CanonicalID: "cap.booking", Symbol: "CreateBooking", File: "booking/create.go"},
+			{ID: "booking.confirm", Kind: "capability", GarbageClass: GarbageRedundant, CanonicalID: "cap.booking", Symbol: "ConfirmBooking", File: "booking/confirm.go"},
+		},
+		Blocks: []ReductionBlock{
+			{ID: "blk_booking", CapabilityID: "cap.booking", Standard: true, Inputs: []string{"request"}, Outputs: []string{"confirmation"}, Nodes: []string{"cap.booking", "booking.create", "booking.confirm"}},
+		},
+	}
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("opaque provider-supplied node IDs must be accepted, got errors: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionEmptyNodeID(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes = append(p.Reduction.Nodes, ReductionNode{ID: ""})
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[2].id", "must not be empty") {
+		t.Errorf("expected error for empty node ID, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionEmptyBlockID(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Blocks = []ReductionBlock{{ID: ""}}
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.blocks[0].id", "must not be empty") {
+		t.Errorf("expected error for empty block ID, got: %v", result.Errors)
 	}
 }

@@ -14,6 +14,7 @@ Version 0.1 — Core specification.
 | 3 | Emits token-budgeted context packs | Core |
 | 4 | Emits dry-run patches for steps | Core |
 | 5 | Runs verification and reports results | Core |
+| 6 | Emits safe reduction/collection plans (semantic node identity, canonical targets, reference evidence, gated collect steps) | Core |
 
 ## Core vs Binding Conformance
 
@@ -29,3 +30,11 @@ A tool MAY self-certify its conformance level. The spec does not define a certif
 ## Each Level Includes All Lower Levels
 
 Level 3 implies Level 0, 1, and 2 conformance.
+
+## Reduction plans (Level 6)
+
+A Level 6 tool emits reduction plans per the [reduction specification](reduction.md):
+it identifies semantic nodes by opaque provider-supplied capability ID (any
+stable namespace such as `cap.booking` or `booking.create`), classifies garbage,
+proposes canonical targets with source-grounded reference evidence, and never
+emits a collect step without linked migration and verification gates.
