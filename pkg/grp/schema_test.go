@@ -12,6 +12,7 @@ func TestSchemaFilesAreValidJSON(t *testing.T) {
 		"grp-diagnostic.v0.1.schema.json",
 		"grp-step.v0.1.schema.json",
 		"grp-verification.v0.1.schema.json",
+		"grp-reduction.v0.1.schema.json",
 		"grp-plan.v0.1.schema.json",
 	}
 
@@ -50,6 +51,13 @@ func TestPlanSchemaHasProperties(t *testing.T) {
 	for _, f := range required {
 		if _, ok := props[f]; !ok {
 			t.Errorf("plan schema missing required property %q in 'properties'", f)
+		}
+	}
+
+	optional := []string{"time", "repository", "commit", "tool", "extensions", "requiredExtensions", "context", "artifacts", "reviewability", "decomposition", "reduction"}
+	for _, f := range optional {
+		if _, ok := props[f]; !ok {
+			t.Errorf("plan schema missing optional property %q in 'properties'", f)
 		}
 	}
 }

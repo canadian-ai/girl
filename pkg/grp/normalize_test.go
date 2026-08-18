@@ -349,6 +349,68 @@ func TestConformanceComputePlanIDDeterministic(t *testing.T) {
 	}
 }
 
+func TestConformanceNormalizeReductionDeterministic(t *testing.T) {
+	p1 := loadPlanFixture(t, "reduction-duplicate")
+	p2 := loadPlanFixture(t, "reduction-duplicate")
+
+	NormalizePlan(p1)
+	NormalizePlan(p2)
+
+	j1, err := json.Marshal(p1)
+	if err != nil {
+		t.Fatalf("marshal p1: %v", err)
+	}
+	j2, err := json.Marshal(p2)
+	if err != nil {
+		t.Fatalf("marshal p2: %v", err)
+	}
+	if string(j1) != string(j2) {
+		t.Errorf("normalization is not deterministic:\n%s\nvs\n%s", j1, j2)
+	}
+
+	result := ValidatePlan(p1)
+	if !result.Valid {
+		t.Errorf("normalized reduction plan must stay valid, got errors: %v", result.Errors)
+	}
+}
+
+func TestConformanceNormalizeReductionPreservesCollectPrereqs(t *testing.T) {
+	p := loadPlanFixture(t, "reduction-duplicate")
+	NormalizePlan(p)
+
+	stepIDs := make(map[string]bool, len(p.Steps))
+	for _, s := range p.Steps {
+		stepIDs[s.ID] = true
+	}
+	migrateIDs := make(map[string]bool, len(p.Steps))
+	for _, s := range p.Steps {
+		if strings.HasPrefix(s.Recipe, ActionMigrate) || strings.HasPrefix(s.Action, ActionMigrate) {
+			migrateIDs[s.ID] = true
+		}
+	}
+
+	for _, s := range p.Steps {
+		if !(strings.HasPrefix(s.Recipe, ActionCollect) || strings.HasPrefix(s.Action, ActionCollect)) {
+			continue
+		}
+		hasMigrate := false
+		for _, req := range s.Requires {
+			if !stepIDs[req] {
+				t.Errorf("collect step %q requires unknown step %q after normalization", s.ID, req)
+			}
+			if migrateIDs[req] {
+				hasMigrate = true
+			}
+		}
+		if !hasMigrate {
+			t.Errorf("collect step %q lost its migrate prereq after normalization: requires=%v", s.ID, s.Requires)
+		}
+		if len(s.Verify) == 0 {
+			t.Errorf("collect step %q lost its verification gate after normalization", s.ID)
+		}
+	}
+}
+
 func TestConformanceComputePlanIDDifferentPlans(t *testing.T) {
 	id1 := ComputePlanID(loadPlanFixture(t, "valid-minimal"))
 	id2 := ComputePlanID(loadPlanFixture(t, "valid-full"))

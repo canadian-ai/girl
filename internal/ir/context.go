@@ -21,6 +21,43 @@ type BudgetInfo struct {
 	EstimatedTokens int `json:"estimatedTokens"`
 }
 
+// ReferenceEdge is source-grounded reference evidence between semantic nodes.
+// Mirrors pkg/grp so the context pack can carry reduction metadata without an
+// import cycle (pkg/grp already depends on internal/ir).
+type ReferenceEdge struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+	Kind string `json:"kind,omitempty"`
+	File string `json:"file,omitempty"`
+	Line int    `json:"line,omitempty"`
+}
+
+type ReductionNode struct {
+	ID           string          `json:"id"`
+	Kind         string          `json:"kind,omitempty"`
+	GarbageClass string          `json:"garbageClass,omitempty"`
+	CanonicalID  string          `json:"canonicalID,omitempty"`
+	Reachable    bool            `json:"reachable,omitempty"`
+	RefCount     int             `json:"refCount,omitempty"`
+	Symbol       string          `json:"symbol,omitempty"`
+	File         string          `json:"file,omitempty"`
+	References   []ReferenceEdge `json:"references,omitempty"`
+}
+
+type ReductionBlock struct {
+	ID           string   `json:"id"`
+	CapabilityID string   `json:"capabilityId,omitempty"`
+	Standard     bool     `json:"standard,omitempty"`
+	Inputs       []string `json:"inputs,omitempty"`
+	Outputs      []string `json:"outputs,omitempty"`
+	Nodes        []string `json:"nodes,omitempty"`
+}
+
+type Reduction struct {
+	Nodes  []ReductionNode  `json:"nodes,omitempty"`
+	Blocks []ReductionBlock `json:"blocks,omitempty"`
+}
+
 type ContextPack struct {
 	Goal             string         `json:"goal"`
 	TokenBudget      int            `json:"tokenBudget"`
@@ -34,6 +71,7 @@ type ContextPack struct {
 	Verification     []string       `json:"verification"`
 	DiagnosticCounts map[string]int `json:"diagnosticCounts,omitempty"`
 	TopCodes         []string       `json:"topCodes,omitempty"`
+	Reduction        *Reduction     `json:"reduction,omitempty"`
 }
 
 type GrpContextPack struct {
@@ -47,6 +85,7 @@ type GrpContextPack struct {
 	Files        []string     `json:"files"`
 	Snippets     []Snippet    `json:"snippets"`
 	Verification []string     `json:"verification"`
+	Reduction    *Reduction   `json:"reduction,omitempty"`
 }
 
 func (p *ContextPack) ToGrpContextPack(planID string) *GrpContextPack {
@@ -61,5 +100,6 @@ func (p *ContextPack) ToGrpContextPack(planID string) *GrpContextPack {
 		Files:        p.Files,
 		Snippets:     p.SelectedSnippets,
 		Verification: p.Verification,
+		Reduction:    p.Reduction,
 	}
 }

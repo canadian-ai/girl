@@ -1,0 +1,169 @@
+{
+  "specversion": "0.1",
+  "id": "grp_reduction_notification_001",
+  "type": "dev.refactor.reduction",
+  "source": "github.com/canadian-ai/girl",
+  "subject": "testdata/conformance/reduction-duplicate",
+  "language": "go",
+  "goal": "Canonicalize duplicate notification implementations toward one Notification capability and collect the redundant copies only after migration and verification",
+  "risk": "medium",
+  "diagnostics": [
+    {
+      "id": "diag_001",
+      "code": "grp.reduction.duplicate",
+      "severity": "medium",
+      "confidence": "high",
+      "message": "MemberNotifier, BookingEmail, and NotifyMember duplicate the Notification capability",
+      "file": "notifications/member_notifier.go"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_001_grp.reduction.canonicalize_notification",
+      "recipe": "grp.reduction.canonicalize",
+      "title": "Canonicalize the Notification capability",
+      "action": "Establish NotificationService as the single canonical Notification capability and publish its capability ID",
+      "target": { "file": "notifications/notification.go", "symbol": "NotificationService", "kind": "function" },
+      "risk": "low"
+    },
+    {
+      "id": "step_002_grp.reduction.migrate_notifier_member",
+      "recipe": "grp.reduction.migrate",
+      "title": "Migrate MemberNotifier references to NotificationService",
+      "action": "Rewrite references from MemberNotifier to the canonical NotificationService capability",
+      "target": { "file": "notifications/member_notifier.go", "symbol": "MemberNotifier", "kind": "function" },
+      "risk": "medium",
+      "requires": ["step_001_grp.reduction.canonicalize_notification"],
+      "verify": [
+        { "command": "go build ./notifications/...", "required": true, "source": "go", "confidence": "high" },
+        { "command": "go test ./notifications/...", "required": true, "source": "go", "confidence": "high" }
+      ]
+    },
+    {
+      "id": "step_003_grp.reduction.migrate_booking_email",
+      "recipe": "grp.reduction.migrate",
+      "title": "Migrate BookingEmail references to NotificationService",
+      "action": "Rewrite references from BookingEmail to the canonical NotificationService capability",
+      "target": { "file": "notifications/booking_email.go", "symbol": "BookingEmail", "kind": "function" },
+      "risk": "medium",
+      "requires": ["step_001_grp.reduction.canonicalize_notification"],
+      "verify": [
+        { "command": "go build ./notifications/...", "required": true, "source": "go", "confidence": "high" },
+        { "command": "go test ./notifications/...", "required": true, "source": "go", "confidence": "high" }
+      ]
+    },
+    {
+      "id": "step_004_grp.reduction.migrate_notify_member",
+      "recipe": "grp.reduction.migrate",
+      "title": "Migrate NotifyMember references to NotificationService",
+      "action": "Rewrite references from NotifyMember to the canonical NotificationService capability",
+      "target": { "file": "notifications/notify_member.go", "symbol": "NotifyMember", "kind": "function" },
+      "risk": "medium",
+      "requires": ["step_001_grp.reduction.canonicalize_notification"],
+      "verify": [
+        { "command": "go build ./notifications/...", "required": true, "source": "go", "confidence": "high" },
+        { "command": "go test ./notifications/...", "required": true, "source": "go", "confidence": "high" }
+      ]
+    },
+    {
+      "id": "step_005_grp.reduction.collect_member_notifier",
+      "recipe": "grp.reduction.collect",
+      "title": "Collect MemberNotifier after migration and verification",
+      "action": "Delete the obsolete MemberNotifier implementation now that all references resolve to NotificationService and behavior is verified",
+      "target": { "file": "notifications/member_notifier.go", "symbol": "MemberNotifier", "kind": "function" },
+      "risk": "medium",
+      "requires": [
+        "step_002_grp.reduction.migrate_notifier_member",
+        "step_003_grp.reduction.migrate_booking_email",
+        "step_004_grp.reduction.migrate_notify_member"
+      ],
+      "verify": [
+        { "command": "go build ./...", "required": true, "source": "go", "confidence": "high" },
+        { "command": "go test ./...", "required": true, "source": "go", "confidence": "high" }
+      ]
+    },
+    {
+      "id": "step_006_grp.reduction.collect_booking_email",
+      "recipe": "grp.reduction.collect",
+      "title": "Collect BookingEmail after migration and verification",
+      "action": "Delete the redundant BookingEmail implementation now that all references resolve to NotificationService and behavior is verified",
+      "target": { "file": "notifications/booking_email.go", "symbol": "BookingEmail", "kind": "function" },
+      "risk": "medium",
+      "requires": [
+        "step_002_grp.reduction.migrate_notifier_member",
+        "step_003_grp.reduction.migrate_booking_email",
+        "step_004_grp.reduction.migrate_notify_member"
+      ],
+      "verify": [
+        { "command": "go build ./...", "required": true, "source": "go", "confidence": "high" },
+        { "command": "go test ./...", "required": true, "source": "go", "confidence": "high" }
+      ]
+    }
+  ],
+  "verification": [
+    { "command": "go build ./...", "required": true, "source": "go", "confidence": "high" },
+    { "command": "go test ./...", "required": true, "source": "go", "confidence": "high" }
+  ],
+  "reduction": {
+    "nodes": [
+      {
+        "id": "cap_notification",
+        "kind": "capability",
+        "reachable": true,
+        "refCount": 9,
+        "symbol": "NotificationService",
+        "file": "notifications/notification.go"
+      },
+      {
+        "id": "cap_notifier_member",
+        "kind": "capability",
+        "garbageClass": "duplicate",
+        "canonicalID": "cap_notification",
+        "reachable": false,
+        "refCount": 3,
+        "symbol": "MemberNotifier",
+        "file": "notifications/member_notifier.go",
+        "references": [
+          { "from": "cap_notifier_member", "to": "cap_notification", "kind": "duplicate-of", "file": "notifications/member_notifier.go", "line": 12 },
+          { "from": "cap_notifier_member", "to": "cap_notification", "kind": "reference", "file": "internal/workers/notify.go", "line": 44 }
+        ]
+      },
+      {
+        "id": "cap_booking_email",
+        "kind": "capability",
+        "garbageClass": "redundant",
+        "canonicalID": "cap_notification",
+        "reachable": false,
+        "refCount": 2,
+        "symbol": "BookingEmail",
+        "file": "notifications/booking_email.go",
+        "references": [
+          { "from": "cap_booking_email", "to": "cap_notification", "kind": "duplicate-of", "file": "notifications/booking_email.go", "line": 8 }
+        ]
+      },
+      {
+        "id": "cap_notify_member",
+        "kind": "capability",
+        "garbageClass": "duplicate",
+        "canonicalID": "cap_notification",
+        "reachable": false,
+        "refCount": 4,
+        "symbol": "NotifyMember",
+        "file": "notifications/notify_member.go",
+        "references": [
+          { "from": "cap_notify_member", "to": "cap_notification", "kind": "duplicate-of", "file": "notifications/notify_member.go", "line": 19 }
+        ]
+      }
+    ],
+    "blocks": [
+      {
+        "id": "blk_notification",
+        "capabilityId": "cap_notification",
+        "standard": true,
+        "inputs": ["memberId", "booking"],
+        "outputs": ["notification"],
+        "nodes": ["cap_notification", "cap_notifier_member", "cap_booking_email", "cap_notify_member"]
+      }
+    ]
+  }
+}

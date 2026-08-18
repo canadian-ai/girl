@@ -28,6 +28,7 @@ func ValidatePlan(p *Plan) *ValidationResult {
 	validateBasicFields(p, result)
 	diagIDs := validateDiagnostics(p.Diagnostics, result)
 	validateSteps(p.Steps, diagIDs, result)
+	validateReduction(p.Reduction, result)
 	validateVerification(p.Verification, result)
 	validateReviewability(p.Reviewability, result)
 	validateDecomposition(p.Decomposition, result)
@@ -103,17 +104,200 @@ func validateSteps(steps []Step, diagIDs map[string]bool, result *ValidationResu
 			result.Errors = append(result.Errors, err(prefix+".target.file", "must not be an absolute path"))
 		}
 		enumCheck(result, prefix+".risk", string(s.Risk), validRisk)
-		for _, req := range s.Requires {
-			if !diagIDs[req] {
-				result.Errors = append(result.Errors, err(prefix+".requires", fmt.Sprintf("references unknown diagnostic ID %q", req)))
-			}
-		}
 		for j, v := range s.Verify {
 			vp := fmt.Sprintf("%s.verify[%d]", prefix, j)
 			requiredNonEmpty(result, vp+".command", v.Command)
 			enumCheck(result, vp+".confidence", v.Confidence, validConfidence)
 		}
 	}
+
+	// Requires may reference diagnostics or sibling steps (e.g. a collect step
+	// must require its migration steps), so validate in a second pass after the
+	// full step-ID set is known.
+	for i, s := range steps {
+		prefix := fmt.Sprintf("steps[%d]", i)
+		for _, req := range s.Requires {
+			if !diagIDs[req] && !ids[req] {
+				result.Errors = append(result.Errors, err(prefix+".requires", fmt.Sprintf("references unknown diagnostic or step ID %q", req)))
+			}
+		}
+	}
+
+	for i, s := range steps {
+		if !isReductionStep(s, ActionCollect) {
+			continue
+		}
+		prefix := fmt.Sprintf("steps[%d]", i)
+		if !hasMigratePrereq(s, steps) {
+			result.Errors = append(result.Errors, err(prefix+".requires",
+				fmt.Sprintf("collect step %q must require at least one %q migration step", s.ID, ActionMigrate)))
+		}
+		if len(s.Verify) == 0 {
+			result.Errors = append(result.Errors, err(prefix+".verify",
+				fmt.Sprintf("collect step %q must carry a verification gate before collection", s.ID)))
+		}
+	}
+
+	for i, s := range steps {
+		if !isReductionStep(s, ActionMigrate) {
+			continue
+		}
+		prefix := fmt.Sprintf("steps[%d]", i)
+		if len(s.Verify) == 0 {
+			result.Errors = append(result.Errors, err(prefix+".verify",
+				fmt.Sprintf("migration step %q must carry a verification gate after migrating references", s.ID)))
+		}
+	}
+}
+
+// isReductionStep reports whether a step belongs to a reduction lifecycle phase.
+// The machine-readable marker lives in recipe (e.g. "grp.reduction.collect");
+// action is the freeform human description, but either field may carry it.
+func isReductionStep(s Step, prefix string) bool {
+	return strings.HasPrefix(s.Recipe, prefix) || strings.HasPrefix(s.Action, prefix)
+}
+
+func hasMigratePrereq(s Step, steps []Step) bool {
+	migrateIDs := make(map[string]bool, len(steps))
+	for _, other := range steps {
+		if isReductionStep(other, ActionMigrate) {
+			migrateIDs[other.ID] = true
+		}
+	}
+	for _, req := range s.Requires {
+		if migrateIDs[req] {
+			return true
+		}
+	}
+	return false
+}
+
+func validateReduction(r *Reduction, result *ValidationResult) {
+	if r == nil {
+		return
+	}
+	nodeIDs := make(map[string]bool, len(r.Nodes))
+	for _, n := range r.Nodes {
+		if n.ID != "" {
+			if nodeIDs[n.ID] {
+				// duplicate handled in the per-node loop below
+				continue
+			}
+			nodeIDs[n.ID] = true
+		}
+	}
+	seen := make(map[string]bool, len(r.Nodes))
+	for i, n := range r.Nodes {
+		prefix := fmt.Sprintf("reduction.nodes[%d]", i)
+		if n.ID == "" {
+			result.Errors = append(result.Errors, err(prefix+".id", "must not be empty"))
+		} else {
+			if !strings.HasPrefix(n.ID, "cap_") {
+				result.Errors = append(result.Errors, err(prefix+".id", `must start with "cap_"`))
+			}
+			if seen[n.ID] {
+				result.Errors = append(result.Errors, err(prefix+".id", fmt.Sprintf("duplicate node ID %q", n.ID)))
+			}
+			seen[n.ID] = true
+		}
+		if n.GarbageClass != "" && !validGarbageClass(string(n.GarbageClass)) {
+			result.Errors = append(result.Errors, err(prefix+".garbageClass",
+				fmt.Sprintf("invalid value %q; must be one of unreachable, duplicate, obsolete, redundant, dead-api, dead-policy, dead-schema-field, dead-dependency-adapter", n.GarbageClass)))
+		}
+		if n.CanonicalID != "" {
+			if !nodeIDs[n.CanonicalID] {
+				result.Errors = append(result.Errors, err(prefix+".canonicalID",
+					fmt.Sprintf("references unknown canonical node %q", n.CanonicalID)))
+			}
+			if n.CanonicalID == n.ID {
+				result.Errors = append(result.Errors, err(prefix+".canonicalID", "must not reference itself"))
+			}
+		}
+		if requiresCanonical(n.GarbageClass) && n.CanonicalID == "" {
+			result.Errors = append(result.Errors, err(prefix+".canonicalID",
+				fmt.Sprintf("node with garbageClass %q must declare a canonical target", n.GarbageClass)))
+		}
+		if n.Reachable && n.GarbageClass == GarbageUnreachable {
+			result.Errors = append(result.Errors, err(prefix+".reachable", "unreachable node must not be marked reachable"))
+		}
+		for j, ref := range n.References {
+			rp := fmt.Sprintf("%s.references[%d]", prefix, j)
+			if ref.From == "" {
+				result.Errors = append(result.Errors, err(rp+".from", "must not be empty"))
+			}
+			if ref.To == "" {
+				result.Errors = append(result.Errors, err(rp+".to", "must not be empty"))
+			}
+			if ref.From != "" && !nodeIDs[ref.From] {
+				result.Errors = append(result.Errors, err(rp+".from",
+					fmt.Sprintf("references unknown node %q", ref.From)))
+			}
+			if ref.To != "" && !nodeIDs[ref.To] {
+				result.Errors = append(result.Errors, err(rp+".to",
+					fmt.Sprintf("references unknown node %q", ref.To)))
+			}
+		}
+	}
+
+	canonical := canonicalNodes(r.Nodes)
+	for i, n := range r.Nodes {
+		if n.CanonicalID == "" {
+			continue
+		}
+		if target := canonical[n.CanonicalID]; target != nil && !target.Reachable {
+			result.Errors = append(result.Errors, err(
+				fmt.Sprintf("reduction.nodes[%d].canonicalID", i),
+				fmt.Sprintf("canonical target %q is not reachable", n.CanonicalID)))
+		}
+	}
+
+	blockIDs := make(map[string]bool, len(r.Blocks))
+	for i, b := range r.Blocks {
+		prefix := fmt.Sprintf("reduction.blocks[%d]", i)
+		if b.ID == "" {
+			result.Errors = append(result.Errors, err(prefix+".id", "must not be empty"))
+		} else {
+			if !strings.HasPrefix(b.ID, "blk_") {
+				result.Errors = append(result.Errors, err(prefix+".id", `must start with "blk_"`))
+			}
+			if blockIDs[b.ID] {
+				result.Errors = append(result.Errors, err(prefix+".id", fmt.Sprintf("duplicate block ID %q", b.ID)))
+			}
+			blockIDs[b.ID] = true
+		}
+		if b.CapabilityID != "" && !nodeIDs[b.CapabilityID] {
+			result.Errors = append(result.Errors, err(prefix+".capabilityId",
+				fmt.Sprintf("references unknown node %q", b.CapabilityID)))
+		}
+		for j, nid := range b.Nodes {
+			if !nodeIDs[nid] {
+				result.Errors = append(result.Errors, err(
+					fmt.Sprintf("%s.nodes[%d]", prefix, j),
+					fmt.Sprintf("references unknown node %q", nid)))
+			}
+		}
+	}
+}
+
+func validGarbageClass(s string) bool {
+	switch GarbageClass(s) {
+	case GarbageUnreachable, GarbageDuplicate, GarbageObsolete, GarbageRedundant,
+		GarbageDeadAPI, GarbageDeadPolicy, GarbageDeadSchemaField, GarbageDeadDependencyAdapter:
+		return true
+	}
+	return false
+}
+
+func requiresCanonical(g GarbageClass) bool {
+	return g == GarbageDuplicate || g == GarbageObsolete || g == GarbageRedundant
+}
+
+func canonicalNodes(nodes []ReductionNode) map[string]*ReductionNode {
+	m := make(map[string]*ReductionNode, len(nodes))
+	for i := range nodes {
+		m[nodes[i].ID] = &nodes[i]
+	}
+	return m
 }
 
 func validateVerification(verifications []Verification, result *ValidationResult) {

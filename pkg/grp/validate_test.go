@@ -509,6 +509,28 @@ func TestConformanceInvalidStepRequires(t *testing.T) {
 	}
 }
 
+func TestConformanceReductionDuplicate(t *testing.T) {
+	p := loadPlan(t, "reduction-duplicate")
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("reduction-duplicate expected Valid=true, got errors: %v", result.Errors)
+	}
+}
+
+func TestConformanceInvalidUnsafeCollect(t *testing.T) {
+	p := loadPlan(t, "invalid-unsafe-collect")
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("invalid-unsafe-collect expected Valid=false")
+	}
+	if !hasFieldMsg(result.Errors, "steps[0].requires", "must require at least one") {
+		t.Errorf("expected error for missing migrate prereq, got: %v", result.Errors)
+	}
+	if !hasFieldMsg(result.Errors, "steps[0].verify", "verification gate") {
+		t.Errorf("expected error for missing verification gate, got: %v", result.Errors)
+	}
+}
+
 func TestConformanceInvalidUnsupportedSpecVersion(t *testing.T) {
 	p := loadPlan(t, "invalid-unsupported-specversion")
 	result := ValidatePlan(p)
@@ -676,5 +698,147 @@ func TestValidatePlanEmptyVerification(t *testing.T) {
 	result := ValidatePlan(p)
 	if !result.Valid {
 		t.Errorf("empty verification should be valid, got errors: %v", result.Errors)
+	}
+}
+
+func reductionPlan() *Plan {
+	p := validPlan()
+	p.Reduction = &Reduction{
+		Nodes: []ReductionNode{
+			{ID: "cap_notification", Kind: "capability", Reachable: true, Symbol: "NotificationService", File: "notifications/notification.go"},
+			{ID: "cap_member", Kind: "capability", GarbageClass: GarbageDuplicate, CanonicalID: "cap_notification", Symbol: "MemberNotifier", File: "notifications/member_notifier.go"},
+		},
+	}
+	p.Steps = []Step{
+		{
+			ID: "step_001_migrate", Title: "Migrate", Action: ActionMigrate,
+			Target: Target{File: "notifications/member_notifier.go"}, Risk: SeverityMedium,
+			Verify: []Verification{{Command: "go test ./...", Required: true, Source: "go", Confidence: "high"}},
+		},
+		{
+			ID: "step_002_collect", Title: "Collect", Action: ActionCollect,
+			Target: Target{File: "notifications/member_notifier.go"}, Risk: SeverityMedium,
+			Requires: []string{"step_001_migrate"},
+			Verify:   []Verification{{Command: "go test ./...", Required: true, Source: "go", Confidence: "high"}},
+		},
+	}
+	return p
+}
+
+func TestValidatePlanReductionValid(t *testing.T) {
+	p := reductionPlan()
+	result := ValidatePlan(p)
+	if !result.Valid {
+		t.Errorf("expected valid reduction plan, got errors: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanCollectWithoutMigratePrereq(t *testing.T) {
+	p := reductionPlan()
+	p.Steps[1].Requires = nil
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "steps[1].requires", "must require at least one") {
+		t.Errorf("expected error for missing migrate prereq, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanCollectWithoutVerificationGate(t *testing.T) {
+	p := reductionPlan()
+	p.Steps[1].Verify = nil
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "steps[1].verify", "verification gate") {
+		t.Errorf("expected error for missing verification gate, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanMigrateWithoutVerificationGate(t *testing.T) {
+	p := reductionPlan()
+	p.Steps[0].Verify = nil
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "steps[0].verify", "verification gate") {
+		t.Errorf("expected error for missing migrate verification, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionRequiresCanonical(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes[1].CanonicalID = ""
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[1].canonicalID", "must declare a canonical target") {
+		t.Errorf("expected error for missing canonical target, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionUnknownCanonical(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes[1].CanonicalID = "cap_missing"
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[1].canonicalID", "unknown canonical node") {
+		t.Errorf("expected error for unknown canonical node, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionUnreachableCanonical(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes[0].Reachable = false
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[1].canonicalID", "not reachable") {
+		t.Errorf("expected error for unreachable canonical, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionSelfCanonical(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes[1].CanonicalID = "cap_member"
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[1].canonicalID", "must not reference itself") {
+		t.Errorf("expected error for self canonical, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionUnknownReference(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes[1].References = []ReferenceEdge{
+		{From: "cap_member", To: "cap_missing", Kind: "duplicate-of", File: "a.go", Line: 1},
+	}
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[1].references[0].to", "unknown node") {
+		t.Errorf("expected error for unknown reference node, got: %v", result.Errors)
+	}
+}
+
+func TestValidatePlanReductionDuplicateNodeID(t *testing.T) {
+	p := reductionPlan()
+	p.Reduction.Nodes = append(p.Reduction.Nodes, ReductionNode{ID: "cap_member"})
+	result := ValidatePlan(p)
+	if result.Valid {
+		t.Fatal("expected invalid plan")
+	}
+	if !hasFieldMsg(result.Errors, "reduction.nodes[2].id", "duplicate node ID") {
+		t.Errorf("expected error for duplicate node ID, got: %v", result.Errors)
 	}
 }
