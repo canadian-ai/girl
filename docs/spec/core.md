@@ -82,6 +82,7 @@ implementation that produced it.
 | `artifacts` | array | Attached artifact references |
 | `reviewability` | object | Reviewability assessment: budget, observed metrics, status, recommendation |
 | `decomposition` | object | Decomposition into atomic reviewable tasks |
+| `reduction` | object | Software graph reduction/collection metadata (see [reduction specification](reduction.md)) |
 
 ## Bindings
 

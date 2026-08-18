@@ -57,6 +57,10 @@ func PackCommand() *cli.Command {
 				Name:  "task-file",
 				Usage: "Path to decomposition JSON file",
 			},
+			&cli.StringFlag{
+				Name:  "reduction-file",
+				Usage: "Path to reduction metadata JSON file (GRP reduction section) to prefer canonical blocks",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			path := commandPath(c)
@@ -79,6 +83,14 @@ func PackCommand() *cli.Command {
 				return err
 			}
 
+			var reduction *ir.Reduction
+			if rf := stringFlag(c, "reduction-file"); rf != "" {
+				reduction, err = loadReductionFile(rf)
+				if err != nil {
+					return err
+				}
+			}
+
 			pkr := packer.NewPacker(c.Int("budget"))
 			pack, err := pkr.Pack(packer.PackRequest{
 				Goal:        plan.Goal,
@@ -89,6 +101,7 @@ func PackCommand() *cli.Command {
 				PlanID:      plan.PlanID,
 				TargetPath:  path,
 				PrivacyMode: c.String("privacy"),
+				Reduction:   reduction,
 			})
 			if err != nil {
 				return fmt.Errorf("packing failed: %w", err)
@@ -171,6 +184,21 @@ func canonicalGRPPlanID(plan *ir.GrpPlan, lang string) string {
 	gp.Language = lang
 	grp.NormalizePlan(gp)
 	return grp.ComputePlanID(gp)
+}
+
+func loadReductionFile(path string) (*ir.Reduction, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read reduction file: %w", err)
+	}
+	var reduction ir.Reduction
+	if err := json.Unmarshal(data, &reduction); err != nil {
+		return nil, fmt.Errorf("parse reduction file: %w", err)
+	}
+	if len(reduction.Nodes) == 0 && len(reduction.Blocks) == 0 {
+		return nil, fmt.Errorf("reduction file %s contains no nodes or blocks", path)
+	}
+	return &reduction, nil
 }
 
 func printPackMarkdown(pack *ir.ContextPack) {
