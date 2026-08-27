@@ -329,6 +329,9 @@ func TestRegistered_NewRecipeCount(t *testing.T) {
 	}
 	// Verify new ones are present
 	expectedCodes := []string{
+		"react.high-complexity",
+		"ts.high-complexity",
+		"js.high-complexity",
 		"openrewrite.refactor-opportunity",
 		"openrewrite.export-yaml",
 		"rtk.optimize-commands",

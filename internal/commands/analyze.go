@@ -34,6 +34,11 @@ func AnalyzeCommand() *cli.Command {
 				Usage: "Maximum component lines before warning",
 				Value: 200,
 			},
+			&cli.IntFlag{
+				Name:  "max-complexity",
+				Usage: "Maximum cyclomatic complexity per function/component",
+				Value: 10,
+			},
 			&cli.StringSliceFlag{
 				Name:  "exclude",
 				Usage: "Directories to exclude",
@@ -45,21 +50,24 @@ func AnalyzeCommand() *cli.Command {
 				path = "."
 			}
 
-			lang := resolveLang(path, c.String("lang"))
+			lang := resolveLang(path, stringFlag(c, "lang"))
 
 			var result *ir.AnalyzerResult
 			var err error
 
 			if lang == "go" {
 				cfg := goanalysis.DefaultConfig()
+				cfg.MaxComplexity = intFlag(c, "max-complexity")
 				result, err = goanalysis.AnalyzePath(path, cfg)
 			} else if lang == "rust" {
 				cfg := rustanalysis.DefaultConfig()
+				cfg.MaxComplexity = intFlag(c, "max-complexity")
 				result, err = rustanalysis.AnalyzePath(path, cfg)
 			} else {
 				cfg := analyzer.DefaultConfig()
-				cfg.MaxComponentLines = c.Int("max-lines")
-				cfg.ExcludeDirs = c.StringSlice("exclude")
+				cfg.MaxComponentLines = intFlag(c, "max-lines")
+				cfg.MaxCyclomaticComplexity = intFlag(c, "max-complexity")
+				cfg.ExcludeDirs = stringSliceFlag(c, "exclude")
 				a := analyzer.NewAnalyzer(cfg)
 				result, err = a.Analyze(path)
 			}

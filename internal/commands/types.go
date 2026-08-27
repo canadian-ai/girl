@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/canadian-ai/girl/internal/analyzer"
@@ -58,6 +59,46 @@ func stringFlag(c *cli.Context, name string, aliases ...string) string {
 		}
 	}
 	return c.String(name)
+}
+
+func intFlag(c *cli.Context, name string) int {
+	if c.IsSet(name) {
+		return c.Int(name)
+	}
+	long := "--" + name
+	for i, arg := range os.Args {
+		value := ""
+		if strings.HasPrefix(arg, long+"=") {
+			value = strings.TrimPrefix(arg, long+"=")
+		} else if arg == long && i+1 < len(os.Args) {
+			value = os.Args[i+1]
+		}
+		if value != "" {
+			if parsed, err := strconv.Atoi(value); err == nil {
+				return parsed
+			}
+		}
+	}
+	return c.Int(name)
+}
+
+func stringSliceFlag(c *cli.Context, name string) []string {
+	if c.IsSet(name) {
+		return c.StringSlice(name)
+	}
+	long := "--" + name
+	var values []string
+	for i, arg := range os.Args {
+		if strings.HasPrefix(arg, long+"=") {
+			values = append(values, strings.TrimPrefix(arg, long+"="))
+		} else if arg == long && i+1 < len(os.Args) {
+			values = append(values, os.Args[i+1])
+		}
+	}
+	if len(values) > 0 {
+		return values
+	}
+	return c.StringSlice(name)
 }
 
 func HasGoMod(path string) bool {

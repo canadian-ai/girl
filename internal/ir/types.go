@@ -9,25 +9,26 @@ const (
 )
 
 type ComponentIR struct {
-	Name             string           `json:"name"`
-	FilePath         string           `json:"filePath"`
-	Kind             ComponentKind    `json:"kind"`
-	StartLine        int              `json:"startLine"`
-	EndLine          int              `json:"endLine"`
-	Lines            int              `json:"lines"`
-	Hooks            []HookIR         `json:"hooks"`
-	JSXBlocks        []JSXBlockIR     `json:"jsxBlocks"`
-	Props            []PropIR         `json:"props"`
-	StateVars        []StateVarIR     `json:"stateVars"`
-	Effects          []EffectIR       `json:"effects"`
-	EventHandlers    []EventHandlerIR `json:"eventHandlers"`
-	Imports          []ImportIR       `json:"imports"`
-	Exports          []ExportIR       `json:"exports"`
-	ChildComponents  []string         `json:"childComponents"`
-	HasKeyDown       bool             `json:"hasKeyDown"`
-	HasAnalytics     bool             `json:"hasAnalytics"`
-	ConditionalCount int              `json:"conditionalCount"`
-	LoopCount        int              `json:"loopCount"`
+	Name                 string           `json:"name"`
+	FilePath             string           `json:"filePath"`
+	Kind                 ComponentKind    `json:"kind"`
+	StartLine            int              `json:"startLine"`
+	EndLine              int              `json:"endLine"`
+	Lines                int              `json:"lines"`
+	Hooks                []HookIR         `json:"hooks"`
+	JSXBlocks            []JSXBlockIR     `json:"jsxBlocks"`
+	Props                []PropIR         `json:"props"`
+	StateVars            []StateVarIR     `json:"stateVars"`
+	Effects              []EffectIR       `json:"effects"`
+	EventHandlers        []EventHandlerIR `json:"eventHandlers"`
+	Imports              []ImportIR       `json:"imports"`
+	Exports              []ExportIR       `json:"exports"`
+	ChildComponents      []string         `json:"childComponents"`
+	HasKeyDown           bool             `json:"hasKeyDown"`
+	HasAnalytics         bool             `json:"hasAnalytics"`
+	ConditionalCount     int              `json:"conditionalCount"`
+	LoopCount            int              `json:"loopCount"`
+	CyclomaticComplexity int              `json:"cyclomaticComplexity"`
 }
 
 type HookIR struct {

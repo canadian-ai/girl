@@ -142,7 +142,8 @@
           "hasKeyDown": false,
           "hasAnalytics": false,
           "conditionalCount": 0,
-          "loopCount": 1
+          "loopCount": 1,
+          "cyclomaticComplexity": 2
         }
       ],
       "hooks": null,
