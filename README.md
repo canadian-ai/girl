@@ -79,6 +79,12 @@ girl --help
 # Analyze Go code explicitly, or use --lang auto to detect Go/TS
 ./girl analyze . --lang go --output text
 
+# Measure every TS/JS function and React component, then save a baseline
+./girl complexity . --lang ts --write-baseline .girl/complexity-baseline.json
+
+# Fail only when existing functions get more complex or new functions exceed 10
+./girl complexity . --lang ts --baseline .girl/complexity-baseline.json --fail-on regression
+
 # Create shareable benchmark and proof reports
 ./girl benchmark . --lang go --output markdown
 ./girl prove . --output text
@@ -102,6 +108,7 @@ girl --help
 | Command | Description |
 |---------|-------------|
 | `girl analyze <path>` | Scan code for refactoring opportunities |
+| `girl complexity <path>` | Measure and track TS/JS/React cyclomatic complexity |
 | `girl benchmark <path>` | Summarize GIRL findings across a repo |
 | `girl prove <path>` | Generate a shareable repository health proof report |
 | `girl nodes <path>` | List semantic nodes from TS/TSX files |
@@ -122,6 +129,18 @@ missing prop types, Go long functions, high complexity, deep nesting, large
 files, ignored errors, and large parameter lists.
 
 Output: JSON, text, or markdown. Use `--lang auto|ts|go` to choose the analyzer.
+
+### `girl complexity`
+
+Measures cyclomatic complexity for ordinary functions, arrow functions,
+callbacks, class methods, and React function components in `.ts`, `.tsx`,
+`.js`, and `.jsx` files. Nested functions are measured independently.
+
+Use `--write-baseline` to capture the current report and `--baseline` with
+`--fail-on regression` to ratchet complexity in CI without failing on existing
+debt. `--fail-on threshold` enforces the absolute `--max` value instead.
+
+See [the cyclomatic-complexity research and counting specification](docs/research/cyclomatic-complexity.md).
 
 
 ### `girl benchmark`
