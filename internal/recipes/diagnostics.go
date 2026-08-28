@@ -43,33 +43,6 @@ func StepForDiagnostic(diag ir.Diagnostic) ir.GrpStep {
 
 var builtInRecipes = []DiagnosticRecipe{
 	{
-		Code:   "react.high-complexity",
-		Recipe: "react.simplify-branches",
-		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
-		Verify: func(d ir.Diagnostic) []string { return []string{"typecheck", "lint", "tests"} },
-		Action: func(d ir.Diagnostic) string {
-			return fmt.Sprintf("Simplify independent rendering and control-flow paths in %s", targetName(d))
-		},
-	},
-	{
-		Code:   "ts.high-complexity",
-		Recipe: "ts.simplify-branches",
-		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
-		Verify: func(d ir.Diagnostic) []string { return []string{"typecheck", "lint", "tests"} },
-		Action: func(d ir.Diagnostic) string {
-			return fmt.Sprintf("Simplify independent control-flow paths in %s", targetName(d))
-		},
-	},
-	{
-		Code:   "js.high-complexity",
-		Recipe: "js.simplify-branches",
-		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
-		Verify: func(d ir.Diagnostic) []string { return []string{"lint", "tests"} },
-		Action: func(d ir.Diagnostic) string {
-			return fmt.Sprintf("Simplify independent control-flow paths in %s", targetName(d))
-		},
-	},
-	{
 		Code:   "react.large-component",
 		Recipe: "react.split-large-component",
 		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },

@@ -128,8 +128,7 @@ variables, mixed responsibilities, complex conditionals, hardcoded data,
 missing prop types, Go long functions, high complexity, deep nesting, large
 files, ignored errors, and large parameter lists.
 
-Output: JSON, text, or markdown. Use `--lang auto|ts|go` to choose the analyzer
-and `--max-complexity` to configure the function/component threshold.
+Output: JSON, text, or markdown. Use `--lang auto|ts|go` to choose the analyzer.
 
 ### `girl complexity`
 

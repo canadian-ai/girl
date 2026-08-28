@@ -14,7 +14,6 @@ import (
 	"github.com/smacker/go-tree-sitter/typescript/tsx"
 	"github.com/smacker/go-tree-sitter/typescript/typescript"
 
-	"github.com/canadian-ai/girl/internal/complexity"
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/lang"
 )
@@ -531,25 +530,24 @@ func (p *Parser) extractComponents(qs *querySet, root *sitter.Node, data []byte,
 		}
 
 		comp := ir.ComponentIR{
-			Name:                 m.name,
-			FilePath:             path,
-			Kind:                 kind,
-			StartLine:            int(m.body.StartPoint().Row) + 1,
-			EndLine:              int(m.body.EndPoint().Row) + 1,
-			Lines:                int(m.body.EndPoint().Row-m.body.StartPoint().Row) + 1,
-			Hooks:                nil,
-			JSXBlocks:            nil,
-			Props:                nil,
-			StateVars:            nil,
-			Effects:              nil,
-			EventHandlers:        nil,
-			Imports:              nil,
-			Exports:              nil,
-			HasKeyDown:           false,
-			HasAnalytics:         false,
-			ConditionalCount:     0,
-			LoopCount:            0,
-			CyclomaticComplexity: 1,
+			Name:             m.name,
+			FilePath:         path,
+			Kind:             kind,
+			StartLine:        int(m.body.StartPoint().Row) + 1,
+			EndLine:          int(m.body.EndPoint().Row) + 1,
+			Lines:            int(m.body.EndPoint().Row-m.body.StartPoint().Row) + 1,
+			Hooks:            nil,
+			JSXBlocks:        nil,
+			Props:            nil,
+			StateVars:        nil,
+			Effects:          nil,
+			EventHandlers:    nil,
+			Imports:          nil,
+			Exports:          nil,
+			HasKeyDown:       false,
+			HasAnalytics:     false,
+			ConditionalCount: 0,
+			LoopCount:        0,
 		}
 
 		if isExport {
@@ -574,7 +572,6 @@ func (p *Parser) extractComponents(qs *querySet, root *sitter.Node, data []byte,
 		comp.HasAnalytics = hasAnalyticsPattern(bodyData)
 		comp.ConditionalCount = countConditionalsInNode(m.body, data)
 		comp.LoopCount = countLoopsInNode(m.body, data)
-		comp.CyclomaticComplexity = complexity.CyclomaticForNodes(m.params, m.body, data)
 
 		components = append(components, comp)
 	}

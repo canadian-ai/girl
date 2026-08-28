@@ -408,29 +408,6 @@ func TestLoopCount(t *testing.T) {
 	}
 }
 
-func TestCyclomaticComplexityExcludesNestedCallbacks(t *testing.T) {
-	dir := t.TempDir()
-	content := `function ComplexityComp({ items }) {
-  if (!items) return null;
-  const visible = items.filter(item => item.enabled && item.visible);
-  return <div>{visible.length ? <span/> : null}</div>;
-}`
-	path := writeFile(t, dir, "complexity.tsx", content)
-
-	fir, err := New().ParseFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(fir.Components) != 1 {
-		t.Fatalf("expected 1 component, got %d", len(fir.Components))
-	}
-	// Base + if + render ternary. The callback's && is measured separately by
-	// `girl complexity`, not charged to the component.
-	if fir.Components[0].CyclomaticComplexity != 3 {
-		t.Errorf("CyclomaticComplexity = %d, want 3", fir.Components[0].CyclomaticComplexity)
-	}
-}
-
 func TestFunctionExpressionComponent(t *testing.T) {
 	dir := t.TempDir()
 	path := writeFile(t, dir, "fnExpr.tsx", `const MyComp = function() { return <div/>; }`)

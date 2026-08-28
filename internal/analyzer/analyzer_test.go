@@ -246,28 +246,3 @@ func TestDetectMissingPropTypes_SetsStructuredFields(t *testing.T) {
 		t.Errorf("Component = %q, want %q", d.Component, "NoProps")
 	}
 }
-
-func TestDetectHighCyclomaticComplexityForReact(t *testing.T) {
-	a := NewAnalyzer(&Config{MaxCyclomaticComplexity: 3})
-	f := makeFileIR(makeComponent("DecisionPanel", func(c *ir.ComponentIR) {
-		c.CyclomaticComplexity = 6
-		c.StartLine = 12
-		c.EndLine = 30
-	}))
-	f.Language = "typescriptreact"
-
-	diags := a.detectHighComplexity(f)
-	if len(diags) != 1 {
-		t.Fatalf("got %d diagnostics, want 1", len(diags))
-	}
-	d := diags[0]
-	if d.Code != "react.high-complexity" {
-		t.Errorf("Code = %q, want react.high-complexity", d.Code)
-	}
-	if d.Metadata["complexity"] != "6" || d.Metadata["threshold"] != "3" {
-		t.Errorf("unexpected metadata: %#v", d.Metadata)
-	}
-	if d.Span == nil || d.Span.StartLine != 12 || d.Span.EndLine != 30 {
-		t.Errorf("unexpected span: %#v", d.Span)
-	}
-}

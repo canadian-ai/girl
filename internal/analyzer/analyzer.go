@@ -10,34 +10,31 @@ import (
 	"unicode"
 
 	"github.com/canadian-ai/girl/internal/ir"
-	"github.com/canadian-ai/girl/internal/lang"
 	"github.com/canadian-ai/girl/internal/parsertsx"
 	"github.com/canadian-ai/girl/internal/visitor"
 )
 
 type Config struct {
-	MaxComponentLines       int
-	MinRepeatedJSX          int
-	MaxHooksPerComponent    int
-	MaxStateVars            int
-	MaxEffects              int
-	MaxConditionals         int
-	MaxLoops                int
-	MaxCyclomaticComplexity int
-	ExcludeDirs             []string
+	MaxComponentLines    int
+	MinRepeatedJSX       int
+	MaxHooksPerComponent int
+	MaxStateVars         int
+	MaxEffects           int
+	MaxConditionals      int
+	MaxLoops             int
+	ExcludeDirs          []string
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		MaxComponentLines:       200,
-		MinRepeatedJSX:          3,
-		MaxHooksPerComponent:    5,
-		MaxStateVars:            4,
-		MaxEffects:              2,
-		MaxConditionals:         5,
-		MaxLoops:                3,
-		MaxCyclomaticComplexity: 10,
-		ExcludeDirs:             []string{},
+		MaxComponentLines:    200,
+		MinRepeatedJSX:       3,
+		MaxHooksPerComponent: 5,
+		MaxStateVars:         4,
+		MaxEffects:           2,
+		MaxConditionals:      5,
+		MaxLoops:             3,
+		ExcludeDirs:          []string{},
 	}
 }
 
@@ -49,8 +46,6 @@ type Analyzer struct {
 func NewAnalyzer(config *Config) *Analyzer {
 	if config == nil {
 		config = DefaultConfig()
-	} else if config.MaxCyclomaticComplexity <= 0 {
-		config.MaxCyclomaticComplexity = DefaultConfig().MaxCyclomaticComplexity
 	}
 	return &Analyzer{
 		config: config,
@@ -106,7 +101,6 @@ func (a *Analyzer) detectSmells(files []*ir.FileIR) []ir.Diagnostic {
 		diags = append(diags, a.detectTooManyStateVars(f)...)
 		diags = append(diags, a.detectTooManyEffects(f)...)
 		diags = append(diags, a.detectComplexConditionals(f)...)
-		diags = append(diags, a.detectHighComplexity(f)...)
 		diags = append(diags, a.detectMixedResponsibilities(f)...)
 		diags = append(diags, a.detectHardcodedData(f)...)
 		diags = append(diags, a.detectMissingPropTypes(f)...)
@@ -255,47 +249,6 @@ func (a *Analyzer) detectComplexConditionals(f *ir.FileIR) []ir.Diagnostic {
 				Symbol:     c.Name,
 			})
 		}
-	}
-	return diags
-}
-
-func (a *Analyzer) detectHighComplexity(f *ir.FileIR) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	for _, c := range f.Components {
-		if c.CyclomaticComplexity <= a.config.MaxCyclomaticComplexity {
-			continue
-		}
-		severity := ir.SeverityLow
-		if c.CyclomaticComplexity > a.config.MaxCyclomaticComplexity*2 {
-			severity = ir.SeverityHigh
-		} else if c.CyclomaticComplexity > a.config.MaxCyclomaticComplexity*3/2 {
-			severity = ir.SeverityMedium
-		}
-		code := "ts.high-complexity"
-		if f.Language == lang.TypeScriptReact || f.Language == lang.JavaScriptReact {
-			code = "react.high-complexity"
-		} else if f.Language == lang.JavaScript {
-			code = "js.high-complexity"
-		}
-		diags = append(diags, ir.Diagnostic{
-			Code:       code,
-			Severity:   severity,
-			Confidence: "high",
-			Message: fmt.Sprintf("Function %q has cyclomatic complexity %d (limit: %d)",
-				c.Name, c.CyclomaticComplexity, a.config.MaxCyclomaticComplexity),
-			File:       relPath(f.Path),
-			Line:       c.StartLine,
-			Component:  c.Name,
-			Suggestion: "Reduce independent control-flow paths with guard clauses, extracted functions, or explicit state transitions.",
-			Kind:       ir.NodeKindComponent,
-			Symbol:     c.Name,
-			EndLine:    c.EndLine,
-			Span:       &ir.Span{StartLine: c.StartLine, EndLine: c.EndLine},
-			Metadata: map[string]string{
-				"complexity": fmt.Sprintf("%d", c.CyclomaticComplexity),
-				"threshold":  fmt.Sprintf("%d", a.config.MaxCyclomaticComplexity),
-			},
-		})
 	}
 	return diags
 }

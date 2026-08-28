@@ -1,18 +1,5 @@
 # GRP-TypeScript Diagnostics v0.1
 
-## ts.high-complexity
-
-| Field | Value |
-|-------|-------|
-| **Code** | `ts.high-complexity` |
-| **Title** | Function has high cyclomatic complexity |
-| **Description** | A TypeScript function exceeds the configurable independent-path threshold (default: 10). Use `girl complexity` for all functions and baseline tracking. |
-| **Severity** | `low` above 10, `medium` above 15, `high` above 20 |
-| **Confidence** | `high` |
-| **Metadata** | `complexity`, `threshold` |
-| **Recipes** | `ts.simplify-branches` |
-| **False positive risks** | Parsers, state machines, and explicit dispatch functions may legitimately have high path counts. |
-
 ## ts.large-function
 
 | Field | Value |

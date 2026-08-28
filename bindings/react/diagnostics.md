@@ -1,18 +1,5 @@
 # GRP-React Diagnostics v0.1
 
-## react.high-complexity
-
-| Field | Value |
-|-------|-------|
-| **Code** | `react.high-complexity` |
-| **Title** | Component has high cyclomatic complexity |
-| **Description** | A React function component exceeds the configurable independent-path threshold (default: 10). Nested callbacks are measured separately. |
-| **Severity** | `low` above 10, `medium` above 15, `high` above 20 |
-| **Confidence** | `high` |
-| **Metadata** | `complexity`, `threshold` |
-| **Recipes** | `react.simplify-branches` |
-| **False positive risks** | Reducer-like components, state machines, and explicit variant dispatch may be readable despite a high path count. |
-
 ## react.large-component
 
 | Field | Value |
