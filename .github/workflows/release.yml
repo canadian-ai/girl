@@ -95,6 +95,13 @@ jobs:
           check-latest: true
 
       - name: Build binary
+        env:
+          # Static build: the release asset must run on hosts with older glibc
+          # than the ubuntu-latest runner (e.g. RHEL7-era distros, WSL with a
+          # pinned libc). CGO_ENABLED=0 links against no libc.
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
         run: |
           COMMIT=$(git rev-parse --short HEAD)
           BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
