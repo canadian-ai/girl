@@ -256,17 +256,22 @@ func parseChecksums(content string) map[string]string {
 }
 
 func installViaGo(tag, binary string) error {
+	moduleVersion := tag
+	if !strings.HasPrefix(moduleVersion, "v") {
+		moduleVersion = "v" + moduleVersion
+	}
+
 	tmpDir, err := os.MkdirTemp("", "girl-gobin-*")
 	if err != nil {
 		return fmt.Errorf("update: create gobin temp dir: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	cmd := exec.Command("go", "install", updateModule+"@"+tag)
+	cmd := exec.Command("go", "install", updateModule+"@"+moduleVersion)
 	cmd.Env = append(os.Environ(), "GOBIN="+tmpDir, "GOFLAGS=-trimpath")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("update: go install %s@%s failed: %v: %s", updateModule, tag, err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("update: go install %s@%s failed: %v: %s", updateModule, moduleVersion, err, strings.TrimSpace(string(out)))
 	}
 
 	data, err := os.ReadFile(filepath.Join(tmpDir, "girl"))

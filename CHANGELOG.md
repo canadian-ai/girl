@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `girl update`: reads the latest `vX.Y.Z` from the GitHub Releases API and installs it (release-asset download on matching platforms, otherwise `go install`), with `--check --json` for tooling
+- `girl update`: reads the latest `vX.Y.Z` from the GitHub Releases API and installs it. Verifies the SHA256SUMS checksum (when published) and that the binary runs, then atomically replaces itself; automatically falls back to building from source via `go install` when the release asset is incompatible with the host (e.g. an older glibc), so updates work regardless of the local libc. `--check --json` exposes status for tooling
 - GRP Core reduction/collection slice (#90): semantic node identity with opaque provider-supplied capability IDs (no prefix enforced; e.g. `cap.booking`, `booking.create`), canonical targets, source-grounded reference evidence, standard compression blocks with inputs/outputs, and gated collect steps (`grp.reduction.collect`)
 - Validator rejects unsafe collect ordering: a collect step must require at least one `grp.reduction.migrate` step and carry a verification gate; migration steps must also carry verification
 - `schemas/grp-reduction.v0.1.schema.json` and `reduction` property on the plan schema; deterministic `reduction-duplicate`, `reduction-contract`, and `invalid-unsafe-collect` conformance fixtures
