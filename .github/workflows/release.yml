@@ -94,24 +94,30 @@ jobs:
           go-version: "1.25"
           check-latest: true
 
+      # Built on the ubuntu-latest runner (newer glibc). The asset is a fast
+      # path only: `girl update` verifies its checksum AND that it runs, and
+      # automatically falls back to building from source via `go install` when
+      # the asset is incompatible with the host's glibc — so updates work
+      # regardless of the local libc.
       - name: Build binary
-        env:
-          # Static build: the release asset must run on hosts with older glibc
-          # than the ubuntu-latest runner (e.g. RHEL7-era distros, WSL with a
-          # pinned libc). CGO_ENABLED=0 links against no libc.
-          CGO_ENABLED: "0"
-          GOOS: linux
-          GOARCH: amd64
         run: |
           COMMIT=$(git rev-parse --short HEAD)
           BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          go build -ldflags="-X 'github.com/canadian-ai/girl/internal/commands.Commit=$COMMIT' -X 'github.com/canadian-ai/girl/internal/commands.BuiltAt=$BUILT_AT'" -o girl ./cmd/girl/
+          go build -ldflags="-X 'github.com/canadian-ai/girl/internal/commands.Commit=$COMMIT' -X 'github.com/canadian-ai/girl/internal/commands.BuiltAt=$BUILT_AT'" -o girl-linux-amd64 ./cmd/girl/
+
+      - name: Generate checksums
+        run: |
+          sha256sum girl-linux-amd64 > SHA256SUMS
+          cp girl-linux-amd64 girl
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.bump.outputs.new_tag }}
           name: ${{ steps.bump.outputs.new_tag }}
-          files: girl
+          files: |
+            girl-linux-amd64
+            girl
+            SHA256SUMS
           generate_release_notes: true
           fail_on_unmatched_files: false

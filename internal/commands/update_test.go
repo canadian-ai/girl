@@ -1,10 +1,14 @@
 package commands
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 )
@@ -106,6 +110,50 @@ func TestCurrentBinary(t *testing.T) {
 	}
 	if path == "" {
 		t.Fatal("currentBinary returned empty path")
+	}
+}
+
+func TestParseChecksums(t *testing.T) {
+	sums := parseChecksums("abc123  girl-linux-amd64\n\ndef456 *girl\n  \n")
+	if sums["girl-linux-amd64"] != "abc123" {
+		t.Fatalf("expected girl-linux-amd64 checksum, got %q", sums["girl-linux-amd64"])
+	}
+	if sums["girl"] != "def456" {
+		t.Fatalf("expected starred filename matched, got %q", sums["girl"])
+	}
+	if len(sums) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(sums))
+	}
+}
+
+func TestDownloadAssetChecksum(t *testing.T) {
+	data := []byte("fake girl binary bytes")
+	sum := sha256.Sum256(data)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(data)
+	}))
+	defer server.Close()
+
+	// Fixture bytes are not a real executable; stub the run-verifier so the
+	// checksum logic is what's under test.
+	prevVerify := verifyBinary
+	verifyBinary = func(string) error { return nil }
+	defer func() { verifyBinary = prevVerify }()
+
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "girl")
+
+	if err := downloadAsset(&http.Client{}, server.URL, hex.EncodeToString(sum[:]), binary); err != nil {
+		t.Fatalf("valid checksum should install: %v", err)
+	}
+	got, err := os.ReadFile(binary)
+	if err != nil || string(got) != string(data) {
+		t.Fatalf("installed bytes mismatch: %v", err)
+	}
+
+	if err := downloadAsset(&http.Client{}, server.URL, "0000000000000000000000000000000000000000000000000000000000000000", filepath.Join(dir, "bad")); err == nil {
+		t.Fatal("mismatched checksum must fail")
 	}
 }
 

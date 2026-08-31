@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -176,7 +178,7 @@ func installData(binary string, data []byte) error {
 	return nil
 }
 
-func verifyBinary(path string) error {
+func verifyBinaryImpl(path string) error {
 	out, err := exec.Command(path, "version").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("update: downloaded binary failed to run: %w", err)
@@ -187,7 +189,11 @@ func verifyBinary(path string) error {
 	return nil
 }
 
-func downloadAsset(client *http.Client, url, binary string) error {
+// verifyBinary is swappable in tests so checksum paths can be exercised
+// without exec'ing fixture bytes.
+var verifyBinary = verifyBinaryImpl
+
+func downloadAsset(client *http.Client, url, expectedSHA256, binary string) error {
 	resp, err := client.Get(url)
 	if err != nil {
 		return fmt.Errorf("update: download release asset: %w", err)
@@ -202,7 +208,51 @@ func downloadAsset(client *http.Client, url, binary string) error {
 	if err != nil {
 		return fmt.Errorf("update: read release asset: %w", err)
 	}
+
+	if expectedSHA256 != "" {
+		sum := sha256.Sum256(data)
+		got := hex.EncodeToString(sum[:])
+		if !strings.EqualFold(got, expectedSHA256) {
+			return fmt.Errorf("update: checksum mismatch (have %s, want %s)", got, expectedSHA256)
+		}
+	}
+
 	return installData(binary, data)
+}
+
+// fetchChecksums reads the SHA256SUMS asset from the release (best effort).
+// Missing or unparseable checksums are not fatal: the binary is still
+// verified by running it before install.
+func fetchChecksums(client *http.Client, release *releaseInfo) map[string]string {
+	for i := range release.Assets {
+		if release.Assets[i].Name != "SHA256SUMS" || release.Assets[i].BrowserDownloadURL == "" {
+			continue
+		}
+		resp, err := client.Get(release.Assets[i].BrowserDownloadURL)
+		if err != nil {
+			return nil
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil || resp.StatusCode != http.StatusOK {
+			return nil
+		}
+		return parseChecksums(string(body))
+	}
+	return nil
+}
+
+func parseChecksums(content string) map[string]string {
+	sums := map[string]string{}
+	for _, line := range strings.Split(content, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		name := strings.TrimPrefix(fields[1], "*")
+		sums[name] = strings.ToLower(fields[0])
+	}
+	return sums
 }
 
 func installViaGo(tag, binary string) error {
@@ -302,22 +352,32 @@ func UpdateCommand() *cli.Command {
 				return cli.Exit(err.Error(), 1)
 			}
 
+			// Fast path: download the platform release asset, verify its
+			// checksum (when published) and that it actually runs. If anything
+			// fails — e.g. the runner-built binary needs a newer glibc than the
+			// host provides — fall back to building from source with the local
+			// toolchain, which always matches the host.
 			if asset := pickReleaseAsset(release.Assets, runtime.GOOS, runtime.GOARCH); asset != nil {
-				status.InstallMethod = "release-asset"
-				if err := downloadAsset(client, asset.BrowserDownloadURL, binary); err != nil {
-					status.Error = err.Error()
+				checksums := fetchChecksums(client, release)
+				expected := checksums[asset.Name]
+				if installErr := downloadAsset(client, asset.BrowserDownloadURL, expected, binary); installErr == nil {
+					status.InstallMethod = "release-asset"
+					status.Installed = tag
 					_ = emit()
-					return cli.Exit(err.Error(), 1)
-				}
-			} else {
-				status.InstallMethod = "go-install"
-				if err := installViaGo(tag, binary); err != nil {
-					status.Error = err.Error()
-					_ = emit()
-					return cli.Exit(err.Error(), 1)
+					return nil
+				} else {
+					note := fmt.Sprintf("update: asset path failed (%v); falling back to source build", installErr)
+					fmt.Fprintln(os.Stderr, note)
 				}
 			}
 
+			if err := installViaGo(tag, binary); err != nil {
+				status.Error = err.Error()
+				_ = emit()
+				return cli.Exit(err.Error(), 1)
+			}
+
+			status.InstallMethod = "go-install"
 			status.Installed = tag
 			_ = emit()
 			return nil
