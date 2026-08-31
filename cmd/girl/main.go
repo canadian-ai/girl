@@ -34,6 +34,7 @@ func main() {
 			commands.WorkOrderCommand(),
 			commands.LaunchKitCommand(),
 			commands.VersionCommand(),
+			commands.UpdateCommand(),
 		},
 	}
 
