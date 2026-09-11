@@ -114,7 +114,7 @@ func CheckCommand() *cli.Command {
 			for _, d := range result.Diagnostics {
 				if d.Severity == ir.SeverityHigh && result.Status == "pass" {
 					result.Status = "warn"
-			}
+				}
 			}
 
 			complexityResult, err := runCheckComplexity(path, cfg)
@@ -143,7 +143,7 @@ func CheckCommand() *cli.Command {
 				}
 			}
 
-			preflight := runPreflight(path, ProfileAuto)
+			preflight := runProjectPreflight(path, cfg)
 			result.Preflight = preflight.Checks
 			if preflight.Status == "fail" {
 				result.Status = "fail"
@@ -234,9 +234,9 @@ func runCheckComplexity(path string, cfg *GirlProjectConfig) (*CheckComplexityRe
 		return nil, nil
 	}
 	report, err := complexity.Analyze(path, complexity.Options{
-		Language: "auto",
+		Language:  "auto",
 		Threshold: cfg.Complexity.Max,
-		Exclude: cfg.Analysis.Exclude,
+		Exclude:   cfg.Analysis.Exclude,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("complexity analysis failed: %w", err)
