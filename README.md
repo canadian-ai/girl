@@ -13,7 +13,7 @@ GIRL analyzes source code, creates structured GRP refactoring plans, scopes chan
 
 ```bash
 # Install
-go install github.com/canadian-ai/girl@latest
+go install github.com/canadian-ai/girl/cmd/girl@latest
 
 # Initialize the current project
 girl init
