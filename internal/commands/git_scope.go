@@ -30,6 +30,20 @@ func gitChangedFiles(path, base string) ([]string, error) {
 	return uniqueSorted(files), nil
 }
 
+func gitDiffBytes(path, base string) ([]byte, error) {
+	args := []string{"-C", path, "diff", "--no-ext-diff"}
+	if base != "" {
+		args = append(args, base+"...HEAD")
+	} else {
+		args = append(args, "HEAD")
+	}
+	out, err := exec.Command("git", args...).Output()
+	if err != nil {
+		return nil, fmt.Errorf("git diff: %w", err)
+	}
+	return out, nil
+}
+
 func splitLines(s string) []string {
 	var out []string
 	for _, line := range strings.Split(s, "\n") {

@@ -24,7 +24,7 @@ girl check
 
 `girl init` detects the stack, workspaces, verification scripts, and installed agent frameworks, then writes `.girl/config.yaml`.
 
-`girl check` is the normal daily command. It combines changed-file scoping, code analysis, CAI/project preflight checks, and the verification commands defined for the repo.
+`girl check` is the normal daily command. It combines changed-file scoping, multi-language analysis, complexity regression checks, diff reviewability, CAI/project preflight, and repository-native verification.
 
 Useful variants:
 
@@ -33,7 +33,7 @@ girl check --changed            # changed files only
 girl check --base master        # compare against a Git base
 girl check --all                # whole project
 girl check --ci                 # CI-friendly defaults
-girl check --no-verify          # analysis/preflight only
+girl check --no-verify          # analysis/quality gates only
 girl check --output json        # machine-readable result
 ```
 
@@ -59,6 +59,10 @@ complexity:
   max: 10
   baseline: .girl/complexity-baseline.json
   fail_on: regression
+reviewability:
+  max_diff_lines: 1500
+  max_touched_files: 12
+  max_risk: medium
 verify:
   typecheck:
     - bun run type-check
@@ -159,6 +163,8 @@ girl complexity . --lang ts \
   --fail-on regression
 ```
 
+Once the baseline exists, `girl check` enforces the configured complexity policy automatically.
+
 ## Reviewability
 
 ```bash
@@ -168,7 +174,7 @@ girl decompose --diff-file change.diff --output-file .grp/decomposition.json
 girl pack . --task task_001 --task-file .grp/decomposition.json
 ```
 
-This lets GIRL keep large agent-generated changes within a human-reviewable budget.
+`girl check` also evaluates the current Git diff against the configured reviewability budget, keeping large agent-generated changes human-reviewable.
 
 ## Privacy
 

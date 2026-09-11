@@ -52,16 +52,20 @@ func TestDefaultGirlProjectConfigDetectsCAIStack(t *testing.T) {
 	if got := cfg.Verify["typecheck"]; len(got) != 1 || got[0] != "bun run type-check" {
 		t.Fatalf("typecheck commands = %v", got)
 	}
+	if cfg.Reviewability.MaxDiffLines != 1500 || cfg.Reviewability.MaxTouchedFiles != 12 {
+		t.Fatalf("reviewability defaults = %#v", cfg.Reviewability)
+	}
 }
 
 func TestGirlProjectConfigRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	cfg := &GirlProjectConfig{
-		Version:    "1",
-		Profiles:   []string{"cai", "next"},
-		Workspaces: []string{"."},
-		Analysis:   GirlAnalysisConfig{ChangedOnly: true, Exclude: []string{"node_modules", ".next"}},
-		Complexity: GirlComplexityConfig{Max: 10, Baseline: ".girl/complexity-baseline.json", FailOn: "regression"},
+		Version:       "1",
+		Profiles:      []string{"cai", "next"},
+		Workspaces:    []string{"."},
+		Analysis:      GirlAnalysisConfig{ChangedOnly: true, Exclude: []string{"node_modules", ".next"}},
+		Complexity:    GirlComplexityConfig{Max: 10, Baseline: ".girl/complexity-baseline.json", FailOn: "regression"},
+		Reviewability: GirlReviewabilityConfig{MaxDiffLines: 1200, MaxTouchedFiles: 10, MaxRisk: "medium"},
 		Verify: map[string][]string{
 			"typecheck": {"bun run type-check"},
 			"build":     {"bun run build:ci"},
@@ -83,8 +87,38 @@ func TestGirlProjectConfigRoundTrip(t *testing.T) {
 	if !loaded.Analysis.ChangedOnly || loaded.Complexity.Max != 10 {
 		t.Fatalf("loaded config = %#v", loaded)
 	}
+	if loaded.Reviewability.MaxDiffLines != 1200 || loaded.Reviewability.MaxTouchedFiles != 10 {
+		t.Fatalf("loaded reviewability = %#v", loaded.Reviewability)
+	}
 	if got := loaded.Verify["build"]; len(got) != 1 || got[0] != "bun run build:ci" {
 		t.Fatalf("build commands = %v", got)
+	}
+}
+
+func TestAnalyzeCheckScopeCleanChangedOnlyDoesNotScanWholeRepo(t *testing.T) {
+	result, err := analyzeCheckScope(t.TempDir(), nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Files) != 0 || len(result.Diagnostics) != 0 {
+		t.Fatalf("expected empty changed-only result, got %#v", result)
+	}
+}
+
+func TestCheckComplexitySkipsRegressionWithoutBaseline(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteTestFile(t, filepath.Join(dir, "package.json"), `{}`)
+	mustWriteTestFile(t, filepath.Join(dir, "app.ts"), "export function value(flag: boolean) { if (flag) return 1; return 0 }\n")
+	cfg := &GirlProjectConfig{
+		Analysis:   GirlAnalysisConfig{Exclude: []string{"node_modules"}},
+		Complexity: GirlComplexityConfig{Max: 10, Baseline: ".girl/missing.json", FailOn: "regression"},
+	}
+	result, err := runCheckComplexity(dir, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result == nil || result.Status != "skip" || result.BaselineFound {
+		t.Fatalf("complexity result = %#v", result)
 	}
 }
 
