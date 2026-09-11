@@ -73,6 +73,13 @@ func detectPackageManager(path string) string {
 	return "unknown"
 }
 
+type packageScriptSpec struct {
+	Role     string
+	Names    []string
+	Required bool
+	All      bool
+}
+
 func detectPackageScripts(path string, pm string) []Command {
 	pkgPath := filepath.Join(path, "package.json")
 	data, err := os.ReadFile(pkgPath)
@@ -88,22 +95,35 @@ func detectPackageScripts(path string, pm string) []Command {
 	}
 
 	runner := packageRunner(pm)
-	wantedScripts := []string{"typecheck", "lint", "test", "build", "format"}
-	cmds := []Command{}
-	for _, name := range wantedScripts {
-		if _, exists := pkg.Scripts[name]; !exists {
-			continue
+	specs := []packageScriptSpec{
+		{Role: "typecheck", Names: []string{"typecheck", "type-check", "check:types", "types"}, Required: true},
+		{Role: "lint", Names: []string{"lint"}},
+		{Role: "test", Names: []string{"test"}},
+		{Role: "build", Names: []string{"build:ci", "build"}, Required: true},
+		{Role: "format", Names: []string{"format:check", "format"}},
+		{Role: "architecture", Names: []string{"lint:copy-wrap", "provenance:check", "css:budget"}, All: true},
+	}
+
+	var cmds []Command
+	for _, spec := range specs {
+		for _, script := range spec.Names {
+			if _, exists := pkg.Scripts[script]; !exists {
+				continue
+			}
+			cmds = append(cmds, Command{
+				Name:       script,
+				Script:     script,
+				Command:    fmt.Sprintf("%s %s", runner, script),
+				Required:   spec.Required,
+				Source:     "package.json",
+				Confidence: "high",
+				Type:       spec.Role,
+				Exists:     true,
+			})
+			if !spec.All {
+				break
+			}
 		}
-		cmds = append(cmds, Command{
-			Name:       name,
-			Script:     name,
-			Command:    fmt.Sprintf("%s %s", runner, name),
-			Required:   name == "build" || name == "typecheck",
-			Source:     "package.json",
-			Confidence: "high",
-			Type:       "script",
-			Exists:     true,
-		})
 	}
 	return cmds
 }
