@@ -16,13 +16,14 @@ import (
 const girlProjectConfigVersion = "1"
 
 type GirlProjectConfig struct {
-	Version    string
-	Profiles   []string
-	Workspaces []string
-	Analysis   GirlAnalysisConfig
-	Complexity GirlComplexityConfig
-	Verify     map[string][]string
-	Agents     map[string]bool
+	Version       string
+	Profiles      []string
+	Workspaces    []string
+	Analysis      GirlAnalysisConfig
+	Complexity    GirlComplexityConfig
+	Reviewability GirlReviewabilityConfig
+	Verify        map[string][]string
+	Agents        map[string]bool
 }
 
 type GirlAnalysisConfig struct {
@@ -34,6 +35,12 @@ type GirlComplexityConfig struct {
 	Max      int
 	Baseline string
 	FailOn   string
+}
+
+type GirlReviewabilityConfig struct {
+	MaxDiffLines    int
+	MaxTouchedFiles int
+	MaxRisk         string
 }
 
 type projectPackageJSON struct {
@@ -61,6 +68,11 @@ func defaultGirlProjectConfig(path string) (*GirlProjectConfig, error) {
 			Max:      10,
 			Baseline: ".girl/complexity-baseline.json",
 			FailOn:   "regression",
+		},
+		Reviewability: GirlReviewabilityConfig{
+			MaxDiffLines:    1500,
+			MaxTouchedFiles: 12,
+			MaxRisk:         "medium",
 		},
 		Verify: map[string][]string{},
 		Agents: map[string]bool{},
@@ -159,6 +171,10 @@ func renderGirlProjectConfig(cfg *GirlProjectConfig) string {
 	fmt.Fprintf(&b, "  max: %d\n", cfg.Complexity.Max)
 	fmt.Fprintf(&b, "  baseline: %s\n", cfg.Complexity.Baseline)
 	fmt.Fprintf(&b, "  fail_on: %s\n", cfg.Complexity.FailOn)
+	b.WriteString("reviewability:\n")
+	fmt.Fprintf(&b, "  max_diff_lines: %d\n", cfg.Reviewability.MaxDiffLines)
+	fmt.Fprintf(&b, "  max_touched_files: %d\n", cfg.Reviewability.MaxTouchedFiles)
+	fmt.Fprintf(&b, "  max_risk: %s\n", cfg.Reviewability.MaxRisk)
 	b.WriteString("verify:\n")
 	keys := sortedStringKeys(cfg.Verify)
 	for _, role := range keys {
@@ -253,6 +269,15 @@ func loadGirlProjectConfig(path string) (*GirlProjectConfig, error) {
 			case "fail_on":
 				cfg.Complexity.FailOn = v
 			}
+		case "reviewability":
+			switch k {
+			case "max_diff_lines":
+				cfg.Reviewability.MaxDiffLines, _ = strconv.Atoi(v)
+			case "max_touched_files":
+				cfg.Reviewability.MaxTouchedFiles, _ = strconv.Atoi(v)
+			case "max_risk":
+				cfg.Reviewability.MaxRisk = v
+			}
 		case "agents":
 			cfg.Agents[k], _ = strconv.ParseBool(v)
 		}
@@ -271,6 +296,15 @@ func loadGirlProjectConfig(path string) (*GirlProjectConfig, error) {
 	}
 	if cfg.Complexity.Baseline == "" {
 		cfg.Complexity.Baseline = ".girl/complexity-baseline.json"
+	}
+	if cfg.Reviewability.MaxDiffLines == 0 {
+		cfg.Reviewability.MaxDiffLines = 1500
+	}
+	if cfg.Reviewability.MaxTouchedFiles == 0 {
+		cfg.Reviewability.MaxTouchedFiles = 12
+	}
+	if cfg.Reviewability.MaxRisk == "" {
+		cfg.Reviewability.MaxRisk = "medium"
 	}
 	return cfg, nil
 }
