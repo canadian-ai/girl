@@ -12,9 +12,12 @@ func main() {
 	app := &cli.App{
 		Name:        "girl",
 		Usage:       "Grammar-Informed Refactoring Language",
-		Description: "GIRL analyzes code, detects refactoring opportunities, and generates structured GRP plans for AI coding agents. Ships with agents/skills for OpenCode, Claude Code, Codex, Pi, OpenRewrite, RTK, GritQL, and Rust-LSP.",
+		Description: "GIRL is a project quality contract for source-grounded analysis, refactoring, verification, and AI coding agents.",
 		Version:     "0.1.22",
 		Commands: []*cli.Command{
+			commands.InitCommand(),
+			commands.CheckCommand(),
+			commands.AgentCommand(),
 			commands.AnalyzeCommand(),
 			commands.ComplexityCommand(),
 			commands.BenchmarkCommand(),
