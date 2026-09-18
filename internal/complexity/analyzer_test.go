@@ -172,3 +172,59 @@ func TestCompareUsesRegressionRatchet(t *testing.T) {
 		t.Fatalf("unexpected comparison: %#v", comparison)
 	}
 }
+
+
+func TestAnalyzeFilesScopesToChangedRepositoryFiles(t *testing.T) {
+	root := t.TempDir()
+	srcDir := filepath.Join(root, "src")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	changed := filepath.Join(srcDir, "changed.ts")
+	unchanged := filepath.Join(srcDir, "unchanged.ts")
+	if err := os.WriteFile(changed, []byte(`
+function changed(flag: boolean) {
+  if (flag) return 1;
+  return 0;
+}
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(unchanged, []byte(`
+function unchanged(flag: boolean) {
+  if (flag) return 1;
+  if (!flag) return 2;
+  return 0;
+}
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := AnalyzeFiles(root, []string{"src/changed.ts"}, Options{Threshold: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Summary.Files != 1 {
+		t.Fatalf("files = %d, want 1", report.Summary.Files)
+	}
+	if len(report.Functions) != 1 {
+		t.Fatalf("functions = %d, want 1", len(report.Functions))
+	}
+	if report.Functions[0].File != "src/changed.ts" {
+		t.Fatalf("file = %q, want repository-relative path", report.Functions[0].File)
+	}
+	if report.Functions[0].ID != "src/changed.ts::changed" {
+		t.Fatalf("id = %q, want stable repository-relative identity", report.Functions[0].ID)
+	}
+}
+
+func TestAnalyzeFilesSkipsDeletedAndUnsupportedFiles(t *testing.T) {
+	root := t.TempDir()
+	report, err := AnalyzeFiles(root, []string{"deleted.ts", "README.md"}, Options{Threshold: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Summary.Files != 0 || len(report.Functions) != 0 {
+		t.Fatalf("expected empty changed-file report, got %#v", report)
+	}
+}
