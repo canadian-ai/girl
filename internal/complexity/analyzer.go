@@ -26,11 +26,44 @@ func Analyze(path string, opts Options) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
+	return analyzeFiles(root, files, displayRoot(path), opts)
+}
 
+// AnalyzeFiles measures only the supplied repository-relative files while
+// preserving metric identities relative to root. It is used by changed-file
+// workflows so complexity analysis does not rescan an entire monorepo.
+func AnalyzeFiles(root string, files []string, opts Options) (*Report, error) {
+	if opts.Threshold <= 0 {
+		opts.Threshold = 10
+	}
+	root = filepath.Clean(root)
+	selected := make([]string, 0, len(files))
+	for _, file := range files {
+		full := file
+		if !filepath.IsAbs(full) {
+			full = filepath.Join(root, filepath.FromSlash(file))
+		}
+		info, err := os.Stat(full)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("cannot access path %s: %w", full, err)
+		}
+		if info.IsDir() || !matchesLanguage(full, opts.Language) {
+			continue
+		}
+		selected = append(selected, filepath.Clean(full))
+	}
+	sort.Strings(selected)
+	return analyzeFiles(root, selected, displayRoot(root), opts)
+}
+
+func analyzeFiles(root string, files []string, reportRoot string, opts Options) (*Report, error) {
 	report := &Report{
 		SchemaVersion: SchemaVersion,
 		Metric:        "cyclomatic-complexity",
-		Root:          displayRoot(path),
+		Root:          reportRoot,
 		Threshold:     opts.Threshold,
 		Functions:     []FunctionMetric{},
 	}

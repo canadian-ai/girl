@@ -113,12 +113,37 @@ func TestCheckComplexitySkipsRegressionWithoutBaseline(t *testing.T) {
 		Analysis:   GirlAnalysisConfig{Exclude: []string{"node_modules"}},
 		Complexity: GirlComplexityConfig{Max: 10, Baseline: ".girl/missing.json", FailOn: "regression"},
 	}
-	result, err := runCheckComplexity(dir, cfg)
+	result, err := runCheckComplexity(dir, cfg, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result == nil || result.Status != "skip" || result.BaselineFound {
 		t.Fatalf("complexity result = %#v", result)
+	}
+}
+
+func TestCheckComplexityChangedOnlyScopesToChangedFiles(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteTestFile(t, filepath.Join(dir, "package.json"), `{}`)
+	mustWriteTestFile(t, filepath.Join(dir, "changed.ts"), "export function changed(flag: boolean) { if (flag) return 1; return 0 }\n")
+	mustWriteTestFile(t, filepath.Join(dir, "unchanged.ts"), `
+export function unchanged(a: boolean, b: boolean, c: boolean) {
+  if (a) {}
+  if (b) {}
+  if (c) {}
+  return 0
+}
+`)
+	cfg := &GirlProjectConfig{
+		Analysis:   GirlAnalysisConfig{Exclude: []string{"node_modules"}},
+		Complexity: GirlComplexityConfig{Max: 2, FailOn: "threshold"},
+	}
+	result, err := runCheckComplexity(dir, cfg, []string{"changed.ts"}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result == nil || result.Files != 1 || result.OverThreshold != 0 {
+		t.Fatalf("changed-only complexity result = %#v", result)
 	}
 }
 
