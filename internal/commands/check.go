@@ -117,7 +117,7 @@ func CheckCommand() *cli.Command {
 				}
 			}
 
-			complexityResult, err := runCheckComplexity(path, cfg)
+			complexityResult, err := runCheckComplexity(path, cfg, result.ChangedFiles, changedOnly)
 			if err != nil {
 				return err
 			}
@@ -229,15 +229,27 @@ func analyzeCheckScope(root string, changedFiles []string, changedOnly bool) (*i
 	return combined, nil
 }
 
-func runCheckComplexity(path string, cfg *GirlProjectConfig) (*CheckComplexityResult, error) {
+func runCheckComplexity(
+	path string,
+	cfg *GirlProjectConfig,
+	changedFiles []string,
+	changedOnly bool,
+) (*CheckComplexityResult, error) {
 	if !HasPackageJSON(path) {
 		return nil, nil
 	}
-	report, err := complexity.Analyze(path, complexity.Options{
+	options := complexity.Options{
 		Language:  "auto",
 		Threshold: cfg.Complexity.Max,
 		Exclude:   cfg.Analysis.Exclude,
-	})
+	}
+	var report *complexity.Report
+	var err error
+	if changedOnly {
+		report, err = complexity.AnalyzeFiles(path, changedFiles, options)
+	} else {
+		report, err = complexity.Analyze(path, options)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("complexity analysis failed: %w", err)
 	}
