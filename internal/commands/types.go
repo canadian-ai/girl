@@ -61,17 +61,20 @@ func stringFlag(c *cli.Context, name string, aliases ...string) string {
 	return c.String(name)
 }
 
-func intFlag(c *cli.Context, name string) int {
+func intFlag(c *cli.Context, name string, aliases ...string) int {
 	if c.IsSet(name) {
 		return c.Int(name)
 	}
-	long := "--" + name
+	keys := append([]string{name}, aliases...)
 	for i, arg := range os.Args {
 		value := ""
-		if strings.HasPrefix(arg, long+"=") {
-			value = strings.TrimPrefix(arg, long+"=")
-		} else if arg == long && i+1 < len(os.Args) {
-			value = os.Args[i+1]
+		for _, key := range keys {
+			long := "--" + key
+			if strings.HasPrefix(arg, long+"=") {
+				value = strings.TrimPrefix(arg, long+"=")
+			} else if (arg == long || arg == "-"+key) && i+1 < len(os.Args) {
+				value = os.Args[i+1]
+			}
 		}
 		if value != "" {
 			if parsed, err := strconv.Atoi(value); err == nil {
@@ -80,6 +83,25 @@ func intFlag(c *cli.Context, name string) int {
 		}
 	}
 	return c.Int(name)
+}
+
+// boolFlag also honours a boolean flag written after positional arguments,
+// which urfave/cli v2 otherwise treats as another argument.
+func boolFlag(c *cli.Context, name string) bool {
+	if c.IsSet(name) {
+		return c.Bool(name)
+	}
+	long := "--" + name
+	for _, arg := range os.Args {
+		if arg == long {
+			return true
+		}
+		if v, ok := strings.CutPrefix(arg, long+"="); ok {
+			parsed, err := strconv.ParseBool(v)
+			return err == nil && parsed
+		}
+	}
+	return c.Bool(name)
 }
 
 func stringSliceFlag(c *cli.Context, name string) []string {

@@ -103,11 +103,13 @@ func girlAgentManagedBlock() string {
 
 Use GIRL as the project quality contract:
 
-1. Run ` + "`girl check`" + ` before handing off or finishing a change.
-2. Prefer ` + "`girl check --changed`" + ` while iterating and ` + "`girl check --ci`" + ` in CI.
-3. Use ` + "`girl plan`" + ` / ` + "`girl pack`" + ` when a structured refactor plan or agent context pack is needed.
-4. Do not expose secrets or bypass repository auth, tenancy, storage, or deployment boundaries.
-5. Report files changed, verification commands, failures, and remaining risks.
+1. Run ` + "`girl next -o json`" + ` to get the highest-value fixes (file, span, excerpt, action, verify commands).
+2. Fix one item at a time, then run ` + "`girl check --changed`" + `; repeat until ` + "`girl next --changed`" + ` is empty.
+3. Run ` + "`girl check`" + ` before handing off or finishing a change, and ` + "`girl check --ci`" + ` in CI.
+4. Use ` + "`girl plan`" + ` / ` + "`girl pack`" + ` when a structured refactor plan or agent context pack is needed.
+5. Never edit generated files, ` + "`vendor/`" + `, or ` + "`node_modules/`" + `; ` + "`girl capabilities`" + ` lists every command as JSON.
+6. Do not expose secrets or bypass repository auth, tenancy, storage, or deployment boundaries.
+7. Report files changed, verification commands, failures, and remaining risks.
 ` + girlManagedEnd
 }
 
