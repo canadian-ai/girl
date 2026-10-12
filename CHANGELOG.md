@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `girl next`: a bounded, ranked work queue for coding agents. Merges findings per function/component and returns the top items with line span, numbered code excerpt, action, recipe, and the repository's own verification commands (`girl.next/v1` JSON schema). Supports `--limit`, `--changed`, `--base`, `--min-severity`, `--excerpt-lines`
+- `girl capabilities`: every command and flag as JSON (`girl.capabilities/v1`), generated from the live command tree, plus the recommended agent loop
+- `ts.high-complexity` and `ts.long-function` diagnostics for any TypeScript/JavaScript function, method, or callback, with `ts.simplify-branches` / `ts.extract-function` recipes. Plain TypeScript codebases (e.g. VS Code) previously produced almost no findings
+- Scale test suite: a synthetic mixed Go/TS monorepo with planted hotspots and generated/vendored/fixture noise runs in every `go test`; `make scale` (10x synthetic + Go standard library, in CI) and `make scale-bench` (Kubernetes, VS Code, Excalidraw, ripgrep at pinned tags)
+- `GIRL_JOBS` sets the number of parallel analysis workers
 - `girl update`: reads the latest `vX.Y.Z` from the GitHub Releases API and installs it. Verifies the SHA256SUMS checksum (when published) and that the binary runs, then atomically replaces itself; automatically falls back to building from source via `go install` when the release asset is incompatible with the host (e.g. an older glibc), so updates work regardless of the local libc. `--check --json` exposes status for tooling
 - GRP Core reduction/collection slice (#90): semantic node identity with opaque provider-supplied capability IDs (no prefix enforced; e.g. `cap.booking`, `booking.create`), canonical targets, source-grounded reference evidence, standard compression blocks with inputs/outputs, and gated collect steps (`grp.reduction.collect`)
 - Validator rejects unsafe collect ordering: a collect step must require at least one `grp.reduction.migrate` step and carry a verification gate; migration steps must also carry verification
@@ -17,7 +22,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Normalization now remaps step-to-step `requires` links so reduction plans survive renumbering deterministically
 - `docs/spec/reduction.md` documenting the GRP Core reduction/collection lifecycle and the public CAI Lang/TEMPLE adapter contract
 
+### Changed
+- Go, TypeScript, Rust, and complexity analysis parse files in parallel; Go type-checking reuses one importer per worker. Go standard library: 85s → 15s; VS Code: 62s → 26s; Kubernetes: 15s → 1.1s (4 vCPU)
+- Directory scans skip generated code (`// Code generated ... DO NOT EDIT.`, `@generated`, `*.pb.go`, `*.min.js`, `*.bundle.js`, `*.d.ts`); Go scans also skip `testdata/`. The TypeScript walker now uses the shared skip list (adds `vendor/`, `out/`, `.turbo/`, …)
+- Go and Rust function diagnostics carry `endLine`/`span`, so context packs and `girl next` excerpts include the whole function
+- `go.long-function` / `rust.long-function` messages no longer embed the file path (it is already in `file`)
+- `girl analyze -o text|markdown` prints `file:line` for every finding
+- Benchmark/proof reports and plan subjects no longer contain absolute paths
+- Diagnostic ordering is fully deterministic (file/line tie-breakers)
+- Skills for Claude Code, Codex, and Pi, the OpenCode agents, and the `girl agent sync` block now lead with the `girl next` → fix → `girl check --changed` loop
+
 ### Fixed
+- `girl check --changed` aborted with `unsupported file extension: .go` whenever a `_test.go` file was in the diff; changed-file runs now skip tests and generated files like full scans do
+- `girl plan <absolute path> --output grp-json` produced an invalid GRP plan (absolute `subject`)
 - Structured diagnostics: Kind, Symbol, Span, EndLine, Package, Metadata, Tags, Related, Fixes on Diagnostic
 - DiagnosticTarget() helper that prefers Symbol then Component then File
 - Recipe registry: 14 diagnostic-code-to-recipe mappings (8 React + 6 Go)
