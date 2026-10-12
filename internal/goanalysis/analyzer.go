@@ -2,6 +2,8 @@ package goanalysis
 
 import (
 	"fmt"
+	"go/importer"
+	"go/types"
 	"os"
 	"path/filepath"
 	"sort"
@@ -50,26 +52,39 @@ func collectGoFiles(path string) ([]*GoFile, error) {
 }
 
 func walkGoFiles(path string) ([]*GoFile, error) {
-	var goFiles []*GoFile
+	var paths []string
 	err := filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if shouldSkipWalkEntry(p, fi) {
+		if p != path && shouldSkipWalkEntry(p, fi) {
 			return filepath.SkipDir
 		}
-		if IsGoFile(p) {
-			if gf, parseErr := ParseGoFile(p); parseErr == nil {
-				goFiles = append(goFiles, gf)
-			}
+		if IsGoFile(p) && !shared.IsGeneratedName(p) {
+			paths = append(paths, p)
 		}
 		return nil
 	})
-	return goFiles, err
+	if err != nil {
+		return nil, err
+	}
+
+	goFiles := shared.ParallelMap(paths, importer.Default, func(imp types.Importer, p string) (*GoFile, bool) {
+		data, readErr := os.ReadFile(p)
+		if readErr != nil || shared.IsGeneratedSource(data) {
+			return nil, false
+		}
+		gf, parseErr := parseGoSource(p, data, imp)
+		return gf, parseErr == nil
+	})
+	return goFiles, nil
 }
 
+// shouldSkipWalkEntry also skips testdata, which the go tool ignores: it
+// holds fixtures, often deliberately bad code, not code to refactor.
 func shouldSkipWalkEntry(path string, fi os.FileInfo) bool {
-	return fi.IsDir() && filepath.Base(path) != "." && shared.ShouldSkipDir(filepath.Base(path))
+	base := filepath.Base(path)
+	return fi.IsDir() && base != "." && (shared.ShouldSkipDir(base) || base == "testdata")
 }
 
 func fileIRs(goFiles []*GoFile) []*ir.FileIR {
@@ -86,11 +101,17 @@ func fileIRs(goFiles []*GoFile) []*ir.FileIR {
 
 func sortDiagnostics(diags []ir.Diagnostic) {
 	severityOrder := map[ir.Severity]int{ir.SeverityHigh: 0, ir.SeverityMedium: 1, ir.SeverityLow: 2}
-	sort.Slice(diags, func(i, j int) bool {
+	sort.SliceStable(diags, func(i, j int) bool {
 		if diags[i].Severity != diags[j].Severity {
 			return severityOrder[diags[i].Severity] < severityOrder[diags[j].Severity]
 		}
-		return diags[i].Code < diags[j].Code
+		if diags[i].Code != diags[j].Code {
+			return diags[i].Code < diags[j].Code
+		}
+		if diags[i].File != diags[j].File {
+			return diags[i].File < diags[j].File
+		}
+		return diags[i].Line < diags[j].Line
 	})
 }
 
@@ -99,11 +120,13 @@ func detectDiagnostics(files []*GoFile, cfg *Config) []ir.Diagnostic {
 	for _, f := range files {
 		diags = append(diags, detectLargeFile(f, cfg)...)
 		for _, fn := range f.Functions {
+			start := len(diags)
 			diags = append(diags, detectLongFunction(f, fn, cfg)...)
 			diags = append(diags, detectHighComplexity(f, fn, cfg)...)
 			diags = append(diags, detectDeepNesting(f, fn, cfg)...)
 			diags = append(diags, detectTooManyParams(f, fn, cfg)...)
 			diags = append(diags, detectIgnoredErrors(f, fn, cfg)...)
+			withFunctionSpan(diags[start:], fn.StartLine, fn.EndLine)
 		}
 
 	}
@@ -164,7 +187,7 @@ func detectLongFunction(f *GoFile, fn GoFunction, cfg *Config) []ir.Diagnostic {
 	return []ir.Diagnostic{{
 		Code:       "go.long-function",
 		Severity:   sev,
-		Message:    fmt.Sprintf("Function %s in %q is %d lines (limit: %d)", fnName(fn), relPath(f.Path), fn.Lines, cfg.MaxFunctionLines),
+		Message:    fmt.Sprintf("Function %s is %d lines (limit: %d)", fnName(fn), fn.Lines, cfg.MaxFunctionLines),
 		File:       relPath(f.Path),
 		Line:       fn.StartLine,
 		Suggestion: "Extract smaller helper functions or simplify the logic. Aim for functions under 50 lines.",
@@ -260,4 +283,15 @@ func detectIgnoredErrors(f *GoFile, fn GoFunction, cfg *Config) []ir.Diagnostic 
 			"confidence": confidence,
 		},
 	}}
+}
+
+// withFunctionSpan records the full function range on diagnostics so agents
+// can read or excerpt the whole body, not just the signature line.
+func withFunctionSpan(diags []ir.Diagnostic, start, end int) {
+	for i := range diags {
+		if diags[i].Span == nil {
+			diags[i].EndLine = end
+			diags[i].Span = &ir.Span{StartLine: start, EndLine: end}
+		}
+	}
 }

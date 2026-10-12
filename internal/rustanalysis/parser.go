@@ -3,6 +3,7 @@ package rustanalysis
 import (
 	"context"
 	"fmt"
+	"github.com/canadian-ai/girl/internal/shared"
 	"os"
 	"path/filepath"
 	"strings"
@@ -304,7 +305,7 @@ func collectRustFiles(path string) ([]*RustFile, error) {
 }
 
 func walkRustFiles(path string) ([]*RustFile, error) {
-	var files []*RustFile
+	var paths []string
 	err := filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -317,16 +318,27 @@ func walkRustFiles(path string) ([]*RustFile, error) {
 			return nil
 		}
 		if IsRustFile(p) {
-			rf, parseErr := ParseRustFile(p)
-			if parseErr != nil {
-				fmt.Fprintf(os.Stderr, "warning: failed to parse %s: %v\n", p, parseErr)
-			} else {
-				files = append(files, rf)
-			}
+			paths = append(paths, p)
 		}
 		return nil
 	})
-	return files, err
+	if err != nil {
+		return nil, err
+	}
+
+	files := shared.ParallelMap(paths, func() struct{} { return struct{}{} }, func(_ struct{}, p string) (*RustFile, bool) {
+		data, readErr := os.ReadFile(p)
+		if readErr != nil || shared.IsGeneratedSource(data) {
+			return nil, false
+		}
+		rf, parseErr := ParseRustFile(p)
+		if parseErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to parse %s: %v\n", p, parseErr)
+			return nil, false
+		}
+		return rf, true
+	})
+	return files, nil
 }
 
 func shouldSkipDir(name string) bool {

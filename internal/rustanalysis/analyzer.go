@@ -58,10 +58,12 @@ func detectDiagnostics(files []*RustFile, cfg *Config) []ir.Diagnostic {
 	for _, f := range files {
 		diags = append(diags, detectLargeFile(f, cfg)...)
 		for _, fn := range f.Functions {
+			start := len(diags)
 			diags = append(diags, detectLongFunction(f, fn, cfg)...)
 			diags = append(diags, detectHighComplexity(f, fn, cfg)...)
 			diags = append(diags, detectDeepNesting(f, fn, cfg)...)
 			diags = append(diags, detectTooManyParams(f, fn, cfg)...)
+			withFunctionSpan(diags[start:], fn.StartLine, fn.EndLine)
 		}
 	}
 	return diags
@@ -121,7 +123,7 @@ func detectLongFunction(f *RustFile, fn RustFunction, cfg *Config) []ir.Diagnost
 	return []ir.Diagnostic{{
 		Code:       "rust.long-function",
 		Severity:   sev,
-		Message:    fmt.Sprintf("Function %s in %q is %d lines (limit: %d)", fnName(fn), relPath(f.Path), fn.Lines, cfg.MaxFunctionLines),
+		Message:    fmt.Sprintf("Function %s is %d lines (limit: %d)", fnName(fn), fn.Lines, cfg.MaxFunctionLines),
 		File:       relPath(f.Path),
 		Line:       fn.StartLine,
 		Suggestion: "Extract smaller helper functions or simplify the logic.",
@@ -194,4 +196,15 @@ func detectTooManyParams(f *RustFile, fn RustFunction, cfg *Config) []ir.Diagnos
 		Kind:       ir.NodeKindFunction,
 		Symbol:     fnName(fn),
 	}}
+}
+
+// withFunctionSpan records the full function range on diagnostics so agents
+// can read or excerpt the whole body, not just the signature line.
+func withFunctionSpan(diags []ir.Diagnostic, start, end int) {
+	for i := range diags {
+		if diags[i].Span == nil {
+			diags[i].EndLine = end
+			diags[i].Span = &ir.Span{StartLine: start, EndLine: end}
+		}
+	}
 }

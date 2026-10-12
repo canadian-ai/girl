@@ -18,12 +18,17 @@
       "line": 105,
       "suggestion": "Extract inner logic into helper functions or use guard clauses to flatten.",
       "kind": "function",
-      "symbol": "complexFunc"
+      "symbol": "complexFunc",
+      "endLine": 118,
+      "span": {
+        "startLine": 105,
+        "endLine": 118
+      }
     },
     {
       "code": "go.long-function",
       "severity": "low",
-      "message": "Function longFunc in \"testdata/golden/commands/simple-go/main.go\" is 94 lines (limit: 80)",
+      "message": "Function longFunc is 94 lines (limit: 80)",
       "file": "testdata/golden/commands/simple-go/main.go",
       "line": 10,
       "suggestion": "Extract smaller helper functions or simplify the logic. Aim for functions under 50 lines.",
