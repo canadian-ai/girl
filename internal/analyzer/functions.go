@@ -3,49 +3,78 @@ package analyzer
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
+	"sync"
+
+	sitter "github.com/smacker/go-tree-sitter"
 
 	"github.com/canadian-ai/girl/internal/complexity"
 	"github.com/canadian-ai/girl/internal/ir"
 )
 
+// metricSink collects per-file function metrics from parser workers.
+type metricSink struct {
+	threshold int
+	mu        sync.Mutex
+	byPath    map[string][]complexity.FunctionMetric
+}
+
+func newMetricSink(threshold int) *metricSink {
+	return &metricSink{threshold: threshold, byPath: map[string][]complexity.FunctionMetric{}}
+}
+
+func (s *metricSink) visit(fir *ir.FileIR, root *sitter.Node, data []byte) {
+	metrics, err := complexity.MeasureTree(fir.Path, fir.Path, root, data, s.threshold)
+	if err != nil {
+		return
+	}
+	s.mu.Lock()
+	s.byPath[fir.Path] = metrics
+	s.mu.Unlock()
+}
+
 // detectFunctionSmells reports long and branch-heavy TS/JS functions. The
 // React rules only look at components, so without this a plain TypeScript
 // codebase (a CLI, a server, an editor) would look spotless to an agent.
-func (a *Analyzer) detectFunctionSmells(path string, files []*ir.FileIR) ([]ir.Diagnostic, error) {
-	if len(files) == 0 {
-		return nil, nil
-	}
-	report, err := complexity.Analyze(path, complexity.Options{
-		Language:  "all",
-		Threshold: a.config.MaxComplexity,
-		Exclude:   a.config.ExcludeDirs,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Only report on files the parser kept, so generated files stay excluded.
-	kept := make(map[string]bool, len(files))
-	for _, f := range files {
-		kept[filepath.Clean(f.Path)] = true
-	}
+func (a *Analyzer) detectFunctionSmells(path string, files []*ir.FileIR, sink *metricSink) []ir.Diagnostic {
 	root := path
 	if len(files) == 1 && filepath.Clean(files[0].Path) == filepath.Clean(path) {
 		root = filepath.Dir(path)
 	}
+	type fileMetrics struct {
+		rel     string
+		path    string
+		metrics []complexity.FunctionMetric
+	}
+	ordered := make([]fileMetrics, 0, len(files))
+	for _, f := range files {
+		rel, err := filepath.Rel(root, f.Path)
+		if err != nil {
+			rel = filepath.Base(f.Path)
+		}
+		ordered = append(ordered, fileMetrics{rel: filepath.ToSlash(rel), path: f.Path, metrics: sink.byPath[f.Path]})
+	}
+	// Same order complexity.Analyze reports: repo-relative path, line, symbol.
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].rel < ordered[j].rel })
 
 	var diags []ir.Diagnostic
-	for _, fn := range report.Functions {
-		if fn.Kind == "react-component" {
-			continue
+	for _, fm := range ordered {
+		fns := append([]complexity.FunctionMetric(nil), fm.metrics...)
+		sort.Slice(fns, func(i, j int) bool {
+			if fns[i].StartLine != fns[j].StartLine {
+				return fns[i].StartLine < fns[j].StartLine
+			}
+			return fns[i].Symbol < fns[j].Symbol
+		})
+		file := relPath(fm.path)
+		for _, fn := range fns {
+			if fn.Kind == "react-component" {
+				continue
+			}
+			diags = append(diags, a.functionDiagnostics(fn, file)...)
 		}
-		full := filepath.Join(root, filepath.FromSlash(fn.File))
-		if !kept[filepath.Clean(full)] {
-			continue
-		}
-		diags = append(diags, a.functionDiagnostics(fn, relPath(full))...)
 	}
-	return diags, nil
+	return diags
 }
 
 func (a *Analyzer) functionDiagnostics(fn complexity.FunctionMetric, file string) []ir.Diagnostic {

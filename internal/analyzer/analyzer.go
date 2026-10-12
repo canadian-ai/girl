@@ -63,14 +63,17 @@ func (a *Analyzer) Analyze(path string) (*ir.AnalyzerResult, error) {
 		return nil, fmt.Errorf("cannot access path %s: %w", path, err)
 	}
 
+	// Function metrics are measured on the tree the React extractor already
+	// parsed, so every file is parsed exactly once.
+	metrics := newMetricSink(a.config.MaxComplexity)
 	var files []*ir.FileIR
 	if info.IsDir() {
-		files, err = a.parser.ParseDir(path, a.config.ExcludeDirs)
+		files, err = a.parser.ParseDirVisit(path, a.config.ExcludeDirs, metrics.visit)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		file, err := a.parser.ParseFile(path)
+		file, err := a.parser.ParseFileVisit(path, metrics.visit)
 		if err != nil {
 			return nil, err
 		}
@@ -85,10 +88,7 @@ func (a *Analyzer) Analyze(path string) (*ir.AnalyzerResult, error) {
 	}
 
 	diags := a.detectSmells(files)
-	fnDiags, err := a.detectFunctionSmells(path, files)
-	if err != nil {
-		return nil, err
-	}
+	fnDiags := a.detectFunctionSmells(path, files, metrics)
 	if len(fnDiags) > 0 {
 		diags = append(diags, fnDiags...)
 		sortDiagnostics(diags)

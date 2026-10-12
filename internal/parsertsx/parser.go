@@ -35,6 +35,10 @@ type querySet struct {
 	handlerQ    *sitter.Query
 	exportQ     *sitter.Query
 	exportDefQ  *sitter.Query
+
+	// rootQ holds every whole-file pattern so one traversal replaces ~11.
+	rootQ     *sitter.Query
+	rootKinds []rootKind
 }
 
 type Parser struct {
@@ -61,7 +65,7 @@ func (p *Parser) lazyInit() {
 }
 
 func (p *Parser) buildQuerySet(lang *sitter.Language) *querySet {
-	return &querySet{
+	qs := &querySet{
 		importQ:     p.comp(lang, `(import_statement (import_clause (named_imports (import_specifier name: (identifier) @import_name)) (identifier)? @import_default) source: (string (string_fragment) @import_source)) @import_full`),
 		importDefQ:  p.comp(lang, `(import_statement (import_clause (identifier) @import_default) source: (string (string_fragment) @import_source)) @import_full`),
 		importNsQ:   p.comp(lang, `(import_statement (import_clause (namespace_import) @import_ns) source: (string (string_fragment) @import_source)) @import_full`),
@@ -78,6 +82,74 @@ func (p *Parser) buildQuerySet(lang *sitter.Language) *querySet {
 		exportQ:     p.comp(lang, `(export_statement declaration: (_) @export_decl) @export_stmt`),
 		exportDefQ:  p.comp(lang, `(export_statement "default" declaration: (_) @export_default_decl) @export_default`),
 	}
+	qs.rootQ, qs.rootKinds = p.buildRootQuery(lang)
+	return qs
+}
+
+type rootKind int
+
+const (
+	rkImport rootKind = iota
+	rkImportDef
+	rkImportNs
+	rkImportType
+	rkCompFunc
+	rkCompArrow
+	rkCompFnExpr
+	rkCompMemo
+	rkExport
+	rkExportDef
+	rkHook
+	rkCount
+)
+
+var rootPatterns = []struct {
+	kind    rootKind
+	pattern string
+}{
+	{rkImport, `(import_statement (import_clause (named_imports (import_specifier name: (identifier) @import_name)) (identifier)? @import_default) source: (string (string_fragment) @import_source)) @import_full`},
+	{rkImportDef, `(import_statement (import_clause (identifier) @import_default) source: (string (string_fragment) @import_source)) @import_full`},
+	{rkImportNs, `(import_statement (import_clause (namespace_import) @import_ns) source: (string (string_fragment) @import_source)) @import_full`},
+	{rkImportType, `(import_statement "type" (import_clause (named_imports (import_specifier name: (identifier) @import_name))) source: (string (string_fragment) @import_source)) @import_full`},
+	{rkCompFunc, `(function_declaration name: (identifier) @comp_name) @comp_func`},
+	{rkCompArrow, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (arrow_function))) @comp_arrow`},
+	{rkCompFnExpr, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (function_expression))) @comp_fn_expr`},
+	{rkCompMemo, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (call_expression function: (_) @memo_func))) @comp_memo`},
+	{rkExport, `(export_statement declaration: (_) @export_decl) @export_stmt`},
+	{rkExportDef, `(export_statement "default" declaration: (_) @export_default_decl) @export_default`},
+	{rkHook, `(call_expression function: (identifier) @hook_name arguments: (arguments) @hook_args) @hook_call`},
+}
+
+// buildRootQuery combines the whole-file patterns into one multi-pattern
+// query. Patterns a grammar cannot compile (e.g. type-only imports in plain
+// JavaScript) are left out, exactly as compOrNil did for separate queries.
+func (p *Parser) buildRootQuery(lang *sitter.Language) (*sitter.Query, []rootKind) {
+	var parts []string
+	var kinds []rootKind
+	for _, rp := range rootPatterns {
+		if q, err := sitter.NewQuery([]byte(rp.pattern), lang); err == nil {
+			q.Close()
+			parts = append(parts, rp.pattern)
+			kinds = append(kinds, rp.kind)
+		}
+	}
+	return p.comp(lang, strings.Join(parts, "\n")), kinds
+}
+
+// rootMatches buckets one traversal's matches by pattern. Within a bucket the
+// order is document order, identical to running that pattern on its own.
+type rootMatches struct {
+	q      *sitter.Query
+	byKind [rkCount][]*sitter.QueryMatch
+}
+
+func (p *Parser) matchRoot(qs *querySet, root *sitter.Node, data []byte) *rootMatches {
+	rm := &rootMatches{q: qs.rootQ}
+	for _, m := range p.execQuery(qs.rootQ, root, data) {
+		kind := qs.rootKinds[m.PatternIndex]
+		rm.byKind[kind] = append(rm.byKind[kind], m)
+	}
+	return rm
 }
 
 func (p *Parser) getOrBuildQuerySet(lang *sitter.Language) *querySet {
@@ -131,15 +203,23 @@ func (p *Parser) grammarFor(path string) (*sitter.Language, error) {
 	}
 }
 
+// TreeVisitor receives each successfully parsed file with its syntax tree so
+// other analyses can reuse the parse. It is called from worker goroutines.
+type TreeVisitor func(fir *ir.FileIR, root *sitter.Node, data []byte)
+
 func (p *Parser) ParseFile(path string) (*ir.FileIR, error) {
+	return p.ParseFileVisit(path, nil)
+}
+
+func (p *Parser) ParseFileVisit(path string, visit TreeVisitor) (*ir.FileIR, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return p.parseSource(path, data)
+	return p.parseSource(path, data, visit)
 }
 
-func (p *Parser) parseSource(path string, data []byte) (*ir.FileIR, error) {
+func (p *Parser) parseSource(path string, data []byte, visit TreeVisitor) (*ir.FileIR, error) {
 
 	qs, err := p.querySetFor(path)
 	if err != nil {
@@ -168,15 +248,23 @@ func (p *Parser) parseSource(path string, data []byte) (*ir.FileIR, error) {
 		Imports:    nil,
 	}
 
-	fir.Imports = p.extractImports(qs, root, data)
-	comps, hooks := p.extractComponents(qs, root, data, path)
+	rm := p.matchRoot(qs, root, data)
+	fir.Imports = p.extractImports(rm, data)
+	comps, hooks := p.extractComponents(qs, rm, data, path)
 	fir.Components = comps
 	fir.Hooks = hooks
 
+	if visit != nil {
+		visit(fir, root, data)
+	}
 	return fir, nil
 }
 
 func (p *Parser) ParseDir(dir string, excludeDirs []string) ([]*ir.FileIR, error) {
+	return p.ParseDirVisit(dir, excludeDirs, nil)
+}
+
+func (p *Parser) ParseDirVisit(dir string, excludeDirs []string, visit TreeVisitor) ([]*ir.FileIR, error) {
 	p.lazyInit()
 	excludeMap := make(map[string]bool)
 	for _, d := range excludeDirs {
@@ -217,7 +305,7 @@ func (p *Parser) ParseDir(dir string, excludeDirs []string) ([]*ir.FileIR, error
 		if readErr != nil || shared.IsGeneratedSource(data) {
 			return nil, false
 		}
-		fir, parseErr := p.parseSource(path, data)
+		fir, parseErr := p.parseSource(path, data, visit)
 		return fir, parseErr == nil
 	})
 	return results, nil
@@ -286,7 +374,7 @@ func captureContent(m *sitter.QueryMatch, q *sitter.Query, name string, data []b
 	return string(data[n.StartByte():n.EndByte()])
 }
 
-func (p *Parser) extractImports(qs *querySet, root *sitter.Node, data []byte) []ir.ImportIR {
+func (p *Parser) extractImports(rm *rootMatches, data []byte) []ir.ImportIR {
 	imports := []ir.ImportIR{}
 	seen := map[string]int{}
 
@@ -317,27 +405,27 @@ func (p *Parser) extractImports(qs *querySet, root *sitter.Node, data []byte) []
 		}
 	}
 
-	for _, m := range p.execQuery(qs.importQ, root, data) {
-		source := captureContent(m, qs.importQ, "import_source", data)
-		def := captureContent(m, qs.importQ, "import_default", data)
-		name := captureContent(m, qs.importQ, "import_name", data)
+	for _, m := range rm.byKind[rkImport] {
+		source := captureContent(m, rm.q, "import_source", data)
+		def := captureContent(m, rm.q, "import_default", data)
+		name := captureContent(m, rm.q, "import_name", data)
 		merge(source, def, name)
 	}
 
-	for _, m := range p.execQuery(qs.importDefQ, root, data) {
-		source := captureContent(m, qs.importDefQ, "import_source", data)
-		def := captureContent(m, qs.importDefQ, "import_default", data)
+	for _, m := range rm.byKind[rkImportDef] {
+		source := captureContent(m, rm.q, "import_source", data)
+		def := captureContent(m, rm.q, "import_default", data)
 		merge(source, def, "")
 	}
 
-	for _, m := range p.execQuery(qs.importNsQ, root, data) {
-		source := captureContent(m, qs.importNsQ, "import_source", data)
+	for _, m := range rm.byKind[rkImportNs] {
+		source := captureContent(m, rm.q, "import_source", data)
 		merge(source, "", "")
 	}
 
-	for _, m := range p.execQuery(qs.importTypeQ, root, data) {
-		source := captureContent(m, qs.importTypeQ, "import_source", data)
-		name := captureContent(m, qs.importTypeQ, "import_name", data)
+	for _, m := range rm.byKind[rkImportType] {
+		source := captureContent(m, rm.q, "import_source", data)
+		name := captureContent(m, rm.q, "import_name", data)
 		merge(source, "", name)
 	}
 
@@ -351,15 +439,15 @@ type componentMatch struct {
 	isArrow bool
 }
 
-func (p *Parser) findComponentMatches(qs *querySet, root *sitter.Node, data []byte) []componentMatch {
+func (p *Parser) findComponentMatches(rm *rootMatches, data []byte) []componentMatch {
 	var matches []componentMatch
 
-	for _, m := range p.execQuery(qs.compFuncQ, root, data) {
-		name := captureContent(m, qs.compFuncQ, "comp_name", data)
+	for _, m := range rm.byKind[rkCompFunc] {
+		name := captureContent(m, rm.q, "comp_name", data)
 		if !isComponentName(name) {
 			continue
 		}
-		fn := captureByName(m, qs.compFuncQ, "comp_func")
+		fn := captureByName(m, rm.q, "comp_func")
 		body := fn.ChildByFieldName("body")
 		params := fn.ChildByFieldName("parameters")
 		if body == nil || params == nil {
@@ -373,12 +461,12 @@ func (p *Parser) findComponentMatches(qs *querySet, root *sitter.Node, data []by
 		})
 	}
 
-	for _, m := range p.execQuery(qs.compArrowQ, root, data) {
-		name := captureContent(m, qs.compArrowQ, "comp_name", data)
+	for _, m := range rm.byKind[rkCompArrow] {
+		name := captureContent(m, rm.q, "comp_name", data)
 		if !isComponentName(name) {
 			continue
 		}
-		decl := captureByName(m, qs.compArrowQ, "comp_arrow")
+		decl := captureByName(m, rm.q, "comp_arrow")
 		arrow := findChildByType(decl, "arrow_function")
 		if arrow == nil {
 			continue
@@ -398,12 +486,12 @@ func (p *Parser) findComponentMatches(qs *querySet, root *sitter.Node, data []by
 		}
 	}
 
-	for _, m := range p.execQuery(qs.compFnExprQ, root, data) {
-		name := captureContent(m, qs.compFnExprQ, "comp_name", data)
+	for _, m := range rm.byKind[rkCompFnExpr] {
+		name := captureContent(m, rm.q, "comp_name", data)
 		if !isComponentName(name) {
 			continue
 		}
-		decl := captureByName(m, qs.compFnExprQ, "comp_fn_expr")
+		decl := captureByName(m, rm.q, "comp_fn_expr")
 		fn := findChildByType(decl, "function_expression")
 		if fn == nil {
 			continue
@@ -421,12 +509,12 @@ func (p *Parser) findComponentMatches(qs *querySet, root *sitter.Node, data []by
 		})
 	}
 
-	for _, m := range p.execQuery(qs.compMemoQ, root, data) {
-		name := captureContent(m, qs.compMemoQ, "comp_name", data)
+	for _, m := range rm.byKind[rkCompMemo] {
+		name := captureContent(m, rm.q, "comp_name", data)
 		if !isComponentName(name) {
 			continue
 		}
-		decl := captureByName(m, qs.compMemoQ, "comp_memo")
+		decl := captureByName(m, rm.q, "comp_memo")
 		vd := decl.NamedChild(0)
 		if vd == nil || vd.Type() != "variable_declarator" {
 			continue
@@ -510,10 +598,10 @@ func findChildByType(n *sitter.Node, typ string) *sitter.Node {
 	return nil
 }
 
-func (p *Parser) extractComponents(qs *querySet, root *sitter.Node, data []byte, path string) ([]ir.ComponentIR, []ir.HookIR) {
-	matches := p.findComponentMatches(qs, root, data)
-	exportedNames := p.exportedFunctionNames(qs, root, data)
-	defaultExportedNames := p.defaultExportedFunctionNames(qs, root, data)
+func (p *Parser) extractComponents(qs *querySet, rm *rootMatches, data []byte, path string) ([]ir.ComponentIR, []ir.HookIR) {
+	matches := p.findComponentMatches(rm, data)
+	exportedNames := p.exportedFunctionNames(rm, data)
+	defaultExportedNames := p.defaultExportedFunctionNames(rm, data)
 
 	components := make([]ir.ComponentIR, 0, len(matches))
 	var topHooks []ir.HookIR
@@ -587,7 +675,7 @@ func (p *Parser) extractComponents(qs *querySet, root *sitter.Node, data []byte,
 		components = append(components, comp)
 	}
 
-	topHooks = p.extractTopLevelHooks(qs, root, data, components)
+	topHooks = p.extractTopLevelHooks(rm, data, components)
 
 	return components, topHooks
 }
@@ -861,7 +949,7 @@ func hasAnalyticsPattern(content []byte) bool {
 	return false
 }
 
-func (p *Parser) extractTopLevelHooks(qs *querySet, root *sitter.Node, data []byte, components []ir.ComponentIR) []ir.HookIR {
+func (p *Parser) extractTopLevelHooks(rm *rootMatches, data []byte, components []ir.ComponentIR) []ir.HookIR {
 	var hooks []ir.HookIR
 
 	compLines := make(map[int]bool)
@@ -873,8 +961,8 @@ func (p *Parser) extractTopLevelHooks(qs *querySet, root *sitter.Node, data []by
 
 	seen := make(map[string]bool)
 
-	for _, m := range p.execQuery(qs.hookQ, root, data) {
-		nameNode := captureByName(m, qs.hookQ, "hook_name")
+	for _, m := range rm.byKind[rkHook] {
+		nameNode := captureByName(m, rm.q, "hook_name")
 		if nameNode == nil {
 			continue
 		}
@@ -894,7 +982,7 @@ func (p *Parser) extractTopLevelHooks(qs *querySet, root *sitter.Node, data []by
 		}
 		seen[key] = true
 
-		argsNode := captureByName(m, qs.hookQ, "hook_args")
+		argsNode := captureByName(m, rm.q, "hook_args")
 		var args []string
 		if argsNode != nil && argsNode.NamedChildCount() > 0 {
 			argStr := strings.TrimSpace(string(data[argsNode.StartByte()+1 : argsNode.EndByte()-1]))
@@ -913,11 +1001,11 @@ func (p *Parser) extractTopLevelHooks(qs *querySet, root *sitter.Node, data []by
 	return hooks
 }
 
-func (p *Parser) exportedFunctionNames(qs *querySet, root *sitter.Node, data []byte) []string {
+func (p *Parser) exportedFunctionNames(rm *rootMatches, data []byte) []string {
 	var names []string
 
-	for _, m := range p.execQuery(qs.exportQ, root, data) {
-		decl := captureByName(m, qs.exportQ, "export_decl")
+	for _, m := range rm.byKind[rkExport] {
+		decl := captureByName(m, rm.q, "export_decl")
 		if decl == nil {
 			continue
 		}
@@ -942,8 +1030,8 @@ func (p *Parser) exportedFunctionNames(qs *querySet, root *sitter.Node, data []b
 		}
 	}
 
-	for _, m := range p.execQuery(qs.exportDefQ, root, data) {
-		decl := captureByName(m, qs.exportDefQ, "export_default_decl")
+	for _, m := range rm.byKind[rkExportDef] {
+		decl := captureByName(m, rm.q, "export_default_decl")
 		if decl == nil {
 			continue
 		}
@@ -971,11 +1059,11 @@ func (p *Parser) exportedFunctionNames(qs *querySet, root *sitter.Node, data []b
 	return names
 }
 
-func (p *Parser) defaultExportedFunctionNames(qs *querySet, root *sitter.Node, data []byte) []string {
+func (p *Parser) defaultExportedFunctionNames(rm *rootMatches, data []byte) []string {
 	var names []string
 
-	for _, m := range p.execQuery(qs.exportDefQ, root, data) {
-		decl := captureByName(m, qs.exportDefQ, "export_default_decl")
+	for _, m := range rm.byKind[rkExportDef] {
+		decl := captureByName(m, rm.q, "export_default_decl")
 		if decl == nil {
 			continue
 		}
