@@ -20,6 +20,8 @@ import (
 )
 
 type querySet struct {
+	lang *sitter.Language
+
 	// Range queries run inside each component body.
 	hookQ     *sitter.Query
 	stateVarQ *sitter.Query
@@ -30,6 +32,11 @@ type querySet struct {
 	// rootQ holds every whole-file pattern so one traversal replaces ~11.
 	rootQ     *sitter.Query
 	rootKinds []rootKind
+
+	// bodyQ holds the per-component patterns so each component body is
+	// traversed once instead of five times.
+	bodyQ     *sitter.Query
+	bodyKinds []bodyKind
 }
 
 type Parser struct {
@@ -59,16 +66,76 @@ var (
 	querySets   = map[string]*querySet{}
 )
 
+const (
+	hookPattern     = `(call_expression function: (identifier) @hook_name arguments: (arguments) @hook_args) @hook_call`
+	stateVarPattern = `(variable_declarator name: (array_pattern (identifier) @state_name (identifier) @state_setter) value: (call_expression function: (identifier) @state_fn arguments: (arguments (_)?))) @state_decl`
+	jsxElemPattern  = `(jsx_element open_tag: (jsx_opening_element (identifier) @jsx_tag)) @jsx_elem`
+	jsxSelfPattern  = `(jsx_self_closing_element (identifier) @jsx_tag) @jsx_self`
+	handlerPattern  = `(variable_declarator name: (identifier) @handler_name) @handler_decl`
+)
+
 func (p *Parser) buildQuerySet(lang *sitter.Language) *querySet {
 	qs := &querySet{
-		hookQ:     p.comp(lang, `(call_expression function: (identifier) @hook_name arguments: (arguments) @hook_args) @hook_call`),
-		stateVarQ: p.comp(lang, `(variable_declarator name: (array_pattern (identifier) @state_name (identifier) @state_setter) value: (call_expression function: (identifier) @state_fn arguments: (arguments (_)?))) @state_decl`),
-		jsxElemQ:  p.compOrNil(lang, `(jsx_element open_tag: (jsx_opening_element (identifier) @jsx_tag)) @jsx_elem`),
-		jsxSelfQ:  p.compOrNil(lang, `(jsx_self_closing_element (identifier) @jsx_tag) @jsx_self`),
-		handlerQ:  p.comp(lang, `(variable_declarator name: (identifier) @handler_name) @handler_decl`),
+		lang:      lang,
+		hookQ:     p.comp(lang, hookPattern),
+		stateVarQ: p.comp(lang, stateVarPattern),
+		jsxElemQ:  p.compOrNil(lang, jsxElemPattern),
+		jsxSelfQ:  p.compOrNil(lang, jsxSelfPattern),
+		handlerQ:  p.comp(lang, handlerPattern),
 	}
 	qs.rootQ, qs.rootKinds = p.buildRootQuery(lang)
+	qs.bodyQ, qs.bodyKinds = p.buildBodyQuery(qs)
 	return qs
+}
+
+type bodyKind int
+
+const (
+	bkHook bodyKind = iota
+	bkStateVar
+	bkJSXElem
+	bkJSXSelf
+	bkHandler
+	bkCount
+)
+
+// buildBodyQuery combines the range patterns that compiled for this grammar
+// (JSX patterns do not exist in plain TypeScript).
+func (p *Parser) buildBodyQuery(qs *querySet) (*sitter.Query, []bodyKind) {
+	var parts []string
+	var kinds []bodyKind
+	for _, bp := range []struct {
+		kind    bodyKind
+		q       *sitter.Query
+		pattern string
+	}{
+		{bkHook, qs.hookQ, hookPattern},
+		{bkStateVar, qs.stateVarQ, stateVarPattern},
+		{bkJSXElem, qs.jsxElemQ, jsxElemPattern},
+		{bkJSXSelf, qs.jsxSelfQ, jsxSelfPattern},
+		{bkHandler, qs.handlerQ, handlerPattern},
+	} {
+		if bp.q != nil {
+			parts = append(parts, bp.pattern)
+			kinds = append(kinds, bp.kind)
+		}
+	}
+	return p.comp(qs.lang, strings.Join(parts, "\n")), kinds
+}
+
+// bodyMatches buckets one component-body traversal's matches by pattern.
+type bodyMatches struct {
+	q      *sitter.Query
+	byKind [bkCount][]*sitter.QueryMatch
+}
+
+func (p *Parser) matchBody(qs *querySet, body *sitter.Node, data []byte) *bodyMatches {
+	bm := &bodyMatches{q: qs.bodyQ}
+	for _, m := range p.execQuery(qs.bodyQ, body, data) {
+		kind := qs.bodyKinds[m.PatternIndex]
+		bm.byKind[kind] = append(bm.byKind[kind], m)
+	}
+	return bm
 }
 
 type rootKind int
@@ -660,15 +727,15 @@ func (p *Parser) extractComponents(qs *querySet, rm *rootMatches, data []byte, p
 
 		bodyData := data[m.body.StartByte():m.body.EndByte()]
 
-		comp.Hooks = p.extractHooksInRange(qs, m.body, data)
-		comp.StateVars = p.extractStateVarsInRange(qs, m.body, data)
+		bm := p.matchBody(qs, m.body, data)
+		comp.Hooks = p.extractHooksInRange(bm, data)
+		comp.StateVars = p.extractStateVarsInRange(bm, data)
 		comp.Effects = extractEffectsFromHooks(comp.Hooks)
-		comp.JSXBlocks = p.extractJSXInRange(qs, m.body, data)
-		comp.EventHandlers = p.extractEventHandlersInRange(qs, m.body, data)
+		comp.JSXBlocks = p.extractJSXInRange(bm, data)
+		comp.EventHandlers = p.extractEventHandlersInRange(bm, data)
 		comp.HasKeyDown = hasKeyDownPattern(bodyData)
 		comp.HasAnalytics = hasAnalyticsPattern(bodyData)
-		comp.ConditionalCount = countConditionalsInNode(m.body, data)
-		comp.LoopCount = countLoopsInNode(m.body, data)
+		comp.ConditionalCount, comp.LoopCount = countControlFlow(m.body, data)
 
 		components = append(components, comp)
 	}
@@ -678,10 +745,10 @@ func (p *Parser) extractComponents(qs *querySet, rm *rootMatches, data []byte, p
 	return components, topHooks
 }
 
-func (p *Parser) extractHooksInRange(qs *querySet, body *sitter.Node, data []byte) []ir.HookIR {
+func (p *Parser) extractHooksInRange(bm *bodyMatches, data []byte) []ir.HookIR {
 	hooks := []ir.HookIR{}
-	for _, m := range p.execQuery(qs.hookQ, body, data) {
-		nameNode := captureByName(m, qs.hookQ, "hook_name")
+	for _, m := range bm.byKind[bkHook] {
+		nameNode := captureByName(m, bm.q, "hook_name")
 		if nameNode == nil {
 			continue
 		}
@@ -690,7 +757,7 @@ func (p *Parser) extractHooksInRange(qs *querySet, body *sitter.Node, data []byt
 			continue
 		}
 		line := int(nameNode.StartPoint().Row) + 1
-		argsNode := captureByName(m, qs.hookQ, "hook_args")
+		argsNode := captureByName(m, bm.q, "hook_args")
 		var args []string
 		if argsNode != nil && argsNode.NamedChildCount() > 0 {
 			argStr := strings.TrimSpace(string(data[argsNode.StartByte()+1 : argsNode.EndByte()-1]))
@@ -707,16 +774,16 @@ func (p *Parser) extractHooksInRange(qs *querySet, body *sitter.Node, data []byt
 	return hooks
 }
 
-func (p *Parser) extractStateVarsInRange(qs *querySet, body *sitter.Node, data []byte) []ir.StateVarIR {
+func (p *Parser) extractStateVarsInRange(bm *bodyMatches, data []byte) []ir.StateVarIR {
 	vars := []ir.StateVarIR{}
-	for _, m := range p.execQuery(qs.stateVarQ, body, data) {
-		fnName := captureContent(m, qs.stateVarQ, "state_fn", data)
+	for _, m := range bm.byKind[bkStateVar] {
+		fnName := captureContent(m, bm.q, "state_fn", data)
 		if fnName != "useState" {
 			continue
 		}
-		name := captureContent(m, qs.stateVarQ, "state_name", data)
-		setter := captureContent(m, qs.stateVarQ, "state_setter", data)
-		nameNode := captureByName(m, qs.stateVarQ, "state_name")
+		name := captureContent(m, bm.q, "state_name", data)
+		setter := captureContent(m, bm.q, "state_setter", data)
+		nameNode := captureByName(m, bm.q, "state_name")
 		if nameNode == nil {
 			continue
 		}
@@ -743,27 +810,27 @@ func extractEffectsFromHooks(hooks []ir.HookIR) []ir.EffectIR {
 	return effects
 }
 
-func (p *Parser) extractJSXInRange(qs *querySet, body *sitter.Node, data []byte) []ir.JSXBlockIR {
+func (p *Parser) extractJSXInRange(bm *bodyMatches, data []byte) []ir.JSXBlockIR {
 	blocks := []ir.JSXBlockIR{}
 
-	for _, m := range p.execQuery(qs.jsxElemQ, body, data) {
-		tag := captureContent(m, qs.jsxElemQ, "jsx_tag", data)
+	for _, m := range bm.byKind[bkJSXElem] {
+		tag := captureContent(m, bm.q, "jsx_tag", data)
 		if !isJSXComponentName(tag) {
 			continue
 		}
-		line := int(captureByName(m, qs.jsxElemQ, "jsx_tag").StartPoint().Row) + 1
+		line := int(captureByName(m, bm.q, "jsx_tag").StartPoint().Row) + 1
 		blocks = append(blocks, ir.JSXBlockIR{
 			Element: tag,
 			Line:    line,
 		})
 	}
 
-	for _, m := range p.execQuery(qs.jsxSelfQ, body, data) {
-		tag := captureContent(m, qs.jsxSelfQ, "jsx_tag", data)
+	for _, m := range bm.byKind[bkJSXSelf] {
+		tag := captureContent(m, bm.q, "jsx_tag", data)
 		if !isJSXComponentName(tag) {
 			continue
 		}
-		line := int(captureByName(m, qs.jsxSelfQ, "jsx_tag").StartPoint().Row) + 1
+		line := int(captureByName(m, bm.q, "jsx_tag").StartPoint().Row) + 1
 		blocks = append(blocks, ir.JSXBlockIR{
 			Element: tag,
 			Line:    line,
@@ -773,16 +840,16 @@ func (p *Parser) extractJSXInRange(qs *querySet, body *sitter.Node, data []byte)
 	return blocks
 }
 
-func (p *Parser) extractEventHandlersInRange(qs *querySet, body *sitter.Node, data []byte) []ir.EventHandlerIR {
+func (p *Parser) extractEventHandlersInRange(bm *bodyMatches, data []byte) []ir.EventHandlerIR {
 	handlers := []ir.EventHandlerIR{}
-	for _, m := range p.execQuery(qs.handlerQ, body, data) {
-		name := captureContent(m, qs.handlerQ, "handler_name", data)
+	for _, m := range bm.byKind[bkHandler] {
+		name := captureContent(m, bm.q, "handler_name", data)
 		if name == "" {
 			continue
 		}
 		if strings.HasPrefix(name, "handle") || strings.HasPrefix(name, "on") ||
 			strings.HasSuffix(name, "Handler") {
-			line := int(captureByName(m, qs.handlerQ, "handler_name").StartPoint().Row) + 1
+			line := int(captureByName(m, bm.q, "handler_name").StartPoint().Row) + 1
 			handlers = append(handlers, ir.EventHandlerIR{
 				Name: name,
 				Line: line,
@@ -873,46 +940,44 @@ func findTypeAnnotation(n *sitter.Node) *sitter.Node {
 	return nil
 }
 
-func countConditionalsInNode(body *sitter.Node, data []byte) int {
-	count := 0
+// countControlFlow counts conditionals (if, ternary) and loops (for/while
+// statements and map/forEach/filter/reduce calls) in one walk, reading each
+// node's type once.
+func countControlFlow(body *sitter.Node, data []byte) (conditionals, loops int) {
 	walkTree(body, func(n *sitter.Node) {
 		switch n.Type() {
-		case "if_statement":
-			count++
-		case "ternary_expression":
-			count++
-		}
-	})
-	return count
-}
-
-func countLoopsInNode(body *sitter.Node, data []byte) int {
-	count := 0
-	walkTree(body, func(n *sitter.Node) {
-		switch n.Type() {
+		case "if_statement", "ternary_expression":
+			conditionals++
 		case "for_statement", "for_in_statement", "while_statement", "do_statement":
-			count++
-		}
-		if n.Type() == "call_expression" {
-			fn := n.ChildByFieldName("function")
-			if fn != nil {
-				var fnName string
-				if fn.Type() == "member_expression" {
-					prop := fn.ChildByFieldName("property")
-					if prop != nil {
-						fnName = string(data[prop.StartByte():prop.EndByte()])
-					}
-				} else {
-					fnName = string(data[fn.StartByte():fn.EndByte()])
-				}
-				switch fnName {
-				case "map", "forEach", "filter", "reduce":
-					count++
-				}
+			loops++
+		case "call_expression":
+			if isIterationCall(n, data) {
+				loops++
 			}
 		}
 	})
-	return count
+	return conditionals, loops
+}
+
+func isIterationCall(n *sitter.Node, data []byte) bool {
+	fn := n.ChildByFieldName("function")
+	if fn == nil {
+		return false
+	}
+	var fnName string
+	if fn.Type() == "member_expression" {
+		prop := fn.ChildByFieldName("property")
+		if prop != nil {
+			fnName = string(data[prop.StartByte():prop.EndByte()])
+		}
+	} else {
+		fnName = string(data[fn.StartByte():fn.EndByte()])
+	}
+	switch fnName {
+	case "map", "forEach", "filter", "reduce":
+		return true
+	}
+	return false
 }
 
 func walkTree(n *sitter.Node, fn func(*sitter.Node)) {
