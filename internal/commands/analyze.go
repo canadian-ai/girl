@@ -116,7 +116,7 @@ func printText(result *ir.AnalyzerResult) {
 
 	for _, d := range diags {
 		sev := strings.ToUpper(string(d.Severity))
-		fmt.Printf("[%s] %s\n", sev, d.Message)
+		fmt.Printf("[%s] %s %s\n", sev, diagnosticLocation(d), d.Message)
 		if d.Suggestion != "" {
 			fmt.Printf("      %s\n\n", d.Suggestion)
 		}
@@ -158,8 +158,16 @@ func printMarkdown(result *ir.AnalyzerResult) {
 			"low":    "🟢",
 		}
 		fmt.Printf("### %s %s\n\n", badge[string(d.Severity)], d.Message)
-		fmt.Printf("- **File:** `%s`\n", d.File)
+		fmt.Printf("- **File:** `%s`\n", diagnosticLocation(d))
 		fmt.Printf("- **Code:** `%s`\n", d.Code)
 		fmt.Printf("- **Suggestion:** %s\n\n", d.Suggestion)
 	}
+}
+
+// diagnosticLocation renders file:line so agents and editors can jump to it.
+func diagnosticLocation(d ir.Diagnostic) string {
+	if d.Line > 0 {
+		return fmt.Sprintf("%s:%d", d.File, d.Line)
+	}
+	return d.File
 }

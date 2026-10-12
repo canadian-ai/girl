@@ -11,11 +11,23 @@ import (
 	"strings"
 )
 
+// ParseGoFile parses and analyzes a single Go file.
 func ParseGoFile(path string) (*GoFile, error) {
+	return parseGoFile(path, importer.Default())
+}
+
+// parseGoFile reuses imp across calls. The default importer caches loaded
+// packages, so sharing one per worker avoids re-reading export data for
+// every file — the dominant cost on large repositories.
+func parseGoFile(path string, imp types.Importer) (*GoFile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
+	return parseGoSource(path, data, imp)
+}
+
+func parseGoSource(path string, data []byte, imp types.Importer) (*GoFile, error) {
 	content := string(data)
 	lines := strings.Split(content, "\n")
 
@@ -25,7 +37,7 @@ func ParseGoFile(path string) (*GoFile, error) {
 		return nil, fmt.Errorf("parse error in %s: %w", path, err)
 	}
 
-	conf := types.Config{Importer: importer.Default()}
+	conf := types.Config{Importer: imp}
 	info := &types.Info{
 		Types: make(map[ast.Expr]types.TypeAndValue),
 		Defs:  make(map[*ast.Ident]types.Object),

@@ -78,6 +78,11 @@ func TestGoldenGRPPlans(t *testing.T) {
 				t.Fatalf("marshal failed: %v", err)
 			}
 
+			if os.Getenv("UPDATE_GOLDEN") != "" {
+				if err := os.WriteFile(expectedPath, append(gotJSON, '\n'), 0644); err != nil {
+					t.Fatalf("write golden %s: %v", expectedPath, err)
+				}
+			}
 			expectedData, err := os.ReadFile(expectedPath)
 			if err != nil {
 				t.Fatalf("read expected %s: %v", expectedPath, err)

@@ -8,6 +8,9 @@ permission:
     "*": ask
     "git diff*": allow
     "girl analyze*": allow
+    "girl capabilities*": allow
+    "girl check*": allow
+    "girl next*": allow
     "girl plan*": allow
     "girl verify*": allow
     "npm test*": allow
@@ -23,7 +26,8 @@ Rules:
 - Make one atomic change at a time.
 - Preserve behavior.
 - Keep public APIs stable unless the plan says otherwise.
-- Run `girl verify` after each meaningful refactor.
+- Run `girl check --changed` after each meaningful refactor.
+- Run `girl next --changed` to confirm the targeted item is gone.
 - Run `npm run typecheck` after file changes.
 - Run `npm test` for behavior-preservation checks.
 - Stop if typecheck or tests fail.

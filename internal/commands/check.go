@@ -16,6 +16,7 @@ import (
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/reviewability"
 	"github.com/canadian-ai/girl/internal/rustanalysis"
+	"github.com/canadian-ai/girl/internal/shared"
 	"github.com/urfave/cli/v2"
 )
 
@@ -182,7 +183,7 @@ func analyzeCheckScope(root string, changedFiles []string, changedOnly bool) (*i
 		}
 		for _, rel := range changedFiles {
 			full := filepath.Join(root, filepath.FromSlash(rel))
-			if !isAnalyzableFile(full) || !checkFileExists(full) {
+			if !isAnalyzableFile(full) || !checkFileExists(full) || isGeneratedFile(full) {
 				continue
 			}
 			res, err := analyzePath(full, resolveLang(full, "auto"))
@@ -316,13 +317,23 @@ func runCheckReviewability(path, base string, cfg *GirlProjectConfig) (*reviewab
 	return result, result.Diagnostics, nil
 }
 
+// isAnalyzableFile mirrors what full directory scans analyze, so changed-file
+// runs neither crash on nor report files a whole-repo run would skip.
 func isAnalyzableFile(path string) bool {
+	if strings.HasSuffix(path, "_test.go") || shared.IsGeneratedName(path) {
+		return false
+	}
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".go", ".rs", ".ts", ".tsx", ".js", ".jsx":
 		return true
 	default:
 		return false
 	}
+}
+
+func isGeneratedFile(path string) bool {
+	data, err := os.ReadFile(path)
+	return err == nil && shared.IsGeneratedSource(data)
 }
 
 func runConfiguredVerification(path string, cfg *GirlProjectConfig, failFast bool) []CheckVerificationResult {

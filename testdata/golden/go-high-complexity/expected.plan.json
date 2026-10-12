@@ -15,7 +15,12 @@
       "confidence": "high",
       "message": "Function complexFunc has cyclomatic complexity 13 (limit: 10)",
       "file": "testdata/golden/go-high-complexity/input/main.go",
+      "span": {
+        "startLine": 3,
+        "endLine": 40
+      },
       "line": 3,
+      "endLine": 40,
       "symbol": {
         "kind": "function",
         "name": "complexFunc"

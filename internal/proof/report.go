@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/shared"
 )
 
 var DefaultImprovements = []string{
@@ -20,7 +21,7 @@ func NewSummary(target string, result *ir.AnalyzerResult, topFiles int) Summary 
 	if topFiles < 0 {
 		topFiles = 0
 	}
-	s := Summary{Target: target}
+	s := Summary{Target: shared.DisplayTarget(target)}
 	if result == nil {
 		return s
 	}
@@ -38,7 +39,7 @@ func NewSummary(target string, result *ir.AnalyzerResult, topFiles int) Summary 
 			s.Low++
 		}
 		codes[d.Code]++
-		files[d.File]++
+		files[shared.DisplayFile(target, d.File)]++
 	}
 	s.DiagnosticCodes = sortedCodeCounts(codes, 0)
 	s.WorstFiles = sortedFileCounts(files, topFiles)

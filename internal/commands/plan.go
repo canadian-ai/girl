@@ -10,6 +10,7 @@ import (
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/lang"
 	"github.com/canadian-ai/girl/internal/planner"
+	"github.com/canadian-ai/girl/internal/shared"
 	"github.com/canadian-ai/girl/pkg/grp"
 	"github.com/urfave/cli/v2"
 )
@@ -55,7 +56,7 @@ func PlanCommand() *cli.Command {
 
 			p := planner.NewPlanner()
 			plan := p.GeneratePlan(planner.PlanRequest{
-				Target:      path,
+				Target:      shared.DisplayTarget(path),
 				Goal:        c.String("goal"),
 				Recipe:      c.String("recipe"),
 				Diagnostics: result.Diagnostics,

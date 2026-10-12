@@ -22,6 +22,8 @@ type Config struct {
 	MaxEffects           int
 	MaxConditionals      int
 	MaxLoops             int
+	MaxFunctionLines     int
+	MaxComplexity        int
 	ExcludeDirs          []string
 }
 
@@ -34,6 +36,8 @@ func DefaultConfig() *Config {
 		MaxEffects:           2,
 		MaxConditionals:      5,
 		MaxLoops:             3,
+		MaxFunctionLines:     80,
+		MaxComplexity:        10,
 		ExcludeDirs:          []string{},
 	}
 }
@@ -81,6 +85,14 @@ func (a *Analyzer) Analyze(path string) (*ir.AnalyzerResult, error) {
 	}
 
 	diags := a.detectSmells(files)
+	fnDiags, err := a.detectFunctionSmells(path, files)
+	if err != nil {
+		return nil, err
+	}
+	if len(fnDiags) > 0 {
+		diags = append(diags, fnDiags...)
+		sortDiagnostics(diags)
+	}
 	if diags == nil {
 		diags = []ir.Diagnostic{}
 	}
@@ -106,6 +118,11 @@ func (a *Analyzer) detectSmells(files []*ir.FileIR) []ir.Diagnostic {
 		diags = append(diags, a.detectMissingPropTypes(f)...)
 	}
 
+	sortDiagnostics(diags)
+	return diags
+}
+
+func sortDiagnostics(diags []ir.Diagnostic) {
 	sort.SliceStable(diags, func(i, j int) bool {
 		if diags[i].Severity != diags[j].Severity {
 			severityOrder := map[ir.Severity]int{
@@ -120,8 +137,6 @@ func (a *Analyzer) detectSmells(files []*ir.FileIR) []ir.Diagnostic {
 		}
 		return diags[i].Message < diags[j].Message
 	})
-
-	return diags
 }
 
 func (a *Analyzer) detectLargeComponents(f *ir.FileIR) []ir.Diagnostic {

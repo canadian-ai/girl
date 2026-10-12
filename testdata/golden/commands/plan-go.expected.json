@@ -13,7 +13,7 @@
       "code": "go.long-function",
       "severity": "low",
       "confidence": "high",
-      "message": "Function longFunc in \"testdata/golden/commands/simple-go/main.go\" is 94 lines (limit: 80)",
+      "message": "Function longFunc is 94 lines (limit: 80)",
       "file": "testdata/golden/commands/simple-go/main.go",
       "span": {
         "startLine": 10,
@@ -33,7 +33,12 @@
       "confidence": "high",
       "message": "Function complexFunc has nesting depth 5 (limit: 4)",
       "file": "testdata/golden/commands/simple-go/main.go",
+      "span": {
+        "startLine": 105,
+        "endLine": 118
+      },
       "line": 105,
+      "endLine": 118,
       "symbol": {
         "kind": "function",
         "name": "complexFunc"

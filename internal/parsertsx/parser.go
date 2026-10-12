@@ -16,6 +16,7 @@ import (
 
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/lang"
+	"github.com/canadian-ai/girl/internal/shared"
 )
 
 type querySet struct {
@@ -135,6 +136,10 @@ func (p *Parser) ParseFile(path string) (*ir.FileIR, error) {
 	if err != nil {
 		return nil, err
 	}
+	return p.parseSource(path, data)
+}
+
+func (p *Parser) parseSource(path string, data []byte) (*ir.FileIR, error) {
 
 	qs, err := p.querySetFor(path)
 	if err != nil {
@@ -177,7 +182,7 @@ func (p *Parser) ParseDir(dir string, excludeDirs []string) ([]*ir.FileIR, error
 	for _, d := range excludeDirs {
 		excludeMap[d] = true
 	}
-	var results []*ir.FileIR
+	var paths []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -192,28 +197,34 @@ func (p *Parser) ParseDir(dir string, excludeDirs []string) ([]*ir.FileIR, error
 		if info.IsDir() {
 			return nil
 		}
-		if !isParseableExt(path) {
+		if !isParseableExt(path) || shared.IsGeneratedName(path) {
 			return nil
 		}
-		fir, err := p.ParseFile(path)
-		if err != nil {
-			return nil
-		}
-		results = append(results, fir)
+		paths = append(paths, path)
 		return nil
 	})
-	return results, err
+	if err != nil {
+		return nil, err
+	}
+
+	// Queries are immutable once compiled and shared across workers; each
+	// ParseFile call creates its own tree-sitter parser and query cursors.
+	for _, l := range []*sitter.Language{p.tsxLang, p.tsLang, p.jsLang} {
+		p.getOrBuildQuerySet(l)
+	}
+	results := shared.ParallelMap(paths, func() struct{} { return struct{}{} }, func(_ struct{}, path string) (*ir.FileIR, bool) {
+		data, readErr := os.ReadFile(path)
+		if readErr != nil || shared.IsGeneratedSource(data) {
+			return nil, false
+		}
+		fir, parseErr := p.parseSource(path, data)
+		return fir, parseErr == nil
+	})
+	return results, nil
 }
 
 func isSkippedDir(name string) bool {
-	if strings.HasPrefix(name, ".") {
-		return true
-	}
-	switch name {
-	case "node_modules", "dist", "build", ".next", "coverage":
-		return true
-	}
-	return false
+	return shared.ShouldSkipDir(name)
 }
 
 func isParseableExt(path string) bool {

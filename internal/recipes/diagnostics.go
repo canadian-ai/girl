@@ -115,6 +115,24 @@ var builtInRecipes = []DiagnosticRecipe{
 		},
 	},
 	{
+		Code:   "ts.high-complexity",
+		Recipe: "ts.simplify-branches",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{"typecheck", "lint", "tests"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Simplify branching logic in %s with guard clauses, early returns, or lookup tables", targetName(d))
+		},
+	},
+	{
+		Code:   "ts.long-function",
+		Recipe: "ts.extract-function",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{"typecheck", "lint", "tests"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Extract smaller functions from %s", targetName(d))
+		},
+	},
+	{
 		Code:   "go.long-function",
 		Recipe: "go.extract-function",
 		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },

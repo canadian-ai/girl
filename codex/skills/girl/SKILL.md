@@ -1,48 +1,53 @@
 ---
 name: girl
-description: Grammar-Informed Refactoring Language (GIRL) — analyze code, detect refactoring opportunities, and generate structured GRP plans for AI coding agents. Use when refactoring Go/TS/React code or creating token-optimized agent context.
+description: Local code-quality work queue for coding agents. Use when asked to refactor, clean up, reduce complexity, find what to fix, review a change, or keep a Go / TypeScript / React / Rust codebase healthy — especially in large repositories. `girl next -o json` returns the few highest-value fixes with code excerpts and verify commands; `girl check --changed` gates the result.
 ---
 
-# GIRL — Grammar-Informed Refactoring Language
+# GIRL (Codex)
 
-GIRL analyzes code, detects refactoring opportunities, and generates structured GRP plans. Use it for safe, repeatable refactoring with any AI coding agent.
+GIRL turns a codebase of any size into a short, ranked list of fixes an agent can act on, then proves the fix with the repository's own checks. Everything runs locally; generated code, vendored dependencies, and test fixtures are excluded automatically.
 
-## CLI Commands
-
-| Command | Description |
-|---------|-------------|
-| `girl analyze <path>` | Scan code for refactoring opportunities |
-| `girl plan <path>` | Generate structured GRP refactor plan |
-| `girl pack <path>` | Create token-budgeted agent context pack |
-| `girl validate <file>` | Validate a GRP plan JSON file |
-| `girl verify <path>` | Detect available verification commands |
-| `girl review` | Check diff reviewability |
-| `girl decompose` | Decompose large diffs |
-
-## Workflow for Codex
-
-1. `girl analyze <path> --output text` — identify refactoring smells
-2. Review diagnostics and choose target
-3. `girl plan <path> --goal "<goal>" --output markdown` — generate plan
-4. Apply plan changes via Codex edit tools
-5. `girl review --stdin` — check diff is reviewable
-6. `girl verify <path> --output text` — confirm verification commands pass
-
-## Agent Context Packs
-
-For large refactors, use `girl pack` to create a compact, token-efficient context:
+## The loop
 
 ```bash
-girl pack <path> --budget 8000 --output markdown
+girl next -o json                  # 1. top 5 fixes: file, line span, excerpt, action, recipe, verify commands
+#                                    2. fix ONE item; keep the diff small
+girl check --changed -o json       # 3. analysis + complexity ratchet + reviewability + repo verification
+girl next --changed -o json        # 4. confirm it is gone and nothing new appeared
 ```
 
-Output includes: file summaries, component snippets, diagnostics, risks, verification commands.
+Repeat until `girl next --changed` is empty and `girl check --changed` passes.
 
-## Privacy
+## Reading `girl next -o json` (schema `girl.next/v1`)
 
-All GIRL analysis is local. No code leaves the machine. Use `--privacy redacted` for path/content redaction in reports.
+- `items[]` — ranked work. Each has `file`, `line`, `endLine`, `symbol`, `codes`, `problems`, `action`, `recipe`, and a numbered `excerpt` of the code.
+- Several rules on one function are merged into a single item: fix the function once.
+- `remaining` — how many more locations exist. Do not fetch them all; fix the top items first.
+- `verify` — the repository's own build/lint/test commands. Run them after the change.
 
-## Supported Languages
+Useful flags: `--limit N`, `--changed`, `--base main`, `--min-severity medium`, `--excerpt-lines 30`, `-o markdown`.
 
-- Go: long functions, high complexity, deep nesting, ignored errors, large parameter lists
-- TypeScript/React: large components, repeated JSX, too many hooks/state vars, mixed responsibilities, missing prop types
+## When to use the other commands
+
+| Need | Command |
+|---|---|
+| Discover every command and flag as JSON | `girl capabilities` |
+| A multi-step, risk-ordered refactor plan | `girl plan <path> --output grp-json` |
+| Token-budgeted context for a sub-agent | `girl pack <path> --budget 8000 --output markdown` |
+| Is my diff small enough to review? | `git diff \| girl review --stdin` |
+| Split a large diff into tasks | `girl decompose --diff-file change.diff` |
+| Repo-wide health numbers | `girl benchmark <path>` |
+
+## Rules
+
+- Preserve behavior. A refactor that changes output is a bug.
+- Fix the highest-ranked item first; do not start a repo-wide rewrite.
+- Never edit generated files (`// Code generated ... DO NOT EDIT`, `@generated`), `vendor/`, or `node_modules/`.
+- Run the `verify` commands before reporting done, and report what you ran.
+
+## What it detects
+
+- Go: long functions, high cyclomatic complexity, deep nesting, ignored errors, many parameters, large files
+- TypeScript / JavaScript: long functions and high complexity in any function, method, or callback
+- React: large components, repeated JSX, too many hooks / state / effects, mixed responsibilities, missing prop types, hardcoded data
+- Rust: long functions, high complexity, deep nesting, many parameters, large files

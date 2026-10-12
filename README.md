@@ -1,41 +1,119 @@
 # GIRL
 
-**Grammar-Informed Refactoring Language** — a local-first project quality contract for developers and AI coding agents.
-
-GIRL analyzes source code, creates structured GRP refactoring plans, scopes changes, runs repository verification, and keeps agent workflows grounded in the same project rules.
-
-> **GRP** (Grammar Refactoring Protocol) is the language-agnostic plan format. **GIRL** is the reference CLI implementation.
+**The code-quality tool built for coding agents.** Point Claude Code, Codex, or any agent at a repository of any size and GIRL hands back the five fixes that matter most — with the exact line span, the code, what to do, and the commands that prove it worked.
 
 [![Release](https://img.shields.io/github/v/release/canadian-ai/girl)](https://github.com/canadian-ai/girl/releases/latest)
 [![CI](https://github.com/canadian-ai/girl/actions/workflows/ci.yml/badge.svg)](https://github.com/canadian-ai/girl/actions/workflows/ci.yml)
 
-## Start here
-
 ```bash
-# Install
 go install github.com/canadian-ai/girl/cmd/girl@latest
-
-# Initialize the current project
-girl init
-
-# Run the project quality contract
-girl check
+girl next          # what should I fix first?
 ```
 
-`girl init` detects the stack, workspaces, verification scripts, and installed agent frameworks, then writes `.girl/config.yaml`.
+```text
+$ cd kubernetes && girl next
+GIRL next: 5 of 3068 locations (3967 diagnostics, 5489 files, all scope)
 
-`girl check` is the normal daily command. It combines changed-file scoping, multi-language analysis, complexity regression checks, diff reviewability, CAI/project preflight, and repository-native verification.
+1. [HIGH] staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation/validation.go:999 (ValidateCustomResourceDefinitionOpenAPISchema)
+   do: Reduce nesting depth in ValidateCustomResourceDefinitionOpenAPISchema by extracting helper functions
+   why: Function ValidateCustomResourceDefinitionOpenAPISchema has nesting depth 9 (limit: 4)
+   why: Function ValidateCustomResourceDefinitionOpenAPISchema has cyclomatic complexity 113 (limit: 10)
+   why: Function ValidateCustomResourceDefinitionOpenAPISchema is 292 lines (limit: 80)
+   why: Function ValidateCustomResourceDefinitionOpenAPISchema has 6 parameters (limit: 5)
+...
+```
 
-Useful variants:
+## Why agents want it
+
+Linters were built for humans scrolling an IDE. Agents have different constraints: a finite context window, no memory between sessions, and a habit of "fixing" whatever they see first. GIRL is designed around those constraints.
+
+| An agent needs | GIRL gives it |
+|---|---|
+| **Bounded output** — not 5,000 findings in the context window | `girl next` returns the top *N* items and a `remaining` count |
+| **Ranking** — fix what matters, not what's first alphabetically | Severity × number of rules hit × span size, merged per function |
+| **Somewhere to act** — not just a message | `file`, `line`, `endLine`, `symbol`, and a numbered code `excerpt` |
+| **A next step** | A concrete `action` and named `recipe` for every item |
+| **Proof** | The repository's own build / lint / test commands, detected automatically |
+| **No noise** | Generated code, `vendor/`, `node_modules/`, `testdata/`, `.min.js`, `.d.ts` are skipped |
+| **Stable contracts** | Versioned JSON schemas (`girl.next/v1`, `girl.capabilities/v1`), deterministic ordering |
+| **Self-discovery** | `girl capabilities` describes every command and flag as JSON |
+| **Privacy** | 100% local. No code leaves the machine. No API keys |
+
+### The agent loop
 
 ```bash
+girl next -o json                 # 1. ranked work: span, excerpt, action, recipe, verify commands
+#                                   2. agent fixes ONE item
+girl check --changed -o json      # 3. analysis + complexity ratchet + reviewability + repo verification
+girl next --changed -o json       # 4. confirm it's gone; nothing new introduced
+```
+
+Each `girl next` item, abridged:
+
+```json
+{
+  "rank": 1,
+  "id": "examples/real-refactors/go-before/main.go#processOrder",
+  "severity": "high",
+  "file": "examples/real-refactors/go-before/main.go",
+  "line": 27, "endLine": 105,
+  "symbol": "processOrder",
+  "codes": ["go.high-complexity", "go.deep-nesting", "go.ignored-error"],
+  "problems": ["Function processOrder has cyclomatic complexity 26 (limit: 10)", "..."],
+  "action": "Simplify branching logic in processOrder with guard clauses and early returns",
+  "recipe": "go.simplify-branches",
+  "excerpt": "   27  func processOrder(o Order) error {\n   28  \tif o.ID == \"\" {\n ..."
+}
+```
+
+Flags: `--limit N`, `--changed`, `--base main`, `--min-severity medium`, `--excerpt-lines 30`, `-o text|json|markdown`.
+
+### Plug it into your agent
+
+```bash
+girl install claude      # Claude Code skill  (.claude/skills/girl/SKILL.md)
+girl install codex       # Codex skill
+girl install opencode    # OpenCode planner / implementer / reviewer sub-agents
+girl agent sync          # add the GIRL loop to AGENTS.md without touching your own instructions
+```
+
+Any other agent: `girl capabilities` is the whole manual in one JSON call.
+
+## Tested on large codebases
+
+Every CI run analyzes a 6,000-file synthetic monorepo (planted hotspots plus generated, vendored, and fixture noise) and the full Go standard library, and asserts: exact file accounting, no findings in generated or vendored code, the planted hotspot ranked first, identical output across runs and worker counts, no absolute paths in output, and a valid GRP plan. `make scale-bench` repeats this against pinned real-world repositories:
+
+| Repository | Language | Files analyzed | Findings | Time | Before this release |
+|---|---|---:|---:|---:|---:|
+| Kubernetes v1.31.0 | Go | 5,489 | 3,967 | 1.1s | 15s |
+| Go 1.25 standard library | Go | 3,344 | 5,652 | 15s | 85s |
+| VS Code 1.95.0 | TypeScript | 4,965 | 4,561 | 26s | 62s (1 finding) |
+| Excalidraw v0.18.0 | TypeScript / React | 531 | 731 | 1.9s | 4.1s |
+| ripgrep 14.1.1 | Rust | 98 | 280 | 0.3s | 0.7s |
+
+<sub>4 vCPU Linux, warm file cache, `GIRL_JOBS` = CPU count. "Before" is v0.1.29, which also counted generated files: in Kubernetes, 2,753 of 8,295 Go files carry a `Code generated ... DO NOT EDIT` header, and those produced roughly half of its old findings.</sub>
+
+```bash
+make scale          # 10x synthetic monorepo + Go standard library (runs in CI)
+make scale-bench    # + Kubernetes, VS Code, Excalidraw, ripgrep at pinned tags
+GIRL_SCALE=1 GIRL_SCALE_CORPUS=/path/to/your/repo go test ./internal/commands -run TestScale -v
+```
+
+## Project quality contract
+
+```bash
+girl init                       # detect stack, workspaces, verification scripts, agent frameworks
+girl check                      # the daily command
 girl check --changed            # changed files only
 girl check --base master        # compare against a Git base
-girl check --all                # whole project
 girl check --ci                 # CI-friendly defaults
 girl check --no-verify          # analysis/quality gates only
 girl check --output json        # machine-readable result
 ```
+
+`girl check` combines changed-file scoping, multi-language analysis, complexity regression checks, diff reviewability, project preflight, and repository-native verification.
+
+> **GRP** (Grammar Refactoring Protocol) is the language-agnostic plan format GIRL emits. **GIRL** (Grammar-Informed Refactoring Language) is the reference CLI.
 
 ## Project configuration
 
@@ -78,24 +156,12 @@ agents:
 
 GIRL recognizes common project aliases such as `typecheck` / `type-check`, prefers `build:ci` over `build`, and detects CAI gates such as `lint:copy-wrap`, `provenance:check`, and `css:budget` when present.
 
-## Agent integration
-
-Keep GIRL-owned skills synchronized without replacing hand-written project instructions:
-
-```bash
-girl agent sync
-girl agent sync --framework opencode
-girl agent sync --dry-run
-```
-
-GIRL updates its managed block in `AGENTS.md` and syncs GIRL-specific framework files. Existing repository instructions remain intact.
-
-Legacy framework installation remains available through `girl install <framework>`.
-
 ## Core commands
 
 | Command | Purpose |
 |---|---|
+| `girl next [path]` | Ranked, bounded, agent-ready work queue |
+| `girl capabilities` | Every command and flag as JSON, for agent tool discovery |
 | `girl init [path]` | Detect a project and create `.girl/config.yaml` |
 | `girl check [path]` | Run the project quality contract |
 | `girl agent sync` | Sync GIRL agent instructions safely |
@@ -122,8 +188,8 @@ Run `girl <command> --help` for command-specific flags.
 GIRL uses:
 
 - `go/ast` for Go
-- tree-sitter for TypeScript, JavaScript, TSX, and JSX
-- Rust analysis for supported Rust repositories
+- tree-sitter for TypeScript, JavaScript, TSX, JSX, and Rust
+- parallel parsing (`GIRL_JOBS` sets the worker count; output is identical at any value)
 - repository-native verification discovered from project files
 
 The pipeline is:
@@ -143,7 +209,10 @@ GRP keeps plans source-grounded and parser-independent. A plan contains diagnost
 
 ## Refactoring recipes
 
-Current recipes include React/TypeScript rules for large components, repeated JSX, hooks, state, effects, prop types, and hardcoded data; Go rules cover long functions, branching, nesting, file size, ignored errors, and large parameter lists.
+- **Go:** long functions, branching, nesting, file size, ignored errors, large parameter lists
+- **TypeScript / JavaScript:** long functions and high complexity in any function, method, or callback (`ts.*`)
+- **React:** large components, repeated JSX, hooks, state, effects, prop types, hardcoded data
+- **Rust:** long functions, branching, nesting, file size, large parameter lists
 
 Use a specific recipe when needed:
 

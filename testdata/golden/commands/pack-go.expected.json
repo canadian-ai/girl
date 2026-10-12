@@ -4,7 +4,7 @@
   "planId": "grp_4078977c",
   "budget": {
     "maxTokens": 4000,
-    "estimatedTokens": 510
+    "estimatedTokens": 515
   },
   "goal": "Improve code quality",
   "diagnostics": [
@@ -16,12 +16,17 @@
       "line": 105,
       "suggestion": "Extract inner logic into helper functions or use guard clauses to flatten.",
       "kind": "function",
-      "symbol": "complexFunc"
+      "symbol": "complexFunc",
+      "endLine": 118,
+      "span": {
+        "startLine": 105,
+        "endLine": 118
+      }
     },
     {
       "code": "go.long-function",
       "severity": "low",
-      "message": "Function longFunc in \"testdata/golden/commands/simple-go/main.go\" is 94 lines (limit: 80)",
+      "message": "Function longFunc is 94 lines (limit: 80)",
       "file": "testdata/golden/commands/simple-go/main.go",
       "line": 10,
       "suggestion": "Extract smaller helper functions or simplify the logic. Aim for functions under 50 lines.",
@@ -67,9 +72,9 @@
     {
       "file": "testdata/golden/commands/simple-go/main.go",
       "startLine": 105,
-      "endLine": 115,
-      "content": "// contentHash: 178afd888bb0341c\nfunc complexFunc(a, b, c, d, e int) int {\n\tif a \u003e 0 {\n\t\tif b \u003e a {\n\t\t\tif c \u003e b {\n\t\t\t\tif d \u003e c {\n\t\t\t\t\tif e \u003e d {\n\t\t\t\t\t\treturn a + b + c + d + e\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}",
-      "tokens": 65
+      "endLine": 118,
+      "content": "// contentHash: 02eb7a16f1cc2738\nfunc complexFunc(a, b, c, d, e int) int {\n\tif a \u003e 0 {\n\t\tif b \u003e a {\n\t\t\tif c \u003e b {\n\t\t\t\tif d \u003e c {\n\t\t\t\t\tif e \u003e d {\n\t\t\t\t\t\treturn a + b + c + d + e\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n\treturn 0\n}",
+      "tokens": 70
     },
     {
       "file": "testdata/golden/commands/simple-go/main.go",

@@ -67,18 +67,26 @@ func analyzeFiles(root string, files []string, reportRoot string, opts Options) 
 		Threshold:     opts.Threshold,
 		Functions:     []FunctionMetric{},
 	}
-	for _, file := range files {
+	type fileResult struct {
+		rel     string
+		metrics []FunctionMetric
+		err     error
+	}
+	results := shared.ParallelMap(files, func() struct{} { return struct{}{} }, func(_ struct{}, file string) (fileResult, bool) {
 		rel, relErr := filepath.Rel(root, file)
 		if relErr != nil {
 			rel = filepath.Base(file)
 		}
 		rel = filepath.ToSlash(rel)
 		metrics, parseErr := analyzeFile(file, rel, opts.Threshold)
-		if parseErr != nil {
-			report.ParseErrors = append(report.ParseErrors, ParseError{File: rel, Message: parseErr.Error()})
+		return fileResult{rel: rel, metrics: metrics, err: parseErr}, true
+	})
+	for _, r := range results {
+		if r.err != nil {
+			report.ParseErrors = append(report.ParseErrors, ParseError{File: r.rel, Message: r.err.Error()})
 			continue
 		}
-		report.Functions = append(report.Functions, metrics...)
+		report.Functions = append(report.Functions, r.metrics...)
 	}
 
 	sort.Slice(report.Functions, func(i, j int) bool {
@@ -121,7 +129,7 @@ func collectFiles(path string, opts Options) ([]string, string, error) {
 			}
 			return nil
 		}
-		if matchesLanguage(current, opts.Language) {
+		if matchesLanguage(current, opts.Language) && !shared.IsGeneratedName(current) {
 			files = append(files, current)
 		}
 		return nil

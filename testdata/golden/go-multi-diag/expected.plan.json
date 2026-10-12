@@ -15,7 +15,12 @@
       "confidence": "high",
       "message": "Function parseConfig has nesting depth 13 (limit: 4)",
       "file": "testdata/golden/go-multi-diag/input/main.go",
+      "span": {
+        "startLine": 43,
+        "endLine": 168
+      },
       "line": 43,
+      "endLine": 168,
       "symbol": {
         "kind": "function",
         "name": "parseConfig"
@@ -28,7 +33,12 @@
       "confidence": "high",
       "message": "Function parseConfig has cyclomatic complexity 40 (limit: 10)",
       "file": "testdata/golden/go-multi-diag/input/main.go",
+      "span": {
+        "startLine": 43,
+        "endLine": 168
+      },
       "line": 43,
+      "endLine": 168,
       "symbol": {
         "kind": "function",
         "name": "parseConfig"
@@ -41,7 +51,12 @@
       "confidence": "high",
       "message": "Function parseConfig ignores 4 error(s) with _",
       "file": "testdata/golden/go-multi-diag/input/main.go",
+      "span": {
+        "startLine": 43,
+        "endLine": 168
+      },
       "line": 43,
+      "endLine": 168,
       "symbol": {
         "kind": "function",
         "name": "parseConfig"
@@ -56,7 +71,7 @@
       "code": "go.long-function",
       "severity": "medium",
       "confidence": "high",
-      "message": "Function parseConfig in \"testdata/golden/go-multi-diag/input/main.go\" is 126 lines (limit: 80)",
+      "message": "Function parseConfig is 126 lines (limit: 80)",
       "file": "testdata/golden/go-multi-diag/input/main.go",
       "span": {
         "startLine": 43,

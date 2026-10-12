@@ -85,7 +85,8 @@ func inferGoGoalParts(diags []ir.Diagnostic) []string {
 	if codes["go.large-file"] {
 		parts = append(parts, "split large files")
 	}
-	if codes["go.long-function"] || codes["go.high-complexity"] || codes["go.deep-nesting"] {
+	if codes["go.long-function"] || codes["go.high-complexity"] || codes["go.deep-nesting"] ||
+		codes["ts.long-function"] || codes["ts.high-complexity"] {
 		parts = append(parts, "simplify complex functions")
 	}
 	if codes["go.ignored-error"] {

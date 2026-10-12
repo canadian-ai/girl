@@ -20,6 +20,15 @@ go build -o girl ./cmd/girl/
 go test ./...
 ```
 
+## Scale Testing
+
+```bash
+make scale         # 10x synthetic monorepo + Go standard library (CI)
+make scale-bench   # + Kubernetes, VS Code, Excalidraw, ripgrep (clones into .girl-scale/)
+```
+
+Run `make scale` when touching analyzers, walkers, ranking, or output formats.
+
 ## Running Examples
 
 ```bash

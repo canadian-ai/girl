@@ -17,6 +17,8 @@ func main() {
 		Commands: []*cli.Command{
 			commands.InitCommand(),
 			commands.CheckCommand(),
+			commands.NextCommand(),
+			commands.CapabilitiesCommand(),
 			commands.AgentCommand(),
 			commands.AnalyzeCommand(),
 			commands.ComplexityCommand(),
