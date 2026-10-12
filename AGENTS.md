@@ -29,6 +29,15 @@ make scale-bench   # + Kubernetes, VS Code, Excalidraw, ripgrep (clones into .gi
 
 Run `make scale` when touching analyzers, walkers, ranking, or output formats.
 
+## Load Testing
+
+```bash
+make k6            # girl serve + k6 locally (k6 binary or Docker)
+make k6-hardware   # edge/laptop/ci/workstation CPU+memory profiles via Docker
+```
+
+Performance changes must keep analysis output identical; compare `girl analyze -o json` before and after on large corpora.
+
 ## Running Examples
 
 ```bash
