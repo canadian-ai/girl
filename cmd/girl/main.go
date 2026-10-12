@@ -19,6 +19,7 @@ func main() {
 			commands.CheckCommand(),
 			commands.NextCommand(),
 			commands.CapabilitiesCommand(),
+			commands.ServeCommand(),
 			commands.AgentCommand(),
 			commands.AnalyzeCommand(),
 			commands.ComplexityCommand(),

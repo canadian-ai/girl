@@ -107,6 +107,7 @@ func (a *Analyzer) detectSmells(files []*ir.FileIR) []ir.Diagnostic {
 	diags := []ir.Diagnostic{}
 
 	for _, f := range files {
+		start := len(diags)
 		diags = append(diags, a.detectLargeComponents(f)...)
 		diags = append(diags, a.detectRepeatedJSX(f)...)
 		diags = append(diags, a.detectTooManyHooks(f)...)
@@ -116,10 +117,29 @@ func (a *Analyzer) detectSmells(files []*ir.FileIR) []ir.Diagnostic {
 		diags = append(diags, a.detectMixedResponsibilities(f)...)
 		diags = append(diags, a.detectHardcodedData(f)...)
 		diags = append(diags, a.detectMissingPropTypes(f)...)
+		withComponentSpans(diags[start:], f)
 	}
 
 	sortDiagnostics(diags)
 	return diags
+}
+
+// withComponentSpans gives component-level diagnostics the component's line
+// range when a rule did not set one, so agents can open and excerpt it.
+func withComponentSpans(diags []ir.Diagnostic, f *ir.FileIR) {
+	for i := range diags {
+		d := &diags[i]
+		if d.Line != 0 || d.Component == "" {
+			continue
+		}
+		for _, c := range f.Components {
+			if c.Name == d.Component {
+				d.Line, d.EndLine = c.StartLine, c.EndLine
+				d.Span = &ir.Span{StartLine: c.StartLine, EndLine: c.EndLine}
+				break
+			}
+		}
+	}
 }
 
 func sortDiagnostics(diags []ir.Diagnostic) {

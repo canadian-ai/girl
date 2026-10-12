@@ -20,21 +20,12 @@ import (
 )
 
 type querySet struct {
-	importQ     *sitter.Query
-	importDefQ  *sitter.Query
-	importNsQ   *sitter.Query
-	importTypeQ *sitter.Query
-	compFuncQ   *sitter.Query
-	compArrowQ  *sitter.Query
-	compFnExprQ *sitter.Query
-	compMemoQ   *sitter.Query
-	hookQ       *sitter.Query
-	stateVarQ   *sitter.Query
-	jsxElemQ    *sitter.Query
-	jsxSelfQ    *sitter.Query
-	handlerQ    *sitter.Query
-	exportQ     *sitter.Query
-	exportDefQ  *sitter.Query
+	// Range queries run inside each component body.
+	hookQ     *sitter.Query
+	stateVarQ *sitter.Query
+	jsxElemQ  *sitter.Query
+	jsxSelfQ  *sitter.Query
+	handlerQ  *sitter.Query
 
 	// rootQ holds every whole-file pattern so one traversal replaces ~11.
 	rootQ     *sitter.Query
@@ -46,9 +37,6 @@ type Parser struct {
 	tsxLang  *sitter.Language
 	tsLang   *sitter.Language
 	jsLang   *sitter.Language
-
-	querySets   map[*sitter.Language]*querySet
-	querySetsMu sync.Mutex
 }
 
 func New() *Parser {
@@ -60,27 +48,24 @@ func (p *Parser) lazyInit() {
 		p.tsxLang = tsx.GetLanguage()
 		p.tsLang = typescript.GetLanguage()
 		p.jsLang = javascript.GetLanguage()
-		p.querySets = make(map[*sitter.Language]*querySet)
 	})
 }
 
+// Compiled queries are immutable and safe to share, and compiling them costs
+// far more than analyzing a small change, so they are built once per grammar
+// per process rather than once per Parser.
+var (
+	querySetsMu sync.Mutex
+	querySets   = map[string]*querySet{}
+)
+
 func (p *Parser) buildQuerySet(lang *sitter.Language) *querySet {
 	qs := &querySet{
-		importQ:     p.comp(lang, `(import_statement (import_clause (named_imports (import_specifier name: (identifier) @import_name)) (identifier)? @import_default) source: (string (string_fragment) @import_source)) @import_full`),
-		importDefQ:  p.comp(lang, `(import_statement (import_clause (identifier) @import_default) source: (string (string_fragment) @import_source)) @import_full`),
-		importNsQ:   p.comp(lang, `(import_statement (import_clause (namespace_import) @import_ns) source: (string (string_fragment) @import_source)) @import_full`),
-		importTypeQ: p.compOrNil(lang, `(import_statement "type" (import_clause (named_imports (import_specifier name: (identifier) @import_name))) source: (string (string_fragment) @import_source)) @import_full`),
-		compFuncQ:   p.comp(lang, `(function_declaration name: (identifier) @comp_name) @comp_func`),
-		compArrowQ:  p.comp(lang, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (arrow_function))) @comp_arrow`),
-		compFnExprQ: p.comp(lang, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (function_expression))) @comp_fn_expr`),
-		compMemoQ:   p.comp(lang, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (call_expression function: (_) @memo_func))) @comp_memo`),
-		hookQ:       p.comp(lang, `(call_expression function: (identifier) @hook_name arguments: (arguments) @hook_args) @hook_call`),
-		stateVarQ:   p.comp(lang, `(variable_declarator name: (array_pattern (identifier) @state_name (identifier) @state_setter) value: (call_expression function: (identifier) @state_fn arguments: (arguments (_)?))) @state_decl`),
-		jsxElemQ:    p.compOrNil(lang, `(jsx_element open_tag: (jsx_opening_element (identifier) @jsx_tag)) @jsx_elem`),
-		jsxSelfQ:    p.compOrNil(lang, `(jsx_self_closing_element (identifier) @jsx_tag) @jsx_self`),
-		handlerQ:    p.comp(lang, `(variable_declarator name: (identifier) @handler_name) @handler_decl`),
-		exportQ:     p.comp(lang, `(export_statement declaration: (_) @export_decl) @export_stmt`),
-		exportDefQ:  p.comp(lang, `(export_statement "default" declaration: (_) @export_default_decl) @export_default`),
+		hookQ:     p.comp(lang, `(call_expression function: (identifier) @hook_name arguments: (arguments) @hook_args) @hook_call`),
+		stateVarQ: p.comp(lang, `(variable_declarator name: (array_pattern (identifier) @state_name (identifier) @state_setter) value: (call_expression function: (identifier) @state_fn arguments: (arguments (_)?))) @state_decl`),
+		jsxElemQ:  p.compOrNil(lang, `(jsx_element open_tag: (jsx_opening_element (identifier) @jsx_tag)) @jsx_elem`),
+		jsxSelfQ:  p.compOrNil(lang, `(jsx_self_closing_element (identifier) @jsx_tag) @jsx_self`),
+		handlerQ:  p.comp(lang, `(variable_declarator name: (identifier) @handler_name) @handler_decl`),
 	}
 	qs.rootQ, qs.rootKinds = p.buildRootQuery(lang)
 	return qs
@@ -104,34 +89,39 @@ const (
 )
 
 var rootPatterns = []struct {
-	kind    rootKind
-	pattern string
+	kind     rootKind
+	pattern  string
+	optional bool // not every grammar supports it
 }{
-	{rkImport, `(import_statement (import_clause (named_imports (import_specifier name: (identifier) @import_name)) (identifier)? @import_default) source: (string (string_fragment) @import_source)) @import_full`},
-	{rkImportDef, `(import_statement (import_clause (identifier) @import_default) source: (string (string_fragment) @import_source)) @import_full`},
-	{rkImportNs, `(import_statement (import_clause (namespace_import) @import_ns) source: (string (string_fragment) @import_source)) @import_full`},
-	{rkImportType, `(import_statement "type" (import_clause (named_imports (import_specifier name: (identifier) @import_name))) source: (string (string_fragment) @import_source)) @import_full`},
-	{rkCompFunc, `(function_declaration name: (identifier) @comp_name) @comp_func`},
-	{rkCompArrow, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (arrow_function))) @comp_arrow`},
-	{rkCompFnExpr, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (function_expression))) @comp_fn_expr`},
-	{rkCompMemo, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (call_expression function: (_) @memo_func))) @comp_memo`},
-	{rkExport, `(export_statement declaration: (_) @export_decl) @export_stmt`},
-	{rkExportDef, `(export_statement "default" declaration: (_) @export_default_decl) @export_default`},
-	{rkHook, `(call_expression function: (identifier) @hook_name arguments: (arguments) @hook_args) @hook_call`},
+	{rkImport, `(import_statement (import_clause (named_imports (import_specifier name: (identifier) @import_name)) (identifier)? @import_default) source: (string (string_fragment) @import_source)) @import_full`, false},
+	{rkImportDef, `(import_statement (import_clause (identifier) @import_default) source: (string (string_fragment) @import_source)) @import_full`, false},
+	{rkImportNs, `(import_statement (import_clause (namespace_import) @import_ns) source: (string (string_fragment) @import_source)) @import_full`, false},
+	{rkImportType, `(import_statement "type" (import_clause (named_imports (import_specifier name: (identifier) @import_name))) source: (string (string_fragment) @import_source)) @import_full`, true},
+	{rkCompFunc, `(function_declaration name: (identifier) @comp_name) @comp_func`, false},
+	{rkCompArrow, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (arrow_function))) @comp_arrow`, false},
+	{rkCompFnExpr, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (function_expression))) @comp_fn_expr`, false},
+	{rkCompMemo, `(lexical_declaration (variable_declarator name: (identifier) @comp_name value: (call_expression function: (_) @memo_func))) @comp_memo`, false},
+	{rkExport, `(export_statement declaration: (_) @export_decl) @export_stmt`, false},
+	{rkExportDef, `(export_statement "default" declaration: (_) @export_default_decl) @export_default`, false},
+	{rkHook, `(call_expression function: (identifier) @hook_name arguments: (arguments) @hook_args) @hook_call`, false},
 }
 
 // buildRootQuery combines the whole-file patterns into one multi-pattern
-// query. Patterns a grammar cannot compile (e.g. type-only imports in plain
-// JavaScript) are left out, exactly as compOrNil did for separate queries.
+// query. Optional patterns a grammar cannot compile (type-only imports in
+// plain JavaScript) are left out.
 func (p *Parser) buildRootQuery(lang *sitter.Language) (*sitter.Query, []rootKind) {
 	var parts []string
 	var kinds []rootKind
 	for _, rp := range rootPatterns {
-		if q, err := sitter.NewQuery([]byte(rp.pattern), lang); err == nil {
+		if rp.optional {
+			q, err := sitter.NewQuery([]byte(rp.pattern), lang)
+			if err != nil {
+				continue
+			}
 			q.Close()
-			parts = append(parts, rp.pattern)
-			kinds = append(kinds, rp.kind)
 		}
+		parts = append(parts, rp.pattern)
+		kinds = append(kinds, rp.kind)
 	}
 	return p.comp(lang, strings.Join(parts, "\n")), kinds
 }
@@ -152,15 +142,14 @@ func (p *Parser) matchRoot(qs *querySet, root *sitter.Node, data []byte) *rootMa
 	return rm
 }
 
-func (p *Parser) getOrBuildQuerySet(lang *sitter.Language) *querySet {
-	p.lazyInit()
-	p.querySetsMu.Lock()
-	defer p.querySetsMu.Unlock()
-	if qs, ok := p.querySets[lang]; ok {
+func (p *Parser) getOrBuildQuerySet(key string, lang *sitter.Language) *querySet {
+	querySetsMu.Lock()
+	defer querySetsMu.Unlock()
+	if qs, ok := querySets[key]; ok {
 		return qs
 	}
 	qs := p.buildQuerySet(lang)
-	p.querySets[lang] = qs
+	querySets[key] = qs
 	return qs
 }
 
@@ -169,7 +158,19 @@ func (p *Parser) querySetFor(path string) (*querySet, error) {
 	if err != nil {
 		return nil, err
 	}
-	return p.getOrBuildQuerySet(lang), nil
+	return p.getOrBuildQuerySet(grammarKey(path), lang), nil
+}
+
+// grammarKey names the grammar grammarFor selects, for the shared cache.
+func grammarKey(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".tsx":
+		return "tsx"
+	case ".ts":
+		return "typescript"
+	default:
+		return "javascript"
+	}
 }
 
 func (p *Parser) comp(lang *sitter.Language, pattern string) *sitter.Query {
@@ -295,11 +296,8 @@ func (p *Parser) ParseDirVisit(dir string, excludeDirs []string, visit TreeVisit
 		return nil, err
 	}
 
-	// Queries are immutable once compiled and shared across workers; each
-	// ParseFile call creates its own tree-sitter parser and query cursors.
-	for _, l := range []*sitter.Language{p.tsxLang, p.tsLang, p.jsLang} {
-		p.getOrBuildQuerySet(l)
-	}
+	// Query sets are built lazily per grammar and shared; each file gets its
+	// own tree-sitter parser and query cursors.
 	results := shared.ParallelMap(paths, func() struct{} { return struct{}{} }, func(_ struct{}, path string) (*ir.FileIR, bool) {
 		data, readErr := os.ReadFile(path)
 		if readErr != nil || shared.IsGeneratedSource(data) {

@@ -1,6 +1,6 @@
 {
   "specversion": "0.1",
-  "id": "grp_f2c76ab5",
+  "id": "grp_f14b0cac",
   "type": "dev.refactor.plan",
   "source": "github.com/canadian-ai/girl",
   "subject": "testdata/golden/react-too-many-hooks/input",
@@ -15,6 +15,12 @@
       "confidence": "high",
       "message": "Component \"Dashboard\" has 8 hooks (limit: 5)",
       "file": "testdata/golden/react-too-many-hooks/input/App.tsx",
+      "span": {
+        "startLine": 3,
+        "endLine": 18
+      },
+      "line": 3,
+      "endLine": 18,
       "symbol": {
         "kind": "component",
         "name": "Dashboard"

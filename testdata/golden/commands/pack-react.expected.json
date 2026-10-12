@@ -1,7 +1,7 @@
 {
   "specversion": "0.1",
   "type": "dev.refactor.context",
-  "planId": "grp_b3fcaa13",
+  "planId": "grp_e34e1408",
   "budget": {
     "maxTokens": 4000,
     "estimatedTokens": 359
@@ -13,44 +13,64 @@
       "severity": "medium",
       "message": "Component \"App\" has ~3 detected responsibilities",
       "file": "testdata/golden/commands/simple-react/App.tsx",
-      "line": 0,
+      "line": 3,
       "component": "App",
       "suggestion": "Separate concerns by splitting this component. Responsibilities: state management, side effects, event handling, analytics.",
       "kind": "component",
-      "symbol": "App"
+      "symbol": "App",
+      "endLine": 47,
+      "span": {
+        "startLine": 3,
+        "endLine": 47
+      }
     },
     {
       "code": "react.too-many-effects",
       "severity": "medium",
       "message": "Component \"App\" has 3 useEffect calls (limit: 2)",
       "file": "testdata/golden/commands/simple-react/App.tsx",
-      "line": 0,
+      "line": 3,
       "component": "App",
       "suggestion": "Consider consolidating effects or moving side-effect logic into custom hooks.",
       "kind": "component",
-      "symbol": "App"
+      "symbol": "App",
+      "endLine": 47,
+      "span": {
+        "startLine": 3,
+        "endLine": 47
+      }
     },
     {
       "code": "react.too-many-state-vars",
       "severity": "medium",
       "message": "Component \"App\" has 5 state variables (limit: 4)",
       "file": "testdata/golden/commands/simple-react/App.tsx",
-      "line": 0,
+      "line": 3,
       "component": "App",
       "suggestion": "Consider using useReducer or extracting related state into a custom hook.",
       "kind": "component",
-      "symbol": "App"
+      "symbol": "App",
+      "endLine": 47,
+      "span": {
+        "startLine": 3,
+        "endLine": 47
+      }
     },
     {
       "code": "react.too-many-hooks",
       "severity": "low",
       "message": "Component \"App\" has 8 hooks (limit: 5)",
       "file": "testdata/golden/commands/simple-react/App.tsx",
-      "line": 0,
+      "line": 3,
       "component": "App",
       "suggestion": "Extract related hooks into custom hooks using the Extract Custom Hook recipe.",
       "kind": "component",
-      "symbol": "App"
+      "symbol": "App",
+      "endLine": 47,
+      "span": {
+        "startLine": 3,
+        "endLine": 47
+      }
     }
   ],
   "steps": [

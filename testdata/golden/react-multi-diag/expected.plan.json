@@ -1,6 +1,6 @@
 {
   "specversion": "0.1",
-  "id": "grp_dac14707",
+  "id": "grp_c60e9e77",
   "type": "dev.refactor.plan",
   "source": "github.com/canadian-ai/girl",
   "subject": "testdata/golden/react-multi-diag/input",
@@ -33,6 +33,12 @@
       "confidence": "high",
       "message": "Component \"Dashboard\" has ~3 detected responsibilities",
       "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "span": {
+        "startLine": 38,
+        "endLine": 360
+      },
+      "line": 38,
+      "endLine": 360,
       "symbol": {
         "kind": "component",
         "name": "Dashboard"
@@ -45,6 +51,12 @@
       "confidence": "high",
       "message": "Component \"Dashboard\" has 3 useEffect calls (limit: 2)",
       "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "span": {
+        "startLine": 38,
+        "endLine": 360
+      },
+      "line": 38,
+      "endLine": 360,
       "symbol": {
         "kind": "component",
         "name": "Dashboard"
@@ -57,6 +69,12 @@
       "confidence": "high",
       "message": "Component \"Dashboard\" has 10 state variables (limit: 4)",
       "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "span": {
+        "startLine": 38,
+        "endLine": 360
+      },
+      "line": 38,
+      "endLine": 360,
       "symbol": {
         "kind": "component",
         "name": "Dashboard"
@@ -69,6 +87,12 @@
       "confidence": "high",
       "message": "Component \"Dashboard\" has 15 conditional expressions (limit: 5)",
       "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "span": {
+        "startLine": 38,
+        "endLine": 360
+      },
+      "line": 38,
+      "endLine": 360,
       "symbol": {
         "kind": "component",
         "name": "Dashboard"
@@ -81,6 +105,12 @@
       "confidence": "high",
       "message": "JSX element \u003cCard\u003e repeated 5 times in component \"Dashboard\"",
       "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "span": {
+        "startLine": 38,
+        "endLine": 360
+      },
+      "line": 38,
+      "endLine": 360,
       "symbol": {
         "kind": "component",
         "name": "Dashboard"
@@ -93,6 +123,12 @@
       "confidence": "high",
       "message": "JSX element \u003cSection\u003e repeated 3 times in component \"Dashboard\"",
       "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "span": {
+        "startLine": 38,
+        "endLine": 360
+      },
+      "line": 38,
+      "endLine": 360,
       "symbol": {
         "kind": "component",
         "name": "Dashboard"
@@ -105,6 +141,12 @@
       "confidence": "high",
       "message": "Component \"Dashboard\" has 19 hooks (limit: 5)",
       "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "span": {
+        "startLine": 38,
+        "endLine": 360
+      },
+      "line": 38,
+      "endLine": 360,
       "symbol": {
         "kind": "component",
         "name": "Dashboard"

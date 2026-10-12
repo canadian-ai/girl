@@ -1,6 +1,6 @@
 {
   "specversion": "0.1",
-  "id": "grp_b3fcaa13",
+  "id": "grp_e34e1408",
   "type": "dev.refactor.plan",
   "source": "github.com/canadian-ai/girl",
   "subject": "testdata/golden/commands/simple-react",
@@ -15,6 +15,12 @@
       "confidence": "high",
       "message": "Component \"App\" has ~3 detected responsibilities",
       "file": "testdata/golden/commands/simple-react/App.tsx",
+      "span": {
+        "startLine": 3,
+        "endLine": 47
+      },
+      "line": 3,
+      "endLine": 47,
       "symbol": {
         "kind": "component",
         "name": "App"
@@ -27,6 +33,12 @@
       "confidence": "high",
       "message": "Component \"App\" has 3 useEffect calls (limit: 2)",
       "file": "testdata/golden/commands/simple-react/App.tsx",
+      "span": {
+        "startLine": 3,
+        "endLine": 47
+      },
+      "line": 3,
+      "endLine": 47,
       "symbol": {
         "kind": "component",
         "name": "App"
@@ -39,6 +51,12 @@
       "confidence": "high",
       "message": "Component \"App\" has 5 state variables (limit: 4)",
       "file": "testdata/golden/commands/simple-react/App.tsx",
+      "span": {
+        "startLine": 3,
+        "endLine": 47
+      },
+      "line": 3,
+      "endLine": 47,
       "symbol": {
         "kind": "component",
         "name": "App"
@@ -51,6 +69,12 @@
       "confidence": "high",
       "message": "Component \"App\" has 8 hooks (limit: 5)",
       "file": "testdata/golden/commands/simple-react/App.tsx",
+      "span": {
+        "startLine": 3,
+        "endLine": 47
+      },
+      "line": 3,
+      "endLine": 47,
       "symbol": {
         "kind": "component",
         "name": "App"
