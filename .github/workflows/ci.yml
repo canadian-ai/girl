@@ -46,3 +46,22 @@ jobs:
       - name: Verify examples
         run: |
           ./girl verify examples/messy-react-form --output text
+
+      - name: Agent contract smoke test
+        run: |
+          ./girl capabilities | grep -q '"schema": "girl.capabilities/v1"'
+          ./girl next --limit 3 --output json | grep -q '"schema": "girl.next/v1"'
+
+  scale:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          check-latest: true
+
+      - name: Scale tests (10x synthetic monorepo + Go standard library)
+        run: make scale

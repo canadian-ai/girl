@@ -1,4 +1,4 @@
-.PHONY: build test clean install
+.PHONY: build test clean install scale scale-bench
 
 build:
 	go build -o girl ./cmd/girl/
@@ -11,6 +11,14 @@ install-full:
 
 test:
 	go test ./...
+
+# 10x synthetic monorepo + the full Go standard library.
+scale:
+	GIRL_SCALE=1 go test ./internal/commands -run TestScale -count=1 -v
+
+# Real-world corpora (Kubernetes, VS Code, Excalidraw, ripgrep) at pinned tags.
+scale-bench:
+	@bash scripts/scale-bench.sh
 
 clean:
 	rm -f girl
