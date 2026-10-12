@@ -32,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Go type-checking runs only for files that assign a call result to `_` (the only place type information is read), and standard-library export data is resolved with one batched `go list` instead of one subprocess per package (Go standard library: 15.7 s -> 1.7 s)
 - GOMAXPROCS follows the container CPU quota on cgroup v1 layouts the Go runtime misses, so constrained CI runners and containers do not oversubscribe
 - React component diagnostics (too-many-hooks, mixed-responsibilities, complex-conditionals, …) carry the component's line span, so `girl next` items always have a location and excerpt
-- Go, TypeScript, Rust, and complexity analysis parse files in parallel; Go type-checking reuses one importer per worker. Go standard library: 85s → 15s; VS Code: 62s → 26s; Kubernetes: 15s → 1.1s (4 vCPU)
+- Go, TypeScript, Rust, and complexity analysis parse files in parallel; Go type-checking reuses one importer per worker. Go standard library: 41.8s → 15.3s; VS Code: 61.3s → 26.3s; Kubernetes: 15.2s → 3.6s (fresh `girl benchmark` process, 4 vCPU)
 - Directory scans skip generated code (`// Code generated ... DO NOT EDIT.`, `@generated`, `*.pb.go`, `*.min.js`, `*.bundle.js`, `*.d.ts`); Go scans also skip `testdata/`. The TypeScript walker now uses the shared skip list (adds `vendor/`, `out/`, `.turbo/`, …)
 - Go and Rust function diagnostics carry `endLine`/`span`, so context packs and `girl next` excerpts include the whole function
 - `go.long-function` / `rust.long-function` messages no longer embed the file path (it is already in `file`)

@@ -92,15 +92,16 @@ curl -s -X POST localhost:7777/v1/next -d '{"path":"apps/web","limit":5}'
 
 Every CI run analyzes a 6,000-file synthetic monorepo (planted hotspots plus generated, vendored, and fixture noise) and the full Go standard library, and asserts: exact file accounting, no findings in generated or vendored code, the planted hotspot ranked first, identical output across runs and worker counts, no absolute paths in output, and a valid GRP plan. `make scale-bench` repeats this against pinned real-world repositories:
 
-| Repository | Language | Files analyzed | Findings | Time | Before this release |
-|---|---|---:|---:|---:|---:|
-| Kubernetes v1.31.0 | Go | 5,489 | 3,967 | 1.1s | 15s |
-| Go 1.25 standard library | Go | 3,344 | 5,652 | 15s | 85s |
-| VS Code 1.95.0 | TypeScript | 4,965 | 4,561 | 26s | 62s (1 finding) |
-| Excalidraw v0.18.0 | TypeScript / React | 531 | 731 | 1.9s | 4.1s |
-| ripgrep 14.1.1 | Rust | 98 | 280 | 0.3s | 0.7s |
+| Repository | Language | Files analyzed | Findings | v0.1.29 | v0.1.30 | Now |
+|---|---|---:|---:|---:|---:|---:|
+| Kubernetes v1.31.0 | Go | 5,489 | 3,967 | 15.2s | 3.6s | **1.6s** |
+| Go 1.25 standard library | Go | 3,344 | 5,652 | 41.8s | 15.3s | **1.5s** |
+| VS Code 1.95.0 | TypeScript | 4,965 | 4,561 | 61.3s (1 finding) | 26.3s | **10.5s** |
+| TSX fixture monorepo (`k6-corpus`) | React | 2,250 | 7,500 | 16.9s | 7.8s | **3.1s** |
+| Excalidraw v0.18.0 | TypeScript / React | 531 | 731 | 3.7s | 1.9s | **0.8s** |
+| ripgrep 14.1.1 | Rust | 98 | 280 | 0.7s | 0.3s | **0.3s** |
 
-<sub>4 vCPU Linux, warm file cache, `GIRL_JOBS` = CPU count. "Before" is v0.1.29, which also counted generated files: in Kubernetes, 2,753 of 8,295 Go files carry a `Code generated ... DO NOT EDIT` header, and those produced roughly half of its old findings.</sub>
+<sub>`girl benchmark`, one fresh process per run, 4 vCPU Linux, warm file and Go build caches. v0.1.29 also analyzed generated files: in Kubernetes, 2,753 of 8,295 Go files carry a `Code generated ... DO NOT EDIT` header, and those produced roughly half of its findings. Every speed-up since v0.1.30 was checked byte-for-byte against the previous `analyze`/`next` output on these corpora.</sub>
 
 ```bash
 make scale          # 10x synthetic monorepo + Go standard library (runs in CI)
