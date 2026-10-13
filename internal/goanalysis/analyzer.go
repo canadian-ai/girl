@@ -2,7 +2,6 @@ package goanalysis
 
 import (
 	"fmt"
-	"go/importer"
 	"go/types"
 	"os"
 	"path/filepath"
@@ -69,7 +68,8 @@ func walkGoFiles(path string) ([]*GoFile, error) {
 		return nil, err
 	}
 
-	goFiles := shared.ParallelMap(paths, importer.Default, func(imp types.Importer, p string) (*GoFile, bool) {
+	std := resolveStdExports(typeCheckImports(paths))
+	goFiles := shared.ParallelMap(paths, std.newImporter, func(imp types.Importer, p string) (*GoFile, bool) {
 		data, readErr := os.ReadFile(p)
 		if readErr != nil || shared.IsGeneratedSource(data) {
 			return nil, false

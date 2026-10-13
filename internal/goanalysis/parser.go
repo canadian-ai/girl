@@ -43,11 +43,14 @@ func parseGoSource(path string, data []byte, imp types.Importer) (*GoFile, error
 		Defs:  make(map[*ast.Ident]types.Object),
 		Uses:  make(map[*ast.Ident]types.Object),
 	}
+	// Type information is only consulted for blank assignments of calls
+	// (countIgnoredErrors). Skipping the check elsewhere avoids loading
+	// export data for every import, which dominates time on large repos.
 	var typesInfo *types.Info
-	if _, err := conf.Check(f.Name.Name, fset, []*ast.File{f}, info); err != nil {
-		typesInfo = nil
-	} else {
-		typesInfo = info
+	if hasBlankCallAssign(f) {
+		if _, err := conf.Check(f.Name.Name, fset, []*ast.File{f}, info); err == nil {
+			typesInfo = info
+		}
 	}
 
 	gf := &GoFile{
@@ -223,6 +226,41 @@ func isNestingControlNode(n ast.Node) bool {
 	default:
 		return false
 	}
+}
+
+// hasBlankCallAssign reports whether any function body assigns a call result
+// to "_", the only case countIgnoredErrors needs type information for.
+func hasBlankCallAssign(f *ast.File) bool {
+	found := false
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			if found {
+				return false
+			}
+			assign, ok := n.(*ast.AssignStmt)
+			if !ok {
+				return true
+			}
+			for _, lhs := range assign.Lhs {
+				if id, ok := lhs.(*ast.Ident); ok && id.Name == "_" {
+					for _, rhs := range assign.Rhs {
+						if _, ok := rhs.(*ast.CallExpr); ok {
+							found = true
+						}
+					}
+				}
+			}
+			return true
+		})
+		if found {
+			return true
+		}
+	}
+	return false
 }
 
 func countIgnoredErrors(fn *ast.FuncDecl, info *types.Info) (int, string) {

@@ -1,0 +1,61 @@
+name: k6 hardware profiles
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+on:
+  pull_request:
+    branches: [master, main]
+    paths:
+      - "internal/**"
+      - "cmd/**"
+      - "bench/k6/**"
+      - "scripts/k6-*.sh"
+      - "testdata/**"
+      - ".github/workflows/k6.yml"
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: "Duration per profile (k6 syntax)"
+        default: "30s"
+      profiles:
+        description: "Space-separated profiles: edge laptop ci workstation"
+        default: "edge laptop ci"
+
+jobs:
+  k6:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          check-latest: true
+
+      - name: Run k6 across hardware profiles
+        env:
+          DURATION: ${{ inputs.duration || '15s' }}
+          PROFILES: ${{ inputs.profiles || 'edge laptop ci' }}
+          STRICT: "1"
+        run: scripts/k6-hardware.sh
+
+      - name: Publish results
+        if: always()
+        run: |
+          {
+            echo "## GIRL k6 hardware profiles"
+            echo
+            echo "Corpus: TSX fixtures from testdata/ and examples/ (small = one copy, large = 250 copies)."
+            echo
+            cat .girl-scale/k6-results/summary.md 2>/dev/null || echo "no results"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload k6 results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-hardware-results
+          path: .girl-scale/k6-results/
+          if-no-files-found: ignore

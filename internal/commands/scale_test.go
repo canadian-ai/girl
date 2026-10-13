@@ -64,7 +64,7 @@ func buildSyntheticRepo(t testing.TB, root string, goFiles, tsFiles int) synthet
 	for i := 0; i < tsFiles; i++ {
 		dir := fmt.Sprintf("apps/web/src/feature%02d", i%40)
 		if i%3 == 0 {
-			write(fmt.Sprintf("%s/Widget%04d.tsx", dir, i), syntheticTSXFile(i))
+			write(fmt.Sprintf("%s/Widget%04d.tsx", dir, i), realTSXFixture(t, i))
 		} else {
 			write(fmt.Sprintf("%s/logic%04d.ts", dir, i), syntheticTSFile(i))
 		}
@@ -148,13 +148,25 @@ func syntheticTSFile(i int) string {
 	return b.String()
 }
 
-func syntheticTSXFile(i int) string {
-	var b strings.Builder
-	b.WriteString("import { useState } from 'react';\n\n")
-	fmt.Fprintf(&b, "interface Widget%dProps { label: string }\n\n", i)
-	fmt.Fprintf(&b, "export function Widget%d({ label }: Widget%dProps) {\n  const [open, setOpen] = useState(false);\n", i, i)
-	b.WriteString("  return (\n    <div>\n      <button onClick={() => setOpen(!open)}>{label}</button>\n    </div>\n  );\n}\n")
-	return b.String()
+// realTSXFixtures are the real-world and golden React components shipped in
+// testdata/; cycling through them keeps the synthetic monorepo's React code
+// realistic (hooks, effects, conditionals, repeated JSX) as it scales.
+var realTSXFixtures = []string{
+	"testdata/real/broker-workspace.tsx",
+	"testdata/real/insurance-review-panel.tsx",
+	"testdata/golden/react-multi-diag/input/App.tsx",
+	"testdata/golden/react-too-many-hooks/input/App.tsx",
+	"testdata/golden/grp-react/input/App.tsx",
+}
+
+func realTSXFixture(t testing.TB, i int) string {
+	t.Helper()
+	rel := realTSXFixtures[(i/3)%len(realTSXFixtures)]
+	data, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(rel)))
+	if err != nil {
+		t.Fatalf("read fixture %s: %v", rel, err)
+	}
+	return string(data)
 }
 
 func scaleFactor() int {
@@ -219,7 +231,8 @@ func TestScaleSynthetic(t *testing.T) {
 		if got := codes["go.high-complexity"]; got != wantGoBranchy+1 {
 			t.Errorf("go.high-complexity = %d, want %d (+1 hotspot)", got, wantGoBranchy)
 		}
-		if codes["go.long-function"] == 0 || codes["ts.high-complexity"] == 0 {
+		if codes["go.long-function"] == 0 || codes["ts.high-complexity"] == 0 ||
+			codes["react.too-many-hooks"] == 0 || codes["react.large-component"] == 0 {
 			t.Errorf("missing expected codes: %v", codes)
 		}
 	})

@@ -183,7 +183,7 @@ func analyzeFile(path, rel string, threshold int) ([]FunctionMetric, error) {
 	if err != nil {
 		return nil, err
 	}
-	language, grammar, err := languageFor(path)
+	_, grammar, err := languageFor(path)
 	if err != nil {
 		return nil, err
 	}
@@ -193,11 +193,20 @@ func analyzeFile(path, rel string, threshold int) ([]FunctionMetric, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse source: %w", err)
 	}
-	root := tree.RootNode()
+	return MeasureTree(path, rel, tree.RootNode(), data, threshold)
+}
+
+// MeasureTree measures every function in an already-parsed file, so callers
+// that parse for other reasons do not pay for a second parse. root must come
+// from the grammar languageFor(path) selects.
+func MeasureTree(path, rel string, root *sitter.Node, data []byte, threshold int) ([]FunctionMetric, error) {
+	language, _, err := languageFor(path)
+	if err != nil {
+		return nil, err
+	}
 	if root.HasError() {
 		return nil, fmt.Errorf("source contains syntax errors")
 	}
-
 	collector := functionCollector{
 		data:       data,
 		file:       rel,

@@ -5,10 +5,13 @@ import (
 	"os"
 
 	"github.com/canadian-ai/girl/internal/commands"
+	"github.com/canadian-ai/girl/internal/shared"
 	"github.com/urfave/cli/v2"
 )
 
 func main() {
+	shared.ApplyCPULimit()
+
 	app := &cli.App{
 		Name:        "girl",
 		Usage:       "Grammar-Informed Refactoring Language",
@@ -19,6 +22,7 @@ func main() {
 			commands.CheckCommand(),
 			commands.NextCommand(),
 			commands.CapabilitiesCommand(),
+			commands.ServeCommand(),
 			commands.AgentCommand(),
 			commands.AnalyzeCommand(),
 			commands.ComplexityCommand(),
