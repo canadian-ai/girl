@@ -7,10 +7,12 @@ const (
 	JavaScript      = "javascript"
 	JavaScriptReact = "javascriptreact"
 	Rust            = "rust"
+	Python          = "python"
 )
 
 func IsGo(lang string) bool   { return lang == Go }
 func IsRust(lang string) bool { return lang == Rust }
+func IsPython(lang string) bool { return lang == Python }
 
 func IsTypeScript(lang string) bool { return lang == TypeScript || lang == TypeScriptReact }
 
@@ -26,6 +28,8 @@ func Resolve(lang string) string {
 		return JavaScript
 	case "jsx", "javascriptreact":
 		return JavaScriptReact
+	case "py", "python":
+		return Python
 	case "rs", "rust":
 		return Rust
 	}
