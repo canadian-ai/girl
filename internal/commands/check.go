@@ -192,8 +192,11 @@ func analyzeCheckScope(root string, changedFiles []string, changedOnly bool) (*i
 			}
 			combined.Files = append(combined.Files, res.Files...)
 			combined.Diagnostics = append(combined.Diagnostics, res.Diagnostics...)
-		}
-		return combined, nil
+            source, readErr := os.ReadFile(full)
+            if readErr != nil { return nil, readErr }
+            combined.Diagnostics = append(combined.Diagnostics, scanRepeatedDomainLiterals(rel, source)...)
+        }
+        return combined, nil
 	}
 
 	var ran bool
@@ -227,7 +230,14 @@ func analyzeCheckScope(root string, changedFiles []string, changedOnly bool) (*i
 	if !ran {
 		return analyzePath(root, resolveLang(root, "auto"))
 	}
-	return combined, nil
+    // Analyze the same files as the language analyzers in full-project mode.
+    for _, file := range combined.Files {
+        if !isAnalyzableFile(file.Path) || isGeneratedFile(file.Path) { continue }
+        source, readErr := os.ReadFile(file.Path)
+        if readErr != nil { return nil, readErr }
+        combined.Diagnostics = append(combined.Diagnostics, scanRepeatedDomainLiterals(file.Path, source)...)
+    }
+    return combined, nil
 }
 
 func runCheckComplexity(
