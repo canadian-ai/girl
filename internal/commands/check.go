@@ -235,7 +235,9 @@ func analyzeCheckScope(root string, changedFiles []string, changedOnly bool) (*i
         if !isAnalyzableFile(file.Path) || isGeneratedFile(file.Path) { continue }
         source, readErr := os.ReadFile(file.Path)
         if readErr != nil { return nil, readErr }
-        combined.Diagnostics = append(combined.Diagnostics, scanRepeatedDomainLiterals(file.Path, source)...)
+        relativePath, relErr := filepath.Rel(root, file.Path)
+        if relErr != nil { return nil, relErr }
+        combined.Diagnostics = append(combined.Diagnostics, scanRepeatedDomainLiterals(filepath.ToSlash(relativePath), source)...)
     }
     return combined, nil
 }
