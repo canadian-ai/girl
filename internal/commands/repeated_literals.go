@@ -14,7 +14,7 @@ import (
 // identity, or comparison operand. Literal syntax in TS/JS is richer than this
 // line scanner; a future AST implementation may expand coverage.
 var domainLiteralPattern = regexp.MustCompile(`"[^"\n]{3,80}"|'[^'\n]{3,80}'`)
-var domainLiteralContext = regexp.MustCompile(`(?:===|!==|==|!=|\bcase\s+|\b(?:status|intent|id|role|eventType)\s*:\s*)$`)
+var domainLiteralContext = regexp.MustCompile(`(?:===|!==|==|!=)\s*$|(?:\bcase\s+|\b(?:status|intent|id|role|eventType)\s*:\s*)$`)
 
 type literalOccurrence struct {
     line int
