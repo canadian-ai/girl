@@ -115,10 +115,10 @@ func TestCurrentBinary(t *testing.T) {
 
 func TestParseChecksums(t *testing.T) {
 	sums := parseChecksums("abc123  girl-linux-amd64\n\ndef456 *girl\n  \n")
-	if sums["girl-linux-amd64"] != "abc123" {
+	if sums["girl-linux-amd64"] != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
 		t.Fatalf("expected girl-linux-amd64 checksum, got %q", sums["girl-linux-amd64"])
 	}
-	if sums["girl"] != "def456" {
+	if sums["girl"] != "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
 		t.Fatalf("expected starred filename matched, got %q", sums["girl"])
 	}
 	if len(sums) != 2 {
@@ -152,6 +152,9 @@ func TestDownloadAssetChecksum(t *testing.T) {
 		t.Fatalf("installed bytes mismatch: %v", err)
 	}
 
+	if err := downloadAsset(&http.Client{}, server.URL, "", filepath.Join(dir, "missing")); err == nil {
+		t.Fatal("missing checksum must fail closed")
+	}
 	if err := downloadAsset(&http.Client{}, server.URL, "0000000000000000000000000000000000000000000000000000000000000000", filepath.Join(dir, "bad")); err == nil {
 		t.Fatal("mismatched checksum must fail")
 	}
