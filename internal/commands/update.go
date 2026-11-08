@@ -209,7 +209,13 @@ func downloadAsset(client *http.Client, url, expectedSHA256, binary string) erro
 		return fmt.Errorf("update: read release asset: %w", err)
 	}
 
-	if expectedSHA256 != "" {
+	if len(expectedSHA256) != 64 {
+		return fmt.Errorf("update: missing or invalid SHA256 checksum; refusing release binary")
+	}
+	if _, err := hex.DecodeString(expectedSHA256); err != nil {
+		return fmt.Errorf("update: invalid SHA256 checksum")
+	}
+	{
 		sum := sha256.Sum256(data)
 		got := hex.EncodeToString(sum[:])
 		if !strings.EqualFold(got, expectedSHA256) {
@@ -220,9 +226,8 @@ func downloadAsset(client *http.Client, url, expectedSHA256, binary string) erro
 	return installData(binary, data)
 }
 
-// fetchChecksums reads the SHA256SUMS asset from the release (best effort).
-// Missing or unparseable checksums are not fatal: the binary is still
-// verified by running it before install.
+// fetchChecksums reads the SHA256SUMS asset from the release.
+// Missing or malformed checksums prevent installing a downloaded release binary.
 func fetchChecksums(client *http.Client, release *releaseInfo) map[string]string {
 	for i := range release.Assets {
 		if release.Assets[i].Name != "SHA256SUMS" || release.Assets[i].BrowserDownloadURL == "" {
@@ -250,6 +255,12 @@ func parseChecksums(content string) map[string]string {
 			continue
 		}
 		name := strings.TrimPrefix(fields[1], "*")
+		if len(fields[0]) != 64 {
+			continue
+		}
+		if _, err := hex.DecodeString(fields[0]); err != nil {
+			continue
+		}
 		sums[name] = strings.ToLower(fields[0])
 	}
 	return sums
@@ -358,7 +369,7 @@ func UpdateCommand() *cli.Command {
 			}
 
 			// Fast path: download the platform release asset, verify its
-			// checksum (when published) and that it actually runs. If anything
+			// checksum (required) and that it actually runs. If anything
 			// fails — e.g. the runner-built binary needs a newer glibc than the
 			// host provides — fall back to building from source with the local
 			// toolchain, which always matches the host.
