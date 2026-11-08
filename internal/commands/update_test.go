@@ -114,7 +114,7 @@ func TestCurrentBinary(t *testing.T) {
 }
 
 func TestParseChecksums(t *testing.T) {
-	sums := parseChecksums("abc123  girl-linux-amd64\n\ndef456 *girl\n  \n")
+	sums := parseChecksums("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  girl-linux-amd64\n\nbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb *girl\ninvalid ignored\n  \n")
 	if sums["girl-linux-amd64"] != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
 		t.Fatalf("expected girl-linux-amd64 checksum, got %q", sums["girl-linux-amd64"])
 	}
