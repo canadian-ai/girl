@@ -16,7 +16,7 @@ func main() {
 		Name:        "girl",
 		Usage:       "Grammar-Informed Refactoring Language",
 		Description: "GIRL is a project quality contract for source-grounded analysis, refactoring, verification, and AI coding agents.",
-		Version:     "0.1.33",
+		Version:     "0.1.34",
 		Commands: []*cli.Command{
 			commands.InitCommand(),
 			commands.CheckCommand(),
