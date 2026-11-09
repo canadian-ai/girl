@@ -85,7 +85,7 @@ func BuildCapabilities(app *cli.App) Capabilities {
 		Version:   app.Version,
 		Summary:   app.Description,
 		AgentLoop: DefaultAgentLoop,
-		Languages: []string{"go", "typescript", "tsx", "javascript", "jsx", "rust"},
+		Languages: []string{"go", "typescript", "tsx", "javascript", "jsx", "rust", "python"},
 		Privacy:   "local-only: source never leaves the machine",
 		Env: map[string]string{
 			"GIRL_JOBS": "Number of parallel analysis workers (default: CPU count)",

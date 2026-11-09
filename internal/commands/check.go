@@ -16,6 +16,7 @@ import (
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/reviewability"
 	"github.com/canadian-ai/girl/internal/rustanalysis"
+	"github.com/canadian-ai/girl/internal/pythonanalysis"
 	"github.com/canadian-ai/girl/internal/shared"
 	"github.com/urfave/cli/v2"
 )
@@ -227,6 +228,13 @@ func analyzeCheckScope(root string, changedFiles []string, changedOnly bool) (*i
 		combined.Diagnostics = append(combined.Diagnostics, res.Diagnostics...)
 		ran = true
 	}
+	if HasPythonProject(root) || hasPythonFiles(root) {
+		res, err := pythonanalysis.AnalyzePath(root, nil)
+		if err != nil { return nil, err }
+		combined.Files = append(combined.Files, res.Files...)
+		combined.Diagnostics = append(combined.Diagnostics, res.Diagnostics...)
+		ran = true
+	}
 	if !ran {
 		return analyzePath(root, resolveLang(root, "auto"))
 	}
@@ -336,7 +344,7 @@ func isAnalyzableFile(path string) bool {
 		return false
 	}
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".go", ".rs", ".ts", ".tsx", ".js", ".jsx":
+	case ".go", ".rs", ".py", ".ts", ".tsx", ".js", ".jsx":
 		return true
 	default:
 		return false
