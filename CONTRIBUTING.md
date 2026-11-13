@@ -4,7 +4,7 @@ Welcome. Contributions to GIRL — bug reports, feature requests, documentation,
 
 ## Development Setup
 
-Requires **Go 1.22+**.
+Requires **Go 1.27.4+**.
 
 ```bash
 # Build the CLI
