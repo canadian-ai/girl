@@ -243,11 +243,28 @@ func analyzeCheckScope(root string, changedFiles []string, changedOnly bool) (*i
         if !isAnalyzableFile(file.Path) || isGeneratedFile(file.Path) { continue }
         source, readErr := os.ReadFile(file.Path)
         if readErr != nil { return nil, readErr }
-        relativePath, relErr := filepath.Rel(root, file.Path)
+        relativePath, relErr := relativeAnalyzedPath(root, file.Path)
         if relErr != nil { return nil, relErr }
-        combined.Diagnostics = append(combined.Diagnostics, scanRepeatedDomainLiterals(filepath.ToSlash(relativePath), source)...)
+        combined.Diagnostics = append(combined.Diagnostics, scanRepeatedDomainLiterals(relativePath, source)...)
     }
     return combined, nil
+}
+
+
+// relativeAnalyzedPath normalizes analyzer output before deriving repository paths.
+// Some language analyzers return paths relative to the process working directory,
+// while others return absolute paths (notably during stdlib corpus scans).
+func relativeAnalyzedPath(root, file string) (string, error) {
+    absRoot, err := filepath.Abs(root)
+    if err != nil { return "", err }
+    absFile, err := filepath.Abs(file)
+    if err != nil { return "", err }
+    rel, err := filepath.Rel(absRoot, absFile)
+    if err != nil { return "", err }
+    if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+        return "", fmt.Errorf("analyzed file %q is outside analysis root", file)
+    }
+    return filepath.ToSlash(rel), nil
 }
 
 func runCheckComplexity(
