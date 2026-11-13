@@ -1,0 +1,4 @@
+# Consolidate the same person's historical commit identities.
+# Preserve the original author metadata; Git and GitHub may present the
+# canonical identity when displaying contribution history.
+tyrellshawn <tyrellshawn@users.noreply.github.com> Ola <olaolukiyesi@gmail.com>
