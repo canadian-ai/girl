@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 )
+import jsonv1 "encoding/json"
 
 type PreflightCheck struct {
 	Name    string `json:"name"`
@@ -19,12 +20,12 @@ type PreflightCheck struct {
 }
 
 type PreflightResult struct {
-	SpecVersion string          `json:"specversion"`
-	ID          string          `json:"id"`
-	Type        string          `json:"type"`
-	Path        string          `json:"path"`
-	Profile     string          `json:"profile,omitempty"`
-	Status      string          `json:"status"`
+	SpecVersion string           `json:"specversion"`
+	ID          string           `json:"id"`
+	Type        string           `json:"type"`
+	Path        string           `json:"path"`
+	Profile     string           `json:"profile,omitempty"`
+	Status      string           `json:"status"`
 	Checks      []PreflightCheck `json:"checks"`
 	Summary     struct {
 		Total int `json:"total"`
@@ -227,7 +228,7 @@ func checkFileValidJSON(path string) bool {
 		return false
 	}
 	var v interface{}
-	return json.Unmarshal(data, &v) == nil
+	return json.Unmarshal(data, &v, jsonv1.DefaultOptionsV1()) == nil
 }
 
 func checkPackageManager(path string) PreflightCheck {
@@ -464,7 +465,7 @@ func checkVerificationScripts(path string) PreflightCheck {
 	var pkg struct {
 		Scripts map[string]string `json:"scripts"`
 	}
-	if err := json.Unmarshal(data, &pkg); err != nil || pkg.Scripts == nil {
+	if err := json.Unmarshal(data, &pkg, jsonv1.DefaultOptionsV1()); err != nil || pkg.Scripts == nil {
 		return PreflightCheck{
 			Name:    "Verification Scripts",
 			Status:  "warn",

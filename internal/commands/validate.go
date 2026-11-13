@@ -1,7 +1,8 @@
 package commands
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"os"
 
@@ -34,7 +35,9 @@ func ValidateCommand() *cli.Command {
 			}
 
 			var plan grp.Plan
-			if err := json.Unmarshal(data, &plan); err != nil {
+			// Existing GRP documents retain v1 field matching and number semantics.
+			// Strict v2 input validation is applied at the HTTP boundary separately.
+			if err := json.Unmarshal(data, &plan, jsonv1.DefaultOptionsV1()); err != nil {
 				return fmt.Errorf("parse JSON: %w", err)
 			}
 

@@ -2,10 +2,11 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -220,9 +221,9 @@ func (s *analysisServer) resolve(w http.ResponseWriter, path string) (string, bo
 
 func decodeRequest(w http.ResponseWriter, r *http.Request, v any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(v); err != nil && !errors.Is(err, io.EOF) {
+	// UnmarshalRead requires one complete JSON value, including EOF after any
+	// trailing whitespace. Empty bodies must use {} to request defaults.
+	if err := json.UnmarshalRead(r.Body, v, json.RejectUnknownMembers(true)); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
 		return false
 	}
@@ -230,9 +231,18 @@ func decodeRequest(w http.ResponseWriter, r *http.Request, v any) bool {
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
+	// Keep the existing wire representation (including null collections and
+	// omitempty), while using v2's strict syntax checks. Buffer before sending
+	// headers so an encoding failure cannot produce a misleading success.
+	data, err := json.Marshal(v, jsonv1.DefaultOptionsV1(),
+		jsontext.AllowInvalidUTF8(false), jsontext.AllowDuplicateNames(false))
+	if err != nil {
+		status = http.StatusInternalServerError
+		data = []byte(`{"error":"JSON encoding failed"}`)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	_, _ = w.Write(append(data, '\n'))
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {

@@ -285,7 +285,7 @@ For sensitive context packs, use the available privacy controls and never includ
 
 ## Development
 
-Requires Go 1.25+.
+Requires Go 1.27.4+. See the [JSON v2 migration guide](docs/json-v2-migration.md) for HTTP contract changes and the reusable codemod.
 
 ```bash
 go build -o girl ./cmd/girl/

@@ -162,3 +162,97 @@ func repoRootForTest(t *testing.T) string {
 	}
 	return root
 }
+
+func TestServe_StrictRequestJSON(t *testing.T) {
+	for _, endpoint := range []string{"next", "benchmark"} {
+		t.Run(endpoint, func(t *testing.T) {
+			root := t.TempDir()
+			ts := newTestServer(t, root, 1)
+			s, err := newAnalysisServer(root, 1, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, tc := range []struct {
+				name string
+				body string
+			}{
+				{"empty", ""},
+				{"whitespace", " \n\t"},
+				{"truncated", `{"path":`},
+				{"unknown", `{"unknown":true}`},
+				{"wrong case", `{"PATH":"."}`},
+				{"duplicate", `{"path":".","path":"other"}`},
+				{"invalid UTF8", "{\"path\":\"\xff\"}"},
+				{"second value", `{} {}`},
+				{"trailing junk", `{} trailing`},
+				{"oversized", `{"path":"` + strings.Repeat("a", 1<<20) + `"}`},
+				{"oversized whitespace", `{}` + strings.Repeat(" ", 1<<20)},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					req := httptest.NewRequest(http.MethodPost, "/v1/"+endpoint, strings.NewReader(tc.body))
+					w := httptest.NewRecorder()
+					s.routes().ServeHTTP(w, req)
+					if w.Code != http.StatusBadRequest {
+						t.Fatalf("status = %d, want 400", w.Code)
+					}
+					var out map[string]string
+					if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || out["error"] == "" {
+						t.Fatalf("invalid JSON error response: %s (%v)", w.Body.String(), err)
+					}
+				})
+			}
+			resp, body := postJSON(t, ts.URL+"/v1/"+endpoint, map[string]any{})
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("empty object: status %d: %v", resp.StatusCode, body)
+			}
+		})
+	}
+}
+
+func TestDecodeRequestAllowsTrailingWhitespace(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/v1/next", strings.NewReader("{\"path\":\".\",\"excerptLines\":0} \n\t"))
+	w := httptest.NewRecorder()
+	var req NextRequest
+	if !decodeRequest(w, r, &req) {
+		t.Fatalf("valid JSON rejected: %s", w.Body.String())
+	}
+	if req.Path != "." || req.ExcerptLines == nil || *req.ExcerptLines != 0 {
+		t.Fatalf("request = %#v", req)
+	}
+}
+
+func TestWriteJSONPreservesWireContract(t *testing.T) {
+	type response struct {
+		Items []string          `json:"items"`
+		Meta  map[string]string `json:"meta"`
+		Count int               `json:"count,omitempty"`
+		Flag  bool              `json:"flag,omitempty"`
+		Text  string            `json:"text"`
+	}
+	value := response{Text: "<script>&\u2028"}
+	want, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	writeJSON(w, http.StatusAccepted, value)
+	if w.Code != http.StatusAccepted || w.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf("status/header = %d / %v", w.Code, w.Header())
+	}
+	if got := w.Body.String(); got != string(want)+"\n" {
+		t.Fatalf("response = %q, want %q", got, string(want)+"\n")
+	}
+}
+
+func TestWriteJSONEncodingFailureReturns500(t *testing.T) {
+	for _, value := range []any{make(chan int), "invalid\xffUTF8"} {
+		w := httptest.NewRecorder()
+		writeJSON(w, http.StatusOK, value)
+		if w.Code != http.StatusInternalServerError {
+			t.Fatalf("status = %d, want 500", w.Code)
+		}
+		if got := w.Body.String(); got != "{\"error\":\"JSON encoding failed\"}\n" {
+			t.Fatalf("body = %q", got)
+		}
+	}
+}

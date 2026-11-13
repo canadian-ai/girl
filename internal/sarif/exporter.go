@@ -1,7 +1,9 @@
 package sarif
 
 import (
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 
@@ -170,7 +172,8 @@ func ExportDiagnostics(diags []ir.Diagnostic, toolName, toolVersion string) (str
 	results := buildResults(diags, ruleSeen)
 	log := buildLog(toolName, toolVersion, rules, results, counts)
 
-	data, err := json.MarshalIndent(log, "", "  ")
+	// Preserve the existing SARIF bytes, including nulls and omitted zero fields.
+	data, err := json.Marshal(log, jsonv1.DefaultOptionsV1(), jsontext.WithIndent("  "))
 	if err != nil {
 		return "", fmt.Errorf("marshal sarif: %w", err)
 	}

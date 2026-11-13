@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,8 +11,8 @@ import (
 	"github.com/canadian-ai/girl/internal/goanalysis"
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/lang"
-	"github.com/canadian-ai/girl/internal/rustanalysis"
 	"github.com/canadian-ai/girl/internal/pythonanalysis"
+	"github.com/canadian-ai/girl/internal/rustanalysis"
 	"github.com/canadian-ai/girl/internal/shared"
 	"github.com/urfave/cli/v2"
 )
@@ -139,7 +138,9 @@ func HasPackageJSON(path string) bool {
 
 func HasPythonProject(path string) bool {
 	for _, name := range []string{"pyproject.toml", "setup.py", "requirements.txt", "Pipfile"} {
-		if info, err := os.Stat(filepath.Join(path, name)); err == nil && !info.IsDir() { return true }
+		if info, err := os.Stat(filepath.Join(path, name)); err == nil && !info.IsDir() {
+			return true
+		}
 	}
 	return false
 }
@@ -169,7 +170,9 @@ func resolveLang(path string, langStr string) string {
 		if hasCargo {
 			return lang.Rust
 		}
-		if HasPythonProject(path) && !hasGoMod && !hasPkgJSON { return lang.Python }
+		if HasPythonProject(path) && !hasGoMod && !hasPkgJSON {
+			return lang.Python
+		}
 
 		if hasGoMod {
 			return lang.Go
@@ -182,7 +185,11 @@ func resolveLang(path string, langStr string) string {
 		if !hasGo && hasTS {
 			return lang.TypeScript
 		}
-		if !hasGo && !hasTS { if hasPythonFiles(path) { return lang.Python } }
+		if !hasGo && !hasTS {
+			if hasPythonFiles(path) {
+				return lang.Python
+			}
+		}
 		if hasGo && hasTS {
 			fmt.Fprintln(os.Stderr, "warning: mixed Go/TypeScript repo detected, use --lang go or --lang ts for precise analysis")
 		}
@@ -239,9 +246,19 @@ func detectLangFiles(path string) (bool, bool) {
 func hasPythonFiles(path string) bool {
 	found := false
 	_ = filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
-		if err != nil { return nil }
-		if fi.IsDir() { if p != path && (shared.ShouldSkipDir(fi.Name()) || fi.Name() == ".venv" || fi.Name() == "venv") { return filepath.SkipDir }; return nil }
-		if filepath.Ext(p) == ".py" { found = true; return filepath.SkipAll }
+		if err != nil {
+			return nil
+		}
+		if fi.IsDir() {
+			if p != path && (shared.ShouldSkipDir(fi.Name()) || fi.Name() == ".venv" || fi.Name() == "venv") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(p) == ".py" {
+			found = true
+			return filepath.SkipAll
+		}
 		return nil
 	})
 	return found
@@ -257,7 +274,7 @@ func isScriptFile(path string) bool {
 }
 
 func writeJSONFile(path string, v interface{}) error {
-	data, err := json.MarshalIndent(v, "", "  ")
+	data, err := marshalContractJSON(v)
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
