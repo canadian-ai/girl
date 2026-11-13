@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -106,7 +105,7 @@ func writeGRPPlanFile(path string, plan *grp.Plan) error {
 	if err := os.MkdirAll(planDir, 0755); err != nil {
 		return fmt.Errorf("create plan directory: %w", err)
 	}
-	data, err := json.MarshalIndent(plan, "", "  ")
+	data, err := marshalContractJSON(plan)
 	if err != nil {
 		return fmt.Errorf("marshal plan: %w", err)
 	}
@@ -119,7 +118,7 @@ func writePlanFile(path string, plan *ir.GrpPlan) error {
 	if err := os.MkdirAll(planDir, 0755); err != nil {
 		return fmt.Errorf("create plan directory: %w", err)
 	}
-	data, err := json.MarshalIndent(plan, "", "  ")
+	data, err := marshalContractJSON(plan)
 	if err != nil {
 		return fmt.Errorf("marshal plan: %w", err)
 	}

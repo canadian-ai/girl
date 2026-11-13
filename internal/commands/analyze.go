@@ -1,15 +1,14 @@
 package commands
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/canadian-ai/girl/internal/analyzer"
 	"github.com/canadian-ai/girl/internal/goanalysis"
 	"github.com/canadian-ai/girl/internal/ir"
-	"github.com/canadian-ai/girl/internal/rustanalysis"
 	"github.com/canadian-ai/girl/internal/pythonanalysis"
+	"github.com/canadian-ai/girl/internal/rustanalysis"
 	"github.com/urfave/cli/v2"
 )
 
@@ -85,7 +84,7 @@ func AnalyzeCommand() *cli.Command {
 }
 
 func printJSON(v interface{}) {
-	data, err := json.MarshalIndent(v, "", "  ")
+	data, err := marshalContractJSON(v)
 	if err != nil {
 		fmt.Printf("{\"error\":%q}\n", err)
 		return
