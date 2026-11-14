@@ -1,8 +1,5 @@
 name: k6 hardware profiles
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 on:
   pull_request:
     paths:
@@ -25,10 +22,10 @@ jobs:
   k6:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.27.4"
           check-latest: true
@@ -53,7 +50,7 @@ jobs:
 
       - name: Upload k6 results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: k6-hardware-results
           path: .girl-scale/k6-results/
