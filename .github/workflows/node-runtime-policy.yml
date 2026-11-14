@@ -1,0 +1,42 @@
+name: GitHub Actions Node runtime policy
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - "scripts/ci/check_action_node.py"
+      - "scripts/ci/test_action_node.py"
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - "scripts/ci/check_action_node.py"
+      - "scripts/ci/test_action_node.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node-runtime-policy:
+    name: Audit all workflow jobs and local actions
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Record actual audit runner
+        run: |
+          echo "Runner: ${RUNNER_NAME:-unknown}, OS: ${RUNNER_OS:-unknown}, arch: ${RUNNER_ARCH:-unknown}"
+          echo "Runtime in PATH: $(node --version 2>/dev/null || echo unavailable)"
+          echo "Note: node on PATH is not the JavaScript runtime selected by actions/checkout or other actions."
+
+      - name: Test policy checker
+        run: python3 -m unittest discover -s scripts/ci -p 'test_action_node.py' -v
+
+      - name: Audit each job, each referenced local composite, and Node setup
+        run: python3 scripts/ci/check_action_node.py
