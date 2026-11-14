@@ -14,7 +14,7 @@ jobs:
   review:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -37,14 +37,14 @@ jobs:
           output-dir: .girl/artifacts
 
       - name: Upload receipt artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: girl-review-receipt
           path: .girl/artifacts/receipt.json
           if-no-files-found: ignore
 
       - name: Upload SIGIL artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: girl-review-sigil
           path: .girl/artifacts/sigil.json
@@ -52,7 +52,7 @@ jobs:
 
       - name: Post review status as PR comment
         if: github.head_ref != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const status = '${{ steps.girl-review.outputs.review-status }}';
