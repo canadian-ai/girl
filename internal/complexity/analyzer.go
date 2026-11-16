@@ -124,12 +124,12 @@ func collectFiles(path string, opts Options) ([]string, string, error) {
 			return walkErr
 		}
 		if entry.IsDir() {
-			if current != path && (shared.ShouldSkipDir(entry.Name()) || excluded[entry.Name()]) {
+			if current != path && (shared.ShouldSkipDir(entry.Name()) || excluded[entry.Name()] || opts.Skip.Skip(current, true)) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if matchesLanguage(current, opts.Language) && !shared.IsGeneratedName(current) {
+		if matchesLanguage(current, opts.Language) && !shared.IsGeneratedName(current) && !shared.IsSymlink(entry) && !opts.Skip.Skip(current, false) {
 			files = append(files, current)
 		}
 		return nil

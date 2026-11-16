@@ -33,6 +33,7 @@ func Detect(path string) (*Result, error) {
 	result.Commands = append(result.Commands, detectPackageScripts(path, pm)...)
 	result.Commands = append(result.Commands, detectGoCommands(path, pm)...)
 	result.Commands = append(result.Commands, detectRustCommands(path, pm)...)
+	result.Commands = append(result.Commands, detectPythonCommands(path)...)
 	result.Commands = append(result.Commands, detectOptionalCommands(path)...)
 	return result, nil
 }
@@ -161,6 +162,52 @@ func detectRustCommands(path string, pm string) []Command {
 		{Name: "Cargo clippy", Command: "cargo clippy", Required: false, Source: "Cargo.toml", Confidence: "high", Type: "lint", Exists: true},
 		{Name: "Cargo test", Command: "cargo test", Required: true, Source: "Cargo.toml", Confidence: "high", Type: "test", Exists: true},
 	}
+}
+
+// detectPythonCommands infers repo-native Python checks. It only proposes a
+// command when the repository declares the tool; it never invents one.
+func detectPythonCommands(path string) []Command {
+	markers := []string{"pyproject.toml", "setup.py", "setup.cfg", "requirements.txt"}
+	source := ""
+	for _, m := range markers {
+		if pathExists(filepath.Join(path, m)) {
+			source = m
+			break
+		}
+	}
+	if source == "" {
+		return nil
+	}
+	pyproject, _ := os.ReadFile(filepath.Join(path, "pyproject.toml"))
+	setupCfg, _ := os.ReadFile(filepath.Join(path, "setup.cfg"))
+	declares := func(section string, files ...string) (string, bool) {
+		if strings.Contains(string(pyproject), "[tool."+section) {
+			return "pyproject.toml", true
+		}
+		if strings.Contains(string(setupCfg), "["+section) || strings.Contains(string(setupCfg), "[tool:"+section) {
+			return "setup.cfg", true
+		}
+		for _, f := range files {
+			if pathExists(filepath.Join(path, f)) {
+				return f, true
+			}
+		}
+		return "", false
+	}
+	cmds := []Command{{
+		Name: "Python compile", Command: `python3 -m compileall -q -x '(^|/)(\.venv|venv|node_modules|\.git|build|dist)/' .`,
+		Required: true, Source: source, Confidence: "high", Type: "build", Exists: true,
+	}}
+	if src, ok := declares("pytest", "pytest.ini", "conftest.py", "tests/conftest.py"); ok {
+		cmds = append(cmds, Command{Name: "pytest", Command: "python3 -m pytest", Required: true, Source: src, Confidence: "high", Type: "test", Exists: true})
+	}
+	if src, ok := declares("ruff", "ruff.toml", ".ruff.toml"); ok {
+		cmds = append(cmds, Command{Name: "ruff", Command: "ruff check .", Required: false, Source: src, Confidence: "high", Type: "lint", Exists: true})
+	}
+	if src, ok := declares("mypy", "mypy.ini", ".mypy.ini"); ok {
+		cmds = append(cmds, Command{Name: "mypy", Command: "mypy .", Required: false, Source: src, Confidence: "medium", Type: "typecheck", Exists: true})
+	}
+	return cmds
 }
 
 func detectOptionalCommands(path string) []Command {

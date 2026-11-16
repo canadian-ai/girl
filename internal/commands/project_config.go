@@ -24,6 +24,20 @@ type GirlProjectConfig struct {
 	Reviewability GirlReviewabilityConfig
 	Verify        map[string][]string
 	Agents        map[string]bool
+
+	// VerifySource is "config" when verification commands came from
+	// .girl/config.yaml and "detected" when inferred from repo-native files.
+	VerifySource string
+	// VerifyDiscoveryError is non-empty when repo-native detection failed.
+	// Detection failure is evidence of nothing; it must not look like
+	// "no commands needed".
+	VerifyDiscoveryError string
+	// VerifyProvenance maps a detected command to where it was found.
+	VerifyProvenance map[string]verification.Command
+	// Problems lists invalid configuration values. Strict mode rejects them.
+	Problems []string
+
+	sourcePath string
 }
 
 type GirlAnalysisConfig struct {
@@ -62,7 +76,7 @@ func defaultGirlProjectConfig(path string) (*GirlProjectConfig, error) {
 		Workspaces: []string{"."},
 		Analysis: GirlAnalysisConfig{
 			ChangedOnly: true,
-			Exclude:     []string{".next", "node_modules", "dist", "build", "coverage", "generated"},
+			Exclude:     defaultAnalysisExclude(),
 		},
 		Complexity: GirlComplexityConfig{
 			Max:      10,
@@ -121,11 +135,16 @@ func defaultGirlProjectConfig(path string) (*GirlProjectConfig, error) {
 	cfg.Agents["codex"] = dirExists(filepath.Join(abs, ".codex"))
 	cfg.Agents["claude"] = dirExists(filepath.Join(abs, ".claude"))
 
+	cfg.VerifySource = "detected"
+	cfg.VerifyProvenance = map[string]verification.Command{}
 	if detected, err := verification.Detect(abs); err == nil {
 		for _, cmd := range detected.Commands {
 			role := commandRole(cmd)
 			cfg.Verify[role] = appendUnique(cfg.Verify[role], cmd.Command)
+			cfg.VerifyProvenance[cmd.Command] = cmd
 		}
+	} else {
+		cfg.VerifyDiscoveryError = err.Error()
 	}
 
 	return cfg, nil
@@ -201,9 +220,30 @@ func loadGirlProjectConfig(path string) (*GirlProjectConfig, error) {
 	}
 
 	cfg := &GirlProjectConfig{
-		Version: girlProjectConfigVersion,
-		Verify:  map[string][]string{},
-		Agents:  map[string]bool{},
+		Version:      girlProjectConfigVersion,
+		Verify:       map[string][]string{},
+		Agents:       map[string]bool{},
+		VerifySource: "config",
+		sourcePath:   configPath,
+	}
+	excludeSeen := false
+	problem := func(format string, args ...any) {
+		cfg.Problems = append(cfg.Problems, fmt.Sprintf(format, args...))
+	}
+	parseInt := func(key, v string) int {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			problem("%s: expected a non-negative integer, got %q", key, v)
+			return 0
+		}
+		return n
+	}
+	parseBool := func(key, v string) bool {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			problem("%s: expected true or false, got %q", key, v)
+		}
+		return b
 	}
 	section := ""
 	subsection := ""
@@ -240,6 +280,7 @@ func loadGirlProjectConfig(path string) (*GirlProjectConfig, error) {
 				cfg.Workspaces = append(cfg.Workspaces, v)
 			case "analysis":
 				if subsection == "exclude" {
+					excludeSeen = true
 					cfg.Analysis.Exclude = append(cfg.Analysis.Exclude, v)
 				}
 			case "verify":
@@ -257,29 +298,40 @@ func loadGirlProjectConfig(path string) (*GirlProjectConfig, error) {
 		v = trimYAMLValue(v)
 		switch section {
 		case "analysis":
-			if k == "changed_only" {
-				cfg.Analysis.ChangedOnly, _ = strconv.ParseBool(v)
+			switch k {
+			case "changed_only":
+				cfg.Analysis.ChangedOnly = parseBool("analysis.changed_only", v)
+			case "exclude":
+				excludeSeen = true
+				if v == "[]" {
+					cfg.Analysis.Exclude = []string{}
+				}
 			}
 		case "complexity":
 			switch k {
 			case "max":
-				cfg.Complexity.Max, _ = strconv.Atoi(v)
+				cfg.Complexity.Max = parseInt("complexity.max", v)
 			case "baseline":
 				cfg.Complexity.Baseline = v
 			case "fail_on":
+				switch strings.ToLower(v) {
+				case "regression", "increase", "threshold", "never", "none":
+				default:
+					problem("complexity.fail_on: unknown policy %q", v)
+				}
 				cfg.Complexity.FailOn = v
 			}
 		case "reviewability":
 			switch k {
 			case "max_diff_lines":
-				cfg.Reviewability.MaxDiffLines, _ = strconv.Atoi(v)
+				cfg.Reviewability.MaxDiffLines = parseInt("reviewability.max_diff_lines", v)
 			case "max_touched_files":
-				cfg.Reviewability.MaxTouchedFiles, _ = strconv.Atoi(v)
+				cfg.Reviewability.MaxTouchedFiles = parseInt("reviewability.max_touched_files", v)
 			case "max_risk":
 				cfg.Reviewability.MaxRisk = v
 			}
 		case "agents":
-			cfg.Agents[k], _ = strconv.ParseBool(v)
+			cfg.Agents[k] = parseBool("agents."+k, v)
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -287,6 +339,16 @@ func loadGirlProjectConfig(path string) (*GirlProjectConfig, error) {
 	}
 	if len(cfg.Workspaces) == 0 {
 		cfg.Workspaces = []string{"."}
+	}
+	if !excludeSeen {
+		// A config without an exclude list keeps GIRL's default exclusions
+		// rather than silently scanning dependency and generated trees.
+		cfg.Analysis.Exclude = defaultAnalysisExclude()
+	}
+	for _, pat := range cfg.Analysis.Exclude {
+		if _, err := newScopePolicy(path, []string{pat}); err != nil {
+			problem("analysis.exclude: %v", err)
+		}
 	}
 	if cfg.Complexity.Max == 0 {
 		cfg.Complexity.Max = 10
@@ -307,6 +369,10 @@ func loadGirlProjectConfig(path string) (*GirlProjectConfig, error) {
 		cfg.Reviewability.MaxRisk = "medium"
 	}
 	return cfg, nil
+}
+
+func defaultAnalysisExclude() []string {
+	return []string{".next", "node_modules", "dist", "build", "coverage", "generated"}
 }
 
 func splitYAMLKV(line string) (string, string, bool) {
