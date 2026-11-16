@@ -344,5 +344,16 @@
       ]
     }
   ],
-  "verification": []
+  "verification": [],
+  "unplanned": [
+    {
+      "diagnosticId": "diag_4",
+      "code": "react.complex-conditionals",
+      "file": "testdata/golden/react-multi-diag/input/App.tsx",
+      "line": 38,
+      "severity": "low",
+      "disposition": "manual",
+      "reason": "no registered GRP recipe for this diagnostic; requires manual review"
+    }
+  ]
 }

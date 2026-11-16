@@ -76,6 +76,23 @@
       },
       "required": ["strategy"]
     },
-    "reduction": { "$ref": "grp-reduction.v0.1.schema.json" }
+    "reduction": { "$ref": "grp-reduction.v0.1.schema.json" },
+    "unplanned": {
+      "type": "array",
+      "description": "Diagnostics without a registered GRP recipe. Reported, never silently dropped; 'blocked' entries make the plan not ready for execution.",
+      "items": {
+        "type": "object",
+        "required": ["code", "file", "severity", "disposition", "reason"],
+        "properties": {
+          "diagnosticId": { "type": "string" },
+          "code": { "type": "string" },
+          "file": { "type": "string" },
+          "line": { "type": "integer" },
+          "severity": { "enum": ["low", "medium", "high"] },
+          "disposition": { "enum": ["manual", "blocked"] },
+          "reason": { "type": "string" }
+        }
+      }
+    }
   }
 }
