@@ -64,6 +64,9 @@ func PackCommand() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
+			if err := packer.ValidatePrivacyMode(c.String("privacy")); err != nil {
+				return err
+			}
 			path := commandPath(c)
 			lang := resolveLang(path, c.String("lang"))
 			result, err := analyzePath(path, lang)

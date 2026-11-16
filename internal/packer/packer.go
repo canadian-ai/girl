@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/redact"
 	"github.com/canadian-ai/girl/internal/tokens"
 	"github.com/canadian-ai/girl/internal/verification"
 )
@@ -75,7 +75,9 @@ func (p *Packer) Pack(req PackRequest) (*ir.ContextPack, error) {
 	if privacy == "" {
 		privacy = "private"
 	}
-	p.applyPrivacy(privacy, pack, req.Files)
+	if err := p.applyPrivacy(privacy, pack, req.Files); err != nil {
+		return nil, err
+	}
 
 	return pack, nil
 }
@@ -261,9 +263,17 @@ func collectRisks(diags []ir.Diagnostic, steps []ir.GrpStep) []string {
 }
 
 func packRelPath(path string) string {
-	rel, err := filepath.Rel(".", path)
+	base := "."
+	if filepath.IsAbs(path) {
+		if wd, err := os.Getwd(); err == nil {
+			base = wd
+		}
+	}
+	rel, err := filepath.Rel(base, path)
 	if err != nil {
-		return rel
+		// Never lose the path: the privacy layer needs it to recognise
+		// sensitive files, and redactPath hides absolute prefixes.
+		return path
 	}
 	return rel
 }
@@ -368,34 +378,92 @@ func (p *Packer) createDiagnosticSnippet(readPath, relPath string, d ir.Diagnost
 	}
 }
 
-func (p *Packer) applyPrivacy(mode string, pack *ir.ContextPack, files []*ir.FileIR) {
+// Privacy modes. The guarantees are deliberately modest and honest:
+//
+//   - private:  nothing is altered. For use on this machine only.
+//   - redacted: every exported string (goal, paths, summaries, snippets,
+//     diagnostics, steps, risks, verification, metadata) passes the shared
+//     sanitizer; absolute and home paths are hidden; contents of sensitive
+//     files (.env, keys, credentials) are omitted; any snippet on which a
+//     detector still fires is omitted. Detection is heuristic, not perfect.
+//   - public:   redacted, plus public path sanitization.
+//
+// Both sanitizing modes fail closed (an error, no pack) if any detector still
+// fires anywhere in the output after sanitization.
+const (
+	PrivacyPrivate  = "private"
+	PrivacyRedacted = "redacted"
+	PrivacyPublic   = "public"
+)
+
+// ValidatePrivacyMode rejects unknown modes instead of silently exporting
+// unsanitized content.
+func ValidatePrivacyMode(mode string) error {
 	switch mode {
-	case "private":
-		return
-	case "redacted":
-		homeDir, _ := os.UserHomeDir()
-		for i, f := range pack.Files {
-			pack.Files[i] = redactPath(f, homeDir)
-		}
-		for i, s := range pack.Summaries {
-			pack.Summaries[i].Path = redactPath(s.Path, homeDir)
-			pack.Summaries[i].Summary = redactContent(s.Summary)
-		}
-		for i, sn := range pack.SelectedSnippets {
-			pack.SelectedSnippets[i].File = redactPath(sn.File, homeDir)
-			pack.SelectedSnippets[i].Content = redactContent(sn.Content)
-		}
-	case "public":
-		for i, f := range pack.Files {
-			pack.Files[i] = sanitizePublicPath(f)
-		}
-		for i, s := range pack.Summaries {
-			pack.Summaries[i].Path = sanitizePublicPath(s.Path)
-		}
-		for i, sn := range pack.SelectedSnippets {
-			pack.SelectedSnippets[i].File = sanitizePublicPath(sn.File)
+	case "", PrivacyPrivate, PrivacyRedacted, PrivacyPublic:
+		return nil
+	}
+	return fmt.Errorf("unknown privacy mode %q (expected private, redacted or public)", mode)
+}
+
+const omittedSnippet = "// omitted: content could not be safely sanitized for export"
+
+func (p *Packer) applyPrivacy(mode string, pack *ir.ContextPack, files []*ir.FileIR) error {
+	if err := ValidatePrivacyMode(mode); err != nil {
+		return err
+	}
+	if mode == "" || mode == PrivacyPrivate {
+		return nil
+	}
+
+	// Sensitive files never contribute content, whatever detectors say.
+	for i, sn := range pack.SelectedSnippets {
+		if redact.IsSensitiveFile(sn.File) {
+			pack.SelectedSnippets[i].Content = omittedSnippet
 		}
 	}
+
+	// Sanitize every exported string, then apply path transforms.
+	redact.Value(pack)
+	homeDir, _ := os.UserHomeDir()
+	pathFn := func(path string) string {
+		path = redactPath(path, homeDir)
+		if mode == PrivacyPublic {
+			path = sanitizePublicPath(path)
+		}
+		return path
+	}
+	for i := range pack.Files {
+		pack.Files[i] = pathFn(pack.Files[i])
+	}
+	for i := range pack.Summaries {
+		pack.Summaries[i].Path = pathFn(pack.Summaries[i].Path)
+	}
+	for i := range pack.SelectedSnippets {
+		pack.SelectedSnippets[i].File = pathFn(pack.SelectedSnippets[i].File)
+	}
+	for i := range pack.Diagnostics {
+		pack.Diagnostics[i].File = pathFn(pack.Diagnostics[i].File)
+	}
+	for i := range pack.Steps {
+		pack.Steps[i].File = pathFn(pack.Steps[i].File)
+	}
+
+	// Independent verification: omit any snippet a detector still flags.
+	for i, sn := range pack.SelectedSnippets {
+		if len(redact.Scan(sn.Content)) > 0 {
+			pack.SelectedSnippets[i].Content = omittedSnippet
+		}
+	}
+	if findings := redact.ScanValue(pack); len(findings) > 0 {
+		// Fail closed. Report field paths and detector names only, never values.
+		var where []string
+		for _, f := range findings {
+			where = append(where, f.Path+" ("+f.Detector+")")
+		}
+		return fmt.Errorf("%s export refused: sanitization could not be established for %s", mode, strings.Join(where, ", "))
+	}
+	return nil
 }
 
 func redactPath(path, homeDir string) string {
@@ -426,29 +494,9 @@ func sanitizePublicPath(path string) string {
 	return strings.Join(filtered, string(filepath.Separator))
 }
 
-var sensitivePatterns = []struct {
-	pattern string
-	repl    string
-}{
-	// OpenAI / Anthropic API keys
-	{`sk-[a-zA-Z0-9]{20,}`, "sk-<redacted>"},
-	{`sk-ant-[a-zA-Z0-9]{20,}`, "sk-ant-<redacted>"},
-	// Bearer tokens
-	{`Bearer [a-zA-Z0-9\-._~+/=]{20,}`, "Bearer <redacted>"},
-	// Generic API keys in assignments (allow = or : after key name)
-	{`(?i)api[_\-]?key[=:]\s*['"]?[a-zA-Z0-9]{16,}['"]?`, "API_KEY=<redacted>"},
-	// .env / env-var secret patterns
-	{`(?i)(secret|password|token|api_key)[=:]\s*['"]?[a-zA-Z0-9]{8,}['"]?`, "$1=<redacted>"},
-	// Private email addresses
-	{`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}`, "<email-redacted>"},
-}
-
+// redactContent applies the shared export sanitizer.
 func redactContent(s string) string {
-	for _, sp := range sensitivePatterns {
-		re := regexp.MustCompile(sp.pattern)
-		s = re.ReplaceAllString(s, sp.repl)
-	}
-	return s
+	return redact.String(s)
 }
 
 func (p *Packer) GrpContextPack(pack *ir.ContextPack, planID string) *ir.GrpContextPack {
