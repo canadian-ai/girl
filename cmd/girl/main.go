@@ -42,6 +42,7 @@ func main() {
 			commands.PreflightCommand(),
 			commands.WorkOrderCommand(),
 			commands.LaunchKitCommand(),
+			commands.SonarCommand(),
 			commands.VersionCommand(),
 			commands.UpdateCommand(),
 		},

@@ -26,9 +26,14 @@ high-risk refactors, producing reviewable decision records.
 
 ## Current scope
 
-The Go contracts and unit tests above are implemented. SonarQube API ingestion,
-Ruff/Clippy subprocesses, interactive grill CLI, recipe executor, CI enforcement
-and verified cloud-agent execution are NOT yet implemented.
+The Go contracts and unit tests above are implemented. A read-only SonarQube
+provider (`internal/extensions/sonarqube`, `girl sonar`) imports issues,
+proposes bounded actions and issues remediation receipts; it is mock-tested
+against the documented Web API but not yet validated against a live instance.
+See [sonarqube.md](sonarqube.md).
+
+Ruff/Clippy subprocesses, interactive grill CLI, recipe executor, CI
+enforcement and verified cloud-agent execution are NOT yet implemented.
 
 Measure success using issues resolved by authoritative rescans, regression rate,
 agent tokens per verified fix and approval overhead.
