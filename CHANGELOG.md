@@ -7,7 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (fail-closed enforcement, #119–#126)
+- `girl check` fails (non-zero exit) on unparseable source in every mode, including `--no-verify`. Python (`ast`) and Go (`go/parser`) failures emit blocking `<lang>.syntax-error` diagnostics with line/column instead of being dropped or downgraded to warnings; a missing `python3` is a blocking `py.analysis-error`. TypeScript/JavaScript and Rust use an error-recovering grammar that rejects some valid source, so they emit advisory `ts.parse-recovery` / `rust.parse-recovery` instead (#119)
+- `verificationRun` is true only when a command actually executed. New `verificationSummary` (verified, failed, not-configured, blocked, skipped) with configured/executed/passed/failed/errored/not-run counts; each command records exit code, `error` for commands that could not start, `not-run` for the `--fail-fast` remainder, and provenance. Discovery errors are surfaced instead of swallowed (#120)
+- Changed-file discovery includes untracked non-ignored files, resolves paths from the Git root and constrains them to the requested subdirectory on segment boundaries, reads NUL-delimited output, skips symlinks, falls back to `origin/<base>`, and reports failures instead of returning an empty scan. `check` and `next` share it (#121)
+- Project exclusions are applied before any file is read by every analyzer, the repeated-literal scan and the complexity engine, in all/changed/nested-workspace modes, using the nearest `.girl/config.yaml`; documented directory/glob/anchored semantics. Effective exclusions and skip counts are reported in `scope` (#122)
+- Context packs: a shared export-boundary sanitizer covers every exported field; broader credential detection (PEM blocks, provider tokens, URL credentials, many assignment syntaxes, YAML block scalars, triple-quoted values, prose, high-entropy tokens); sensitive files are omitted; `redacted` and `public` fail closed; unknown privacy modes are rejected. Absolute diagnostic paths no longer collapse to an empty filename (#123)
+- Python diagnostics map to GRP recipes (`py.repair-syntax` for parser failures); unmapped findings are reported in a plan's `unplanned` section instead of being dropped; `grp.CheckExecutionReadiness` and `girl validate --strict` separate structural validity from execution readiness (#124)
+- A missing, unreadable, corrupt or incompatible complexity baseline is `unenforced` (blocking under `--strict`) with remediation, never a silent `skip`; baseline SHA-256 and schema are attached; non-JS projects report `not-applicable` instead of omitting the result (#125)
+
 ### Added
+- `girl check --strict` (implied by `--ci`) and an evidence `verdict` (`verified`, `failed`, `blocked`, `unverified`) with `reasons`; invalid config values are reported in `configProblems`
+- Repo-native Python verification detection (`compileall`; `pytest`, `ruff`, `mypy` only when declared)
+- Read-only SonarQube provider and `girl sonar status|issues|verify`: normalized findings with provenance, bounded GRP action proposals, and remediation receipts tied to a fresh scan of the fixing revision. Mock-tested against the documented Web API; not yet validated against a live instance (#126)
+- `docs/enforcement.md`, `docs/privacy.md`, `docs/extensions/sonarqube.md`
+
+### Security
+- In base/CI mode the complexity baseline is read from the base ref, so a change cannot rewrite its own baseline; changes to `.girl/config.yaml` or the baseline are reported in `policyFilesChanged`
+- Analyzers never read through symlinks; Git base refs cannot be interpreted as options; project config is not inherited from parent directories outside a repository
+- Verification command output is sanitized and size-capped before it reaches JSON results; SonarQube issue text is treated as untrusted (control characters stripped, length capped)
 - `girl serve`: local HTTP API (`POST /v1/next`, `POST /v1/benchmark`, `GET /v1/capabilities`, `GET /healthz`). Loopback by default, request paths confined to `--root`, `--max-concurrent` queueing with `Server-Timing` queue/analysis split
 - k6 load testing: `bench/k6/girl.js` (agent-loop + repo-scan scenarios, p95 thresholds), `scripts/k6-corpus.sh` (React corpus from the TSX fixtures in `testdata/` and `examples/`), `scripts/k6-hardware.sh` (edge / laptop / ci / workstation profiles via Docker `--cpus`/`--memory`, or `MODE=local` with taskset), `make k6` / `make k6-hardware`, and a `k6 hardware profiles` CI workflow
 - Scale tests build their synthetic monorepo's React code from the real TSX fixtures in `testdata/`
