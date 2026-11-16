@@ -147,6 +147,15 @@ func (p *Planner) generateStepsFromDiagnostics(plan *ir.GrpPlan, req PlanRequest
 	for i, diag := range req.Diagnostics {
 		step := recipes.StepForDiagnostic(diag)
 		if step.Recipe == "" {
+			disposition := "manual"
+			if ir.IsBlocking(diag) || diag.Severity == ir.SeverityHigh {
+				disposition = "blocked"
+			}
+			plan.Unplanned = append(plan.Unplanned, ir.UnplannedFinding{
+				DiagIndex: i, Code: diag.Code, File: diag.File, Line: diag.Line,
+				Severity: diag.Severity, Disposition: disposition,
+				Reason: "no registered GRP recipe for this diagnostic; requires manual review",
+			})
 			continue
 		}
 		step.SourceDiagIndex = i

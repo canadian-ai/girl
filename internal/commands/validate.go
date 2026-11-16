@@ -22,6 +22,10 @@ func ValidateCommand() *cli.Command {
 				Usage:   "Output format: text (default) or markdown (human-readable plan)",
 				Value:   "text",
 			},
+			&cli.BoolFlag{
+				Name:  "strict",
+				Usage: "Also require execution readiness: every actionable diagnostic must be addressed by a step",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			path := c.Args().First()
@@ -49,12 +53,27 @@ func ValidateCommand() *cli.Command {
 				return fmt.Errorf("plan validation failed with %d errors", len(result.Errors))
 			}
 
+			readiness := grp.CheckExecutionReadiness(&plan)
+			if c.Bool("strict") && !readiness.Ready {
+				for _, r := range readiness.Reasons {
+					fmt.Fprintf(os.Stderr, "  readiness: %s\n", r)
+				}
+				return fmt.Errorf("plan is structurally valid but not ready for execution")
+			}
+
 			if stringFlag(c, "output", "o") == "markdown" {
 				fmt.Print(grp.RenderPlanMarkdown(&plan))
 				return nil
 			}
 
-			fmt.Println("Plan is valid.")
+			if readiness.Ready {
+				fmt.Println("Plan is valid and ready for execution.")
+			} else {
+				fmt.Println("Plan is valid but NOT ready for execution:")
+				for _, r := range readiness.Reasons {
+					fmt.Printf("  - %s\n", r)
+				}
+			}
 			return nil
 		},
 	}

@@ -232,4 +232,17 @@ type Plan struct {
 	Reviewability      *Reviewability         `json:"reviewability,omitempty"`
 	Decomposition      *Decomposition         `json:"decomposition,omitempty"`
 	Reduction          *Reduction             `json:"reduction,omitempty"`
+	// Unplanned lists diagnostics without a registered recipe.
+	Unplanned []UnplannedFinding `json:"unplanned,omitempty"`
+}
+
+// UnplannedFinding is a diagnostic the planner could not map to a step.
+type UnplannedFinding struct {
+	DiagnosticID string   `json:"diagnosticId,omitempty"`
+	Code         string   `json:"code"`
+	File         string   `json:"file"`
+	Line         int      `json:"line,omitempty"`
+	Severity     Severity `json:"severity"`
+	Disposition  string   `json:"disposition"`
+	Reason       string   `json:"reason"`
 }

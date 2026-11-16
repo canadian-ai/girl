@@ -42,6 +42,14 @@ func FromIRPlan(irPlan *ir.GrpPlan) *Plan {
 		p.Steps[i] = step
 	}
 
+	for _, u := range irPlan.Unplanned {
+		f := UnplannedFinding{Code: u.Code, File: u.File, Line: u.Line, Severity: Severity(u.Severity), Disposition: u.Disposition, Reason: u.Reason}
+		if u.DiagIndex >= 0 && u.DiagIndex < len(p.Diagnostics) {
+			f.DiagnosticID = p.Diagnostics[u.DiagIndex].ID
+		}
+		p.Unplanned = append(p.Unplanned, f)
+	}
+
 	if irPlan.Reviewability != nil {
 		r := irPlan.Reviewability
 		p.Reviewability = &Reviewability{

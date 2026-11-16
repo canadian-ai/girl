@@ -84,6 +84,12 @@ func PlanCommand() *cli.Command {
 						fmt.Fprintf(os.Stderr, "  - %s: %s\n", e.Field, e.Message)
 					}
 				}
+				if readiness := grp.CheckExecutionReadiness(gp); !readiness.Ready {
+					fmt.Fprintf(os.Stderr, "Warning: plan is not ready for execution:\n")
+					for _, r := range readiness.Reasons {
+						fmt.Fprintf(os.Stderr, "  - %s\n", r)
+					}
+				}
 				if err := writeGRPPlanFile(path, gp); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
 				}

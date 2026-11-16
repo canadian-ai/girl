@@ -232,6 +232,74 @@ var builtInRecipes = []DiagnosticRecipe{
 			return fmt.Sprintf("Group parameters in %s into a builder or options struct", targetName(d))
 		},
 	},
+	// Python recipes (bindings/python/recipes.md). Every code emitted by
+	// internal/pythonanalysis must be registered here; a contract test
+	// enforces it.
+	{
+		Code:   "py.syntax-error",
+		Recipe: "py.repair-syntax",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityHigh },
+		Verify: func(d ir.Diagnostic) []string { return []string{pythonCompileCheck} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Repair the syntax error in %s at line %d; no refactoring is allowed until the file parses", d.File, d.Line)
+		},
+	},
+	{
+		Code:   "py.analysis-error",
+		Recipe: "py.repair-syntax",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityHigh },
+		Verify: func(d ir.Diagnostic) []string { return []string{pythonCompileCheck} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Make %s analyzable (%s) before refactoring", d.File, d.Message)
+		},
+	},
+	{
+		Code:   "py.long-function",
+		Recipe: "py.extract-function",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{pythonCompileCheck, "tests"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Split %s (%s) into cohesive helper functions", targetName(d), d.File)
+		},
+	},
+	{
+		Code:   "py.high-complexity",
+		Recipe: "py.simplify-branches",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{pythonCompileCheck, "tests"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Simplify conditional paths in %s and isolate branches into helpers", targetName(d))
+		},
+	},
+	{
+		Code:   "py.deep-nesting",
+		Recipe: "py.flatten-nesting",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{pythonCompileCheck, "tests"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Flatten nesting in %s with guard clauses, early returns and small helpers", targetName(d))
+		},
+	},
+	{
+		Code:   "py.too-many-params",
+		Recipe: "py.group-parameters",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{pythonCompileCheck, "tests"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Group related parameters of %s into a typed configuration object", targetName(d))
+		},
+	},
+	{
+		Code:   "py.large-file",
+		Recipe: "py.split-module",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return d.Severity },
+		Verify: func(d ir.Diagnostic) []string { return []string{pythonCompileCheck, "imports", "tests"} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Split %s into modules by responsibility", d.File)
+		},
+	},
+	// Parser failures in other bindings: repair, never refactor.
+	syntaxRepairRecipe("go", "go build ./..."),
 	{
 		Code:   "agent.diff-too-large",
 		Recipe: "agent.decompose-large-diff",
@@ -435,6 +503,20 @@ var builtInRecipes = []DiagnosticRecipe{
 func init() {
 	for _, recipe := range builtInRecipes {
 		Register(recipe)
+	}
+}
+
+const pythonCompileCheck = "python3 -m compileall -q ."
+
+func syntaxRepairRecipe(prefix, verify string) DiagnosticRecipe {
+	return DiagnosticRecipe{
+		Code:   prefix + ".syntax-error",
+		Recipe: prefix + ".repair-syntax",
+		Risk:   func(d ir.Diagnostic) ir.Severity { return ir.SeverityHigh },
+		Verify: func(d ir.Diagnostic) []string { return []string{verify} },
+		Action: func(d ir.Diagnostic) string {
+			return fmt.Sprintf("Repair the syntax error in %s at line %d; no refactoring is allowed until the file parses", d.File, d.Line)
+		},
 	}
 }
 
