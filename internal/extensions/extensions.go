@@ -20,6 +20,9 @@ type Finding struct {
  Severity string `json:"severity"`
  Message string `json:"message"`
  Fingerprint string `json:"fingerprint"`
+ // Provenance records where the finding came from (scan identity, branch,
+ // revision, category). It is not part of the fingerprint.
+ Provenance map[string]string `json:"provenance,omitempty"`
 }
 type Action struct {
  ID string `json:"id"`
