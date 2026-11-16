@@ -31,16 +31,29 @@ func commandPath(c *cli.Context) string {
 }
 
 func analyzePath(path, lang string) (*ir.AnalyzerResult, error) {
-	if lang == "go" {
-		return goanalysis.AnalyzePath(path, nil)
+	return analyzePathFiltered(path, lang, nil)
+}
+
+// analyzePathFiltered analyzes path with one language analyzer, consulting the
+// project exclusion filter before any file is read.
+func analyzePathFiltered(path, lang string, skip shared.PathFilter) (*ir.AnalyzerResult, error) {
+	switch lang {
+	case "go":
+		cfg := goanalysis.DefaultConfig()
+		cfg.Skip = skip
+		return goanalysis.AnalyzePath(path, cfg)
+	case "rust":
+		cfg := rustanalysis.DefaultConfig()
+		cfg.Skip = skip
+		return rustanalysis.AnalyzePath(path, cfg)
+	case "python":
+		cfg := pythonanalysis.DefaultConfig()
+		cfg.Skip = skip
+		return pythonanalysis.AnalyzePath(path, cfg)
 	}
-	if lang == "rust" {
-		return rustanalysis.AnalyzePath(path, nil)
-	}
-	if lang == "python" {
-		return pythonanalysis.AnalyzePath(path, nil)
-	}
-	return analyzer.NewAnalyzer(nil).Analyze(path)
+	cfg := analyzer.DefaultConfig()
+	cfg.Skip = skip
+	return analyzer.NewAnalyzer(cfg).Analyze(path)
 }
 
 func stringFlag(c *cli.Context, name string, aliases ...string) string {
@@ -244,18 +257,22 @@ func detectLangFiles(path string) (bool, bool) {
 }
 
 func hasPythonFiles(path string) bool {
+	return hasPythonFilesFiltered(path, nil)
+}
+
+func hasPythonFilesFiltered(path string, skip shared.PathFilter) bool {
 	found := false
 	_ = filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
 		if fi.IsDir() {
-			if p != path && (shared.ShouldSkipDir(fi.Name()) || fi.Name() == ".venv" || fi.Name() == "venv") {
+			if p != path && (shared.ShouldSkipDir(fi.Name()) || fi.Name() == ".venv" || fi.Name() == "venv" || skip.Skip(p, true)) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if filepath.Ext(p) == ".py" {
+		if filepath.Ext(p) == ".py" && !skip.Skip(p, false) {
 			found = true
 			return filepath.SkipAll
 		}

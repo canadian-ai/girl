@@ -83,6 +83,10 @@ func readComplexityReport(path string) (*complexity.Report, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parseComplexityReport(data)
+}
+
+func parseComplexityReport(data []byte) (*complexity.Report, error) {
 	var report complexity.Report
 	if err := json.Unmarshal(data, &report); err != nil {
 		return nil, err

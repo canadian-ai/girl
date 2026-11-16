@@ -1,5 +1,7 @@
 package complexity
 
+import "github.com/canadian-ai/girl/internal/shared"
+
 const SchemaVersion = "1"
 
 // FunctionMetric is one function-like unit measured independently. Nested
@@ -72,4 +74,6 @@ type Options struct {
 	Language  string
 	Threshold int
 	Exclude   []string
+	// Skip is the project exclusion policy, consulted before reading files.
+	Skip shared.PathFilter
 }
