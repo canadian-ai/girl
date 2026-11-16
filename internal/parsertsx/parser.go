@@ -315,6 +315,9 @@ func (p *Parser) parseSource(path string, data []byte, visit TreeVisitor) (*ir.F
 		Hooks:      nil,
 		Imports:    nil,
 	}
+	if line, col, missing, bad := shared.FirstSyntaxError(root); bad {
+		fir.SyntaxError = &ir.SyntaxError{Line: line, Column: col, Message: shared.SyntaxErrorMessage(missing)}
+	}
 
 	rm := p.matchRoot(qs, root, data)
 	fir.Imports = p.extractImports(rm, data)
@@ -333,6 +336,12 @@ func (p *Parser) ParseDir(dir string, excludeDirs []string) ([]*ir.FileIR, error
 }
 
 func (p *Parser) ParseDirVisit(dir string, excludeDirs []string, visit TreeVisitor) ([]*ir.FileIR, error) {
+	return p.ParseDirVisitFiltered(dir, excludeDirs, nil, visit)
+}
+
+// ParseDirVisitFiltered is ParseDirVisit with a project exclusion filter that
+// is consulted before any file is read.
+func (p *Parser) ParseDirVisitFiltered(dir string, excludeDirs []string, skip shared.PathFilter, visit TreeVisitor) ([]*ir.FileIR, error) {
 	p.lazyInit()
 	excludeMap := make(map[string]bool)
 	for _, d := range excludeDirs {
@@ -342,6 +351,12 @@ func (p *Parser) ParseDirVisit(dir string, excludeDirs []string, visit TreeVisit
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
+		}
+		if path != dir && skip.Skip(path, info.IsDir()) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		if info.IsDir() && path != dir {
 			base := filepath.Base(path)
@@ -353,7 +368,7 @@ func (p *Parser) ParseDirVisit(dir string, excludeDirs []string, visit TreeVisit
 		if info.IsDir() {
 			return nil
 		}
-		if !isParseableExt(path) || shared.IsGeneratedName(path) {
+		if !isParseableExt(path) || shared.IsGeneratedName(path) || shared.IsSymlink(info) {
 			return nil
 		}
 		paths = append(paths, path)

@@ -14,7 +14,7 @@ func AnalyzePath(path string, cfg *Config) (*ir.AnalyzerResult, error) {
 		cfg = DefaultConfig()
 	}
 
-	rustFiles, err := collectRustFiles(path)
+	rustFiles, err := collectRustFiles(path, cfg.Skip)
 	if err != nil {
 		return nil, err
 	}
@@ -35,9 +35,10 @@ func fileIRs(rustFiles []*RustFile) []*ir.FileIR {
 	files := make([]*ir.FileIR, len(rustFiles))
 	for i, rf := range rustFiles {
 		files[i] = &ir.FileIR{
-			Path:     rf.Path,
-			Language: "rust",
-			Lines:    rf.Lines,
+			Path:        rf.Path,
+			Language:    "rust",
+			Lines:       rf.Lines,
+			SyntaxError: rf.SyntaxError,
 		}
 	}
 	return files
@@ -56,6 +57,9 @@ func sortDiagnostics(diags []ir.Diagnostic) {
 func detectDiagnostics(files []*RustFile, cfg *Config) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, f := range files {
+		if f.SyntaxError != nil {
+			diags = append(diags, ir.ParseRecoveryDiagnostic("rust", f.Path, *f.SyntaxError))
+		}
 		diags = append(diags, detectLargeFile(f, cfg)...)
 		for _, fn := range f.Functions {
 			start := len(diags)

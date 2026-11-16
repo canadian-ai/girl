@@ -91,6 +91,11 @@ type FileIR struct {
 	Components []ComponentIR `json:"components"`
 	Hooks      []HookIR      `json:"hooks"`
 	Imports    []ImportIR    `json:"imports"`
+	// SyntaxError is set when the parser rejected or had to recover from the
+	// source. Authoritative parsers (Go, Python) produce a blocking
+	// <lang>.syntax-error; recovering grammars produce an advisory
+	// <lang>.parse-recovery.
+	SyntaxError *SyntaxError `json:"syntaxError,omitempty"`
 }
 
 type AnalyzerResult struct {
@@ -228,4 +233,18 @@ type GrpPlan struct {
 	Verification  []string             `json:"verification"`
 	Reviewability *ReviewabilityResult `json:"reviewability,omitempty"`
 	Decomposition *Decomposition       `json:"decomposition,omitempty"`
+	// Unplanned lists findings the planner could not turn into a step. They
+	// are reported, never silently dropped.
+	Unplanned []UnplannedFinding `json:"unplanned,omitempty"`
+}
+
+// UnplannedFinding is a diagnostic without a registered GRP recipe.
+type UnplannedFinding struct {
+	DiagIndex   int      `json:"-"`
+	Code        string   `json:"code"`
+	File        string   `json:"file"`
+	Line        int      `json:"line,omitempty"`
+	Severity    Severity `json:"severity"`
+	Disposition string   `json:"disposition"` // "manual" (advisory) or "blocked" (must be resolved before execution)
+	Reason      string   `json:"reason"`
 }
