@@ -137,12 +137,15 @@ girl init                       # detect stack, workspaces, verification scripts
 girl check                      # the daily command
 girl check --changed            # changed files only
 girl check --base master        # compare against a Git base
-girl check --ci                 # CI-friendly defaults
-girl check --no-verify          # analysis/quality gates only
+girl check --ci                 # CI-friendly defaults (implies --strict)
+girl check --strict             # fail closed on missing verification, baselines or invalid config
+girl check --no-verify          # analysis/quality gates only (never "verified")
 girl check --output json        # machine-readable result
 ```
 
 `girl check` combines changed-file scoping, multi-language analysis, complexity regression checks, diff reviewability, project preflight, and repository-native verification.
+
+It is evidence-driven and fails closed: unparseable source always fails, zero executed verification commands is never "verified", and a missing complexity baseline is reported as unenforced (blocking under `--strict`). Each result carries a `verdict` (`verified`, `failed`, `blocked`, `unverified`), the reasons behind it, and a `scope` block showing exactly what was analyzed. See [docs/enforcement.md](docs/enforcement.md).
 
 > **GRP** (Grammar Refactoring Protocol) is the language-agnostic plan format GIRL emits. **GIRL** (Grammar-Informed Refactoring Language) is the reference CLI.
 
@@ -264,7 +267,7 @@ girl complexity . --lang ts \
   --fail-on regression
 ```
 
-Once the baseline exists, `girl check` enforces the configured complexity policy automatically.
+Once the baseline exists, `girl check` enforces the configured complexity policy automatically. Until it exists, the ratchet is reported as `unenforced` (and blocks under `--strict`); `girl check` never writes a baseline itself.
 
 ## Reviewability
 
@@ -281,7 +284,7 @@ girl pack . --task task_001 --task-file .grp/decomposition.json
 
 GIRL runs locally. Source code does not need to leave the machine.
 
-For sensitive context packs, use the available privacy controls and never include secrets or private evaluation data in generated artifacts.
+For sensitive context packs use `girl pack --privacy redacted|public`. Both sanitize every exported field through a shared sanitizer, omit sensitive files, and refuse to export if a detector still fires. Detection is heuristic, not perfect; see [docs/privacy.md](docs/privacy.md). Never include secrets or private evaluation data in generated artifacts.
 
 ## Development
 
