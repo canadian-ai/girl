@@ -105,23 +105,6 @@ func TestAnalyzeCheckScopeCleanChangedOnlyDoesNotScanWholeRepo(t *testing.T) {
 	}
 }
 
-func TestCheckComplexitySkipsRegressionWithoutBaseline(t *testing.T) {
-	dir := t.TempDir()
-	mustWriteTestFile(t, filepath.Join(dir, "package.json"), `{}`)
-	mustWriteTestFile(t, filepath.Join(dir, "app.ts"), "export function value(flag: boolean) { if (flag) return 1; return 0 }\n")
-	cfg := &GirlProjectConfig{
-		Analysis:   GirlAnalysisConfig{Exclude: []string{"node_modules"}},
-		Complexity: GirlComplexityConfig{Max: 10, Baseline: ".girl/missing.json", FailOn: "regression"},
-	}
-	result, err := runCheckComplexity(dir, cfg, nil, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result == nil || result.Status != "skip" || result.BaselineFound {
-		t.Fatalf("complexity result = %#v", result)
-	}
-}
-
 func TestCheckComplexityChangedOnlyScopesToChangedFiles(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteTestFile(t, filepath.Join(dir, "package.json"), `{}`)

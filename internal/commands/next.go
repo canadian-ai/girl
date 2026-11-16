@@ -165,7 +165,12 @@ func buildNext(path string, opts nextOptions) (*NextResult, error) {
 }
 
 // analyzeScope analyzes a single file directly, or a directory the same way
-// `girl check` does so both commands agree on findings in mixed repos.
+// `girl check` does (same Git scope, same exclusion policy) so both commands
+// agree on findings in mixed repos and nested workspaces.
+//
+// An explicit single-file target is analyzed even when it matches an
+// exclusion: naming a file is an explicit request. Directory targets always
+// honor the nearest .girl/config.yaml exclusions.
 func analyzeScope(path string, changed []string, changedOnly bool) (*ir.AnalyzerResult, error) {
 	if info, err := os.Stat(path); err == nil && !info.IsDir() {
 		return analyzePath(path, resolveLang(path, "auto"))
