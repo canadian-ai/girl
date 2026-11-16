@@ -1,6 +1,10 @@
 package goanalysis
 
-import "go/types"
+import (
+	"go/types"
+
+	"github.com/canadian-ai/girl/internal/shared"
+)
 
 type GoFile struct {
 	Path      string
@@ -33,6 +37,8 @@ type Config struct {
 	MaxParams              int
 	MinSwitchCases         int
 	IgnoredErrorConfidence string
+	// Skip excludes paths (project exclusions) before any file is read.
+	Skip shared.PathFilter
 }
 
 func DefaultConfig() *Config {

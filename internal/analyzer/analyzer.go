@@ -11,6 +11,7 @@ import (
 
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/parsertsx"
+	"github.com/canadian-ai/girl/internal/shared"
 	"github.com/canadian-ai/girl/internal/visitor"
 )
 
@@ -25,6 +26,8 @@ type Config struct {
 	MaxFunctionLines     int
 	MaxComplexity        int
 	ExcludeDirs          []string
+	// Skip excludes paths (project exclusions) before any file is read.
+	Skip shared.PathFilter
 }
 
 func DefaultConfig() *Config {
@@ -68,7 +71,7 @@ func (a *Analyzer) Analyze(path string) (*ir.AnalyzerResult, error) {
 	metrics := newMetricSink(a.config.MaxComplexity)
 	var files []*ir.FileIR
 	if info.IsDir() {
-		files, err = a.parser.ParseDirVisit(path, a.config.ExcludeDirs, metrics.visit)
+		files, err = a.parser.ParseDirVisitFiltered(path, a.config.ExcludeDirs, a.config.Skip, metrics.visit)
 		if err != nil {
 			return nil, err
 		}
@@ -88,6 +91,11 @@ func (a *Analyzer) Analyze(path string) (*ir.AnalyzerResult, error) {
 	}
 
 	diags := a.detectSmells(files)
+	for _, f := range files {
+		if f != nil && f.SyntaxError != nil {
+			diags = append(diags, ir.ParseRecoveryDiagnostic("ts", f.Path, *f.SyntaxError))
+		}
+	}
 	fnDiags := a.detectFunctionSmells(path, files, metrics)
 	if len(fnDiags) > 0 {
 		diags = append(diags, fnDiags...)

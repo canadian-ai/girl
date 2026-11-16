@@ -1,11 +1,15 @@
 package goanalysis
 
 import (
+	"errors"
 	"fmt"
+	"go/importer"
+	"go/scanner"
 	"go/types"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/shared"
@@ -16,41 +20,70 @@ func AnalyzePath(path string, cfg *Config) (*ir.AnalyzerResult, error) {
 		cfg = DefaultConfig()
 	}
 
-	goFiles, err := collectGoFiles(path)
+	goFiles, failures, err := collectGoFilesFiltered(path, cfg.Skip)
 	if err != nil {
 		return nil, err
 	}
 
 	diags := detectDiagnostics(goFiles, cfg)
+	files := fileIRs(goFiles)
+	// Files the parser rejected are reported as blocking diagnostics instead
+	// of disappearing from the scan (a parse failure is not a clean file).
+	for _, f := range failures {
+		diags = append(diags, ir.SyntaxErrorDiagnostic("go", f.Path, *f.SyntaxError))
+		files = append(files, f)
+	}
 	if diags == nil {
 		diags = []ir.Diagnostic{}
 	}
 	sortDiagnostics(diags)
 
 	return &ir.AnalyzerResult{
-		Files:       fileIRs(goFiles),
+		Files:       files,
 		Diagnostics: diags,
 	}, nil
 }
 
 func collectGoFiles(path string) ([]*GoFile, error) {
+	files, _, err := collectGoFilesFiltered(path, nil)
+	return files, err
+}
+
+func collectGoFilesFiltered(path string, skip shared.PathFilter) ([]*GoFile, []*ir.FileIR, error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return nil, fmt.Errorf("cannot access path %s: %w", path, err)
+		return nil, nil, fmt.Errorf("cannot access path %s: %w", path, err)
 	}
 
 	if !info.IsDir() {
-		gf, err := ParseGoFile(path)
+		data, err := os.ReadFile(path)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return []*GoFile{gf}, nil
+		gf, err := parseGoSource(path, data, importer.Default())
+		if err != nil {
+			if se := goSyntaxError(err); se != nil {
+				return nil, []*ir.FileIR{{Path: path, Language: "go", Lines: countLines(data), SyntaxError: se}}, nil
+			}
+			return nil, nil, err
+		}
+		return []*GoFile{gf}, nil, nil
 	}
 
-	return walkGoFiles(path)
+	return walkGoFilesFiltered(path, skip)
 }
 
 func walkGoFiles(path string) ([]*GoFile, error) {
+	files, _, err := walkGoFilesFiltered(path, nil)
+	return files, err
+}
+
+type goParseResult struct {
+	file    *GoFile
+	failure *ir.FileIR
+}
+
+func walkGoFilesFiltered(path string, skip shared.PathFilter) ([]*GoFile, []*ir.FileIR, error) {
 	var paths []string
 	err := filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
@@ -59,25 +92,72 @@ func walkGoFiles(path string) ([]*GoFile, error) {
 		if p != path && shouldSkipWalkEntry(p, fi) {
 			return filepath.SkipDir
 		}
-		if IsGoFile(p) && !shared.IsGeneratedName(p) {
+		if p != path && skip.Skip(p, fi.IsDir()) {
+			if fi.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if IsGoFile(p) && !shared.IsGeneratedName(p) && !shared.IsSymlink(fi) {
 			paths = append(paths, p)
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	std := resolveStdExports(typeCheckImports(paths))
-	goFiles := shared.ParallelMap(paths, std.newImporter, func(imp types.Importer, p string) (*GoFile, bool) {
+	results := shared.ParallelMap(paths, std.newImporter, func(imp types.Importer, p string) (goParseResult, bool) {
 		data, readErr := os.ReadFile(p)
 		if readErr != nil || shared.IsGeneratedSource(data) {
-			return nil, false
+			return goParseResult{}, false
 		}
 		gf, parseErr := parseGoSource(p, data, imp)
-		return gf, parseErr == nil
+		if parseErr != nil {
+			if se := goSyntaxError(parseErr); se != nil {
+				return goParseResult{failure: &ir.FileIR{Path: p, Language: "go", Lines: countLines(data), SyntaxError: se}}, true
+			}
+			return goParseResult{}, false
+		}
+		return goParseResult{file: gf}, true
 	})
-	return goFiles, nil
+	var goFiles []*GoFile
+	var failures []*ir.FileIR
+	for _, r := range results {
+		if r.file != nil {
+			goFiles = append(goFiles, r.file)
+		} else if r.failure != nil {
+			failures = append(failures, r.failure)
+		}
+	}
+	return goFiles, failures, nil
+}
+
+// goSyntaxError extracts the first scanner error position from a go/parser
+// failure, or returns nil when err is not a syntax error.
+func goSyntaxError(err error) *ir.SyntaxError {
+	var list scanner.ErrorList
+	if errors.As(err, &list) && len(list) > 0 {
+		e := list[0]
+		return &ir.SyntaxError{Line: e.Pos.Line, Column: e.Pos.Column, Message: e.Msg}
+	}
+	var single *scanner.Error
+	if errors.As(err, &single) {
+		return &ir.SyntaxError{Line: single.Pos.Line, Column: single.Pos.Column, Message: single.Msg}
+	}
+	return nil
+}
+
+func countLines(data []byte) int {
+	if len(data) == 0 {
+		return 0
+	}
+	n := strings.Count(string(data), "\n")
+	if data[len(data)-1] != '\n' {
+		n++
+	}
+	return n
 }
 
 // shouldSkipWalkEntry also skips testdata, which the go tool ignores: it

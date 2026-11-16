@@ -3,11 +3,12 @@ package rustanalysis
 import (
 	"context"
 	"fmt"
-	"github.com/canadian-ai/girl/internal/shared"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/shared"
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/smacker/go-tree-sitter/rust"
 )
@@ -34,6 +35,9 @@ func ParseRustFile(path string) (*RustFile, error) {
 		Path:    path,
 		Package: detectCrateName(path),
 		Lines:   len(lines),
+	}
+	if line, col, missing, bad := shared.FirstSyntaxError(root); bad {
+		rf.SyntaxError = &ir.SyntaxError{Line: line, Column: col, Message: shared.SyntaxErrorMessage(missing)}
 	}
 
 	// Find all function items and impl blocks
@@ -287,7 +291,7 @@ func IsRustFile(path string) bool {
 	return strings.ToLower(filepath.Ext(path)) == ".rs"
 }
 
-func collectRustFiles(path string) ([]*RustFile, error) {
+func collectRustFiles(path string, skip shared.PathFilter) ([]*RustFile, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot access path %s: %w", path, err)
@@ -301,14 +305,20 @@ func collectRustFiles(path string) ([]*RustFile, error) {
 		return []*RustFile{gf}, nil
 	}
 
-	return walkRustFiles(path)
+	return walkRustFiles(path, skip)
 }
 
-func walkRustFiles(path string) ([]*RustFile, error) {
+func walkRustFiles(path string, skip shared.PathFilter) ([]*RustFile, error) {
 	var paths []string
 	err := filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
+		}
+		if p != path && skip.Skip(p, fi.IsDir()) {
+			if fi.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		if fi.IsDir() {
 			base := filepath.Base(p)
@@ -317,7 +327,7 @@ func walkRustFiles(path string) ([]*RustFile, error) {
 			}
 			return nil
 		}
-		if IsRustFile(p) {
+		if IsRustFile(p) && !shared.IsSymlink(fi) {
 			paths = append(paths, p)
 		}
 		return nil

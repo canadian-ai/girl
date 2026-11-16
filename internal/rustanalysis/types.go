@@ -1,10 +1,17 @@
 package rustanalysis
 
+import (
+	"github.com/canadian-ai/girl/internal/ir"
+	"github.com/canadian-ai/girl/internal/shared"
+)
+
 type RustFile struct {
 	Path      string
 	Package   string
 	Lines     int
 	Functions []RustFunction
+	// SyntaxError is set when tree-sitter had to recover from invalid source.
+	SyntaxError *ir.SyntaxError
 }
 
 type RustFunction struct {
@@ -28,6 +35,8 @@ type Config struct {
 	MaxNesting       int
 	MaxFileLines     int
 	MaxParams        int
+	// Skip excludes paths (project exclusions) before any file is read.
+	Skip shared.PathFilter
 }
 
 func DefaultConfig() *Config {
