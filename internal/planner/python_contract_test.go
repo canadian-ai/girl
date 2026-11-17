@@ -64,9 +64,18 @@ func TestPythonPlanReadiness(t *testing.T) {
 			if r.Ready != tc.wantReady {
 				t.Fatalf("ready=%v want %v: %+v", r.Ready, tc.wantReady, r)
 			}
+			ids := map[string]bool{}
+			for _, d := range gp.Diagnostics {
+				ids[d.ID] = true
+			}
 			for _, u := range gp.Unplanned {
 				if u.DiagnosticID == "" || u.Reason == "" {
 					t.Fatalf("unplanned finding lacks provenance: %+v", u)
+				}
+				// Regression: normalization renumbers diagnostics; unplanned
+				// references must follow, not dangle.
+				if !ids[u.DiagnosticID] {
+					t.Fatalf("unplanned finding references missing diagnostic %q", u.DiagnosticID)
 				}
 			}
 		})

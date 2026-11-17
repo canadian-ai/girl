@@ -21,6 +21,14 @@ func NormalizePlan(p *Plan) {
 	oldToNew := remapDiagIDs(p.Diagnostics)
 	sort.SliceStable(p.Steps, stepLess(p.Steps))
 	renumberSteps(p.Steps, p.Diagnostics, oldToNew)
+	// Unplanned findings reference diagnostics by ID too; keep them pointing
+	// at the same diagnostic after renumbering.
+	for i, u := range p.Unplanned {
+		if newID, ok := oldToNew[u.DiagnosticID]; ok {
+			p.Unplanned[i].DiagnosticID = newID
+		}
+	}
+	sort.SliceStable(p.Unplanned, func(i, j int) bool { return p.Unplanned[i].DiagnosticID < p.Unplanned[j].DiagnosticID })
 
 	if p.Decomposition != nil {
 		sort.SliceStable(p.Decomposition.Tasks, func(i, j int) bool {

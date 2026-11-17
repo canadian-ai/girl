@@ -347,7 +347,7 @@
   "verification": [],
   "unplanned": [
     {
-      "diagnosticId": "diag_4",
+      "diagnosticId": "diag_005",
       "code": "react.complex-conditionals",
       "file": "testdata/golden/react-multi-diag/input/App.tsx",
       "line": 38,
