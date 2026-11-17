@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed (fail-closed enforcement, #119–#126)
+### Fixed
+- GRP plan normalization now remaps `unplanned[].diagnosticId` when it renumbers diagnostics; previously those references pointed at IDs that no longer existed
+
+#### Fail-closed enforcement (#119–#126)
 - `girl check` fails (non-zero exit) on unparseable source in every mode, including `--no-verify`. Python (`ast`) and Go (`go/parser`) failures emit blocking `<lang>.syntax-error` diagnostics with line/column instead of being dropped or downgraded to warnings; a missing `python3` is a blocking `py.analysis-error`. TypeScript/JavaScript and Rust use an error-recovering grammar that rejects some valid source, so they emit advisory `ts.parse-recovery` / `rust.parse-recovery` instead (#119)
 - `verificationRun` is true only when a command actually executed. New `verificationSummary` (verified, failed, not-configured, blocked, skipped) with configured/executed/passed/failed/errored/not-run counts; each command records exit code, `error` for commands that could not start, `not-run` for the `--fail-fast` remainder, and provenance. Discovery errors are surfaced instead of swallowed (#120)
 - Changed-file discovery includes untracked non-ignored files, resolves paths from the Git root and constrains them to the requested subdirectory on segment boundaries, reads NUL-delimited output, skips symlinks, falls back to `origin/<base>`, and reports failures instead of returning an empty scan. `check` and `next` share it (#121)
@@ -17,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A missing, unreadable, corrupt or incompatible complexity baseline is `unenforced` (blocking under `--strict`) with remediation, never a silent `skip`; baseline SHA-256 and schema are attached; non-JS projects report `not-applicable` instead of omitting the result (#125)
 
 ### Added
+- `girl decide` (opt-in, experimental): decision-model extension using TypeSafe's Jev (presets for TypeSafe, AIML API and Eden AI). Decisions can only make GIRL stricter and run in **shadow mode by default** (recorded, no effect)
+  - `triage`: unplanned GRP findings and unmapped SonarQube findings, or `--scope all` to rank every finding by priority; negated-question consistency check; repository signals (span, churn, test presence) without source code
+  - `guard`: checks an agent's diff against its plan step. Deterministic scope, manifest, test-removal and budget rules always run and send nothing; the model is consulted only with `--send-diff`. Verdicts are `no-objection` or `review`, never approval
+  - `outcome`, `eval`, `export`: an append-only decision ledger, measured precision/recall/calibration per signal with threshold suggestions only from 30+ labeled cases, and a feature-plus-label table for tabular models. Agreement with GIRL's own recipes is recorded automatically as ground truth
+  - `decisions:` section in `.girl/config.yaml`, `girl receipt --decisions`, and `girl serve --decisions` (`POST /v1/decide/triage`)
 - `girl check --strict` (implied by `--ci`) and an evidence `verdict` (`verified`, `failed`, `blocked`, `unverified`) with `reasons`; invalid config values are reported in `configProblems`
 - Repo-native Python verification detection (`compileall`; `pytest`, `ruff`, `mypy` only when declared)
 - Read-only SonarQube provider and `girl sonar status|issues|verify`: normalized findings with provenance, bounded GRP action proposals, and remediation receipts tied to a fresh scan of the fixing revision. Mock-tested against the documented Web API; not yet validated against a live instance (#126)
