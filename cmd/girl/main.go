@@ -43,6 +43,7 @@ func main() {
 			commands.WorkOrderCommand(),
 			commands.LaunchKitCommand(),
 			commands.SonarCommand(),
+			commands.DecideCommand(),
 			commands.VersionCommand(),
 			commands.UpdateCommand(),
 		},

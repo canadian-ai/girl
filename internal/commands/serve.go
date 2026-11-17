@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/canadian-ai/girl/internal/extensions/decisions"
 	"github.com/canadian-ai/girl/internal/ir"
 	"github.com/canadian-ai/girl/internal/proof"
 	"github.com/canadian-ai/girl/internal/shared"
@@ -36,11 +37,18 @@ func ServeCommand() *cli.Command {
 			&cli.StringFlag{Name: "addr", Value: "127.0.0.1:7777", Usage: "Listen address (loopback by default)"},
 			&cli.StringFlag{Name: "root", Value: ".", Usage: "Directory requests may analyze"},
 			&cli.IntFlag{Name: "max-concurrent", Value: 2, Usage: "Analyses run at once; further requests queue"},
+			&cli.BoolFlag{Name: "decisions", Usage: "Also serve POST /v1/decide/triage (opt-in: sends finding metadata to the configured decision model)"},
 		},
 		Action: func(c *cli.Context) error {
 			srv, err := newAnalysisServer(stringFlag(c, "root"), intFlag(c, "max-concurrent"), c.App)
 			if err != nil {
 				return err
+			}
+			if c.Bool("decisions") {
+				if err := srv.enableDecisions(); err != nil {
+					return err
+				}
+				fmt.Fprintf(os.Stderr, "girl serve: decisions enabled (%s mode) via %s\n", srv.decide.settings.Mode, srv.decide.host)
 			}
 			addr := stringFlag(c, "addr")
 			ln, err := net.Listen("tcp", addr)
@@ -71,6 +79,9 @@ type analysisServer struct {
 	root  string
 	slots chan struct{}
 	caps  Capabilities
+	// decide is nil unless the server was started with --decisions. Without
+	// it the server never contacts a decision model.
+	decide *decideBackend
 }
 
 func newAnalysisServer(root string, maxConcurrent int, app *cli.App) (*analysisServer, error) {
@@ -101,6 +112,9 @@ func (s *analysisServer) routes() http.Handler {
 	})
 	mux.HandleFunc("POST /v1/next", s.handleNext)
 	mux.HandleFunc("POST /v1/benchmark", s.handleBenchmark)
+	if s.decide != nil {
+		mux.HandleFunc("POST /v1/decide/triage", s.handleDecideTriage)
+	}
 	return mux
 }
 
@@ -250,3 +264,65 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
+
+// decideBackend is the decision provider behind /v1/decide/triage.
+type decideBackend struct {
+	provider decisions.Provider
+	host     string
+	model    string
+	settings *decisionSettings
+	ledger   *decisions.Ledger
+}
+
+func (s *analysisServer) enableDecisions() error {
+	settings, err := resolveDecisionSettings(nil, s.root)
+	if err != nil {
+		return err
+	}
+	if settings.Mode == decisions.ModeOff {
+		return fmt.Errorf("decisions are disabled (decisions.mode: off in .girl/config.yaml)")
+	}
+	provider, jev, err := newDecisionProvider(settings, false)
+	if err != nil {
+		return err
+	}
+	ledgerPath, err := decisions.DefaultLedgerPath(s.root)
+	if err != nil {
+		return err
+	}
+	s.decide = &decideBackend{provider: provider, host: jev.Host(), model: jev.Model(), settings: settings, ledger: &decisions.Ledger{Path: ledgerPath}}
+	return nil
+}
+
+// DecideTriageRequest carries a GRP plan (or girl sonar issues output).
+type DecideTriageRequest struct {
+	Plan  jsontext.Value `json:"plan"`
+	Scope string         `json:"scope"`
+}
+
+func (s *analysisServer) handleDecideTriage(w http.ResponseWriter, r *http.Request) {
+	var req DecideTriageRequest
+	if !decodeRequest(w, r, &req) {
+		return
+	}
+	if req.Scope == "" {
+		req.Scope = "unplanned"
+	}
+	if req.Scope != "unplanned" && req.Scope != "all" {
+		writeError(w, http.StatusBadRequest, "scope must be unplanned or all")
+		return
+	}
+	if len(req.Plan) == 0 {
+		writeError(w, http.StatusBadRequest, "plan is required")
+		return
+	}
+	s.run(w, r, func() (any, int, error) {
+		d := s.decide
+		report, err := triageDocument(r.Context(), d.provider, d.host, d.model, []byte(req.Plan), d.settings,
+			triageOptions{Scope: req.Scope, Signals: true, RepoRoot: s.root, Ledger: d.ledger})
+		if err != nil {
+			return nil, 0, err
+		}
+		return report, len(report.Entries), nil
+	})
+}

@@ -35,9 +35,78 @@ type Receipt struct {
 		ContentHash  string        `json:"contentHash"`
 	} `json:"diff"`
 
+	// Decisions are decision-model records that informed this change, so an
+	// audit can see which model version said what and whether it had effect.
+	Decisions []ReceiptDecision `json:"decisions,omitempty"`
+
 	PlanRef  string            `json:"planRef,omitempty"`
 	Verify   *verifier.VerifyResult `json:"verify,omitempty"`
 	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
+// ReceiptDecision is the audit summary of one decision-model record.
+type ReceiptDecision struct {
+	Subject      string   `json:"subject"` // "triage" or "guard"
+	Fingerprint  string   `json:"fingerprint"`
+	Code         string   `json:"code,omitempty"`
+	Model        string   `json:"model,omitempty"`
+	InputHash    string   `json:"inputHash,omitempty"`
+	Mode         string   `json:"mode"`
+	Effects      []string `json:"effects,omitempty"`
+	WouldEffects []string `json:"wouldEffects,omitempty"`
+	Verdict      string   `json:"verdict,omitempty"`
+}
+
+// receiptDecisions reads `girl decide triage -o json` or `girl decide guard
+// -o json` output.
+func receiptDecisions(path string) ([]ReceiptDecision, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read decisions file: %w", err)
+	}
+	var doc struct {
+		Entries []struct {
+			Triage *struct {
+				Fingerprint  string   `json:"fingerprint"`
+				Code         string   `json:"code"`
+				Model        string   `json:"model"`
+				InputHash    string   `json:"inputHash"`
+				Mode         string   `json:"mode"`
+				Effects      []string `json:"effects"`
+				WouldEffects []string `json:"wouldEffects"`
+				Abstained    bool     `json:"abstained"`
+			} `json:"triage"`
+		} `json:"entries"`
+		// guard result
+		Fingerprint  string   `json:"fingerprint"`
+		StepID       string   `json:"stepId"`
+		Verdict      string   `json:"verdict"`
+		Mode         string   `json:"mode"`
+		Model        string   `json:"model"`
+		InputHash    string   `json:"inputHash"`
+		RuleReasons  []string `json:"ruleReasons"`
+		ModelReasons []string `json:"modelReasons"`
+		WouldReasons []string `json:"wouldReasons"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("parse decisions file: %w", err)
+	}
+	var out []ReceiptDecision
+	for _, e := range doc.Entries {
+		if t := e.Triage; t != nil && !t.Abstained {
+			out = append(out, ReceiptDecision{Subject: "triage", Fingerprint: t.Fingerprint, Code: t.Code, Model: t.Model,
+				InputHash: t.InputHash, Mode: t.Mode, Effects: t.Effects, WouldEffects: t.WouldEffects})
+		}
+	}
+	if doc.StepID != "" && doc.Verdict != "" {
+		out = append(out, ReceiptDecision{Subject: "guard", Fingerprint: doc.Fingerprint, Code: doc.StepID, Model: doc.Model,
+			InputHash: doc.InputHash, Mode: doc.Mode, Verdict: doc.Verdict,
+			Effects: append(append([]string{}, doc.RuleReasons...), doc.ModelReasons...), WouldEffects: doc.WouldReasons})
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("decisions file has no decision records; pass girl decide triage/guard -o json output")
+	}
+	return out, nil
 }
 
 func ReceiptCommand() *cli.Command {
@@ -63,6 +132,10 @@ func ReceiptCommand() *cli.Command {
 				Name:    "verify",
 				Aliases: []string{"v"},
 				Usage:   "Path to verification result JSON file",
+			},
+			&cli.StringSliceFlag{
+				Name:  "decisions",
+				Usage: "Decision records to attach (girl decide triage/guard -o json output); repeatable",
 			},
 			&cli.StringFlag{
 				Name:    "output",
@@ -130,6 +203,13 @@ func ReceiptCommand() *cli.Command {
 			r.Diff.ContentHash = contentHash
 			r.PlanRef = planRef
 			r.Verify = verifyResult
+			for _, path := range c.StringSlice("decisions") {
+				recs, err := receiptDecisions(path)
+				if err != nil {
+					return err
+				}
+				r.Decisions = append(r.Decisions, recs...)
+			}
 
 			outputFile := c.String("output-file")
 			if outputFile != "" {
