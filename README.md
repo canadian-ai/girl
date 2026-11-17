@@ -282,7 +282,7 @@ girl pack . --task task_001 --task-file .grp/decomposition.json
 
 ## Privacy
 
-GIRL runs locally. Source code does not need to leave the machine.
+GIRL runs locally. Source code does not need to leave the machine. The one exception is opt-in: `girl decide` sends finding metadata to a hosted decision model when you run it, and sanitized diff text only if you pass `--send-diff`; see [docs/extensions/decisions.md](docs/extensions/decisions.md).
 
 For sensitive context packs use `girl pack --privacy redacted|public`. Both sanitize every exported field through a shared sanitizer, omit sensitive files, and refuse to export if a detector still fires. Detection is heuristic, not perfect; see [docs/privacy.md](docs/privacy.md). Never include secrets or private evaluation data in generated artifacts.
 

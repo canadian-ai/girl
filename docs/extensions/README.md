@@ -32,6 +32,11 @@ proposes bounded actions and issues remediation receipts; it is mock-tested
 against the documented Web API but not yet validated against a live instance.
 See [sonarqube.md](sonarqube.md).
 
+An opt-in decision-model extension (`internal/extensions/decisions`,
+`girl decide`) triages findings and guards agent changes using TypeSafe's Jev.
+Its answers can only make GIRL stricter, run in shadow mode by default, and
+are measured against recorded outcomes. See [decisions.md](decisions.md).
+
 Ruff/Clippy subprocesses, interactive grill CLI, recipe executor, CI
 enforcement and verified cloud-agent execution are NOT yet implemented.
 
