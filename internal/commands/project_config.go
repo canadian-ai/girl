@@ -24,6 +24,7 @@ type GirlProjectConfig struct {
 	Reviewability GirlReviewabilityConfig
 	Verify        map[string][]string
 	Agents        map[string]bool
+	Decisions     GirlDecisionsConfig
 
 	// VerifySource is "config" when verification commands came from
 	// .girl/config.yaml and "detected" when inferred from repo-native files.
@@ -49,6 +50,20 @@ type GirlComplexityConfig struct {
 	Max      int
 	Baseline string
 	FailOn   string
+}
+
+// GirlDecisionsConfig configures the opt-in decision-model extension. Zero
+// values mean "use the default"; Mode defaults to shadow.
+type GirlDecisionsConfig struct {
+	Mode                     string // off, shadow (default) or enforce
+	Provider                 string
+	Model                    string
+	MaxFindings              int
+	Consistency              *bool
+	MinRecipeConfidence      float64
+	ReviewProbability        float64
+	HighRiskProbability      float64
+	FalsePositiveProbability float64
 }
 
 type GirlReviewabilityConfig struct {
@@ -206,6 +221,13 @@ func renderGirlProjectConfig(cfg *GirlProjectConfig) string {
 	for _, name := range []string{"opencode", "codex", "claude"} {
 		fmt.Fprintf(&b, "  %s: %t\n", name, cfg.Agents[name])
 	}
+	// Decision models are opt-in (`girl decide`). Shadow records answers
+	// without letting them change anything.
+	mode := cfg.Decisions.Mode
+	if mode == "" {
+		mode = "shadow"
+	}
+	fmt.Fprintf(&b, "decisions:\n  mode: %s\n", mode)
 	return b.String()
 }
 
@@ -332,6 +354,43 @@ func loadGirlProjectConfig(path string) (*GirlProjectConfig, error) {
 			}
 		case "agents":
 			cfg.Agents[k] = parseBool("agents."+k, v)
+		case "decisions":
+			parseProb := func(key string) float64 {
+				f, err := strconv.ParseFloat(v, 64)
+				if err != nil || f < 0 || f > 1 {
+					problem("decisions.%s: expected a probability between 0 and 1, got %q", key, v)
+					return 0
+				}
+				return f
+			}
+			switch k {
+			case "mode":
+				switch strings.ToLower(v) {
+				case "off", "shadow", "enforce":
+					cfg.Decisions.Mode = strings.ToLower(v)
+				default:
+					problem("decisions.mode: expected off, shadow or enforce, got %q", v)
+				}
+			case "provider":
+				cfg.Decisions.Provider = v
+			case "model":
+				cfg.Decisions.Model = v
+			case "max_findings":
+				cfg.Decisions.MaxFindings = parseInt("decisions.max_findings", v)
+			case "consistency":
+				b := parseBool("decisions.consistency", v)
+				cfg.Decisions.Consistency = &b
+			case "min_recipe_confidence":
+				cfg.Decisions.MinRecipeConfidence = parseProb(k)
+			case "review_probability":
+				cfg.Decisions.ReviewProbability = parseProb(k)
+			case "high_risk_probability":
+				cfg.Decisions.HighRiskProbability = parseProb(k)
+			case "false_positive_probability":
+				cfg.Decisions.FalsePositiveProbability = parseProb(k)
+			default:
+				problem("decisions.%s: unknown setting", k)
+			}
 		}
 	}
 	if err := scanner.Err(); err != nil {
